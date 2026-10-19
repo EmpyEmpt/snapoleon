@@ -37,8 +37,7 @@ impl Client {
         if let Some(stripped) = base.strip_suffix("/chat/completions") {
             base = stripped.to_owned();
         }
-        let backend =
-            if host_of(&base).eq_ignore_ascii_case(ANTHROPIC_HOST) { Backend::Anthropic } else { Backend::OpenAi };
+        let backend = if host_of(&base).eq_ignore_ascii_case(ANTHROPIC_HOST) { Backend::Anthropic } else { Backend::OpenAi };
         if backend == Backend::Anthropic {
             if let Some(stripped) = base.strip_suffix("/messages") {
                 base = stripped.to_owned();
@@ -61,9 +60,7 @@ impl Client {
     pub fn chat(&self, model: &str, system: &str, user: &[Part], max_tokens: u32) -> Result<String> {
         let (url, body) = match self.backend {
             Backend::OpenAi => (format!("{}/chat/completions", self.base), openai_body(model, system, user, true)),
-            Backend::Anthropic => {
-                (format!("{}/messages", self.base), anthropic_body(model, system, user, max_tokens))
-            }
+            Backend::Anthropic => (format!("{}/messages", self.base), anthropic_body(model, system, user, max_tokens)),
         };
         tracing::debug!(%url, model, parts = user.len(), "ai request");
         let (mut status, mut text) = self.post_json(&url, &body)?;
@@ -104,12 +101,9 @@ impl Client {
         if ids.len() > shown.len() {
             list.push_str(", …");
         }
-        let mut out =
-            tf("ai.test.ok", &[("endpoint", &self.base), ("count", &ids.len().to_string()), ("models", &list)]);
-        let mut missing: Vec<&str> = [model, vision_model]
-            .into_iter()
-            .filter(|m| !m.is_empty() && !ids.iter().any(|id| model_matches(id, m)))
-            .collect();
+        let mut out = tf("ai.test.ok", &[("endpoint", &self.base), ("count", &ids.len().to_string()), ("models", &list)]);
+        let mut missing: Vec<&str> =
+            [model, vision_model].into_iter().filter(|m| !m.is_empty() && !ids.iter().any(|id| model_matches(id, m))).collect();
         missing.dedup();
         if !missing.is_empty() {
             out.push('\n');
@@ -128,9 +122,9 @@ impl Client {
         let status = resp.status().as_u16();
         let text = read_body(&mut resp)?;
         if !(200..300).contains(&status) {
-            return Err(http_error(status, &text));
+            return Err(http_error_for("ai.error.service_http", status, &text));
         }
-        serde_json::from_str(&text).map_err(|_| Error::Network(t("ai.error.bad_response").into_owned()))
+        serde_json::from_str(&text).map_err(|_| Error::Network(t("ai.error.service_bad_response").into_owned()))
     }
 
     fn post_json(&self, url: &str, body: &Value) -> Result<(u16, String)> {
@@ -177,8 +171,13 @@ fn unreachable_error(url: &str, e: ureq::Error) -> Error {
 }
 
 fn http_error(status: u16, body: &str) -> Error {
+    http_error_for("ai.error.http", status, body)
+}
+
+/// A failed reply, worded for the service that sent it (`key` names the message).
+fn http_error_for(key: &str, status: u16, body: &str) -> Error {
     let message = error_message(body).unwrap_or_else(|| body.chars().take(200).collect());
-    Error::Network(tf("ai.error.http", &[("status", &status.to_string()), ("message", message.trim())]))
+    Error::Network(tf(key, &[("status", &status.to_string()), ("message", message.trim())]))
 }
 
 fn error_message(body: &str) -> Option<String> {
@@ -193,10 +192,7 @@ fn error_message(body: &str) -> Option<String> {
 
 fn openai_body(model: &str, system: &str, user: &[Part], with_temperature: bool) -> Value {
     let content = if user.iter().all(|p| matches!(p, Part::Text(_))) {
-        let texts: Vec<&str> = user
-            .iter()
-            .filter_map(|p| if let Part::Text(s) = p { Some(s.as_str()) } else { None })
-            .collect();
+        let texts: Vec<&str> = user.iter().filter_map(|p| if let Part::Text(s) = p { Some(s.as_str()) } else { None }).collect();
         Value::String(texts.join("\n\n"))
     } else {
         Value::Array(
@@ -249,9 +245,7 @@ fn openai_reply(body: &str) -> Option<String> {
     let v: Value = serde_json::from_str(body).ok()?;
     match v.pointer("/choices/0/message/content")? {
         Value::String(s) => Some(s.clone()),
-        Value::Array(parts) => {
-            Some(parts.iter().filter_map(|p| p.get("text").and_then(Value::as_str)).collect::<Vec<_>>().join(""))
-        }
+        Value::Array(parts) => Some(parts.iter().filter_map(|p| p.get("text").and_then(Value::as_str)).collect::<Vec<_>>().join("")),
         _ => None,
     }
 }
@@ -272,11 +266,7 @@ fn anthropic_reply(body: &str) -> Option<String> {
 fn model_ids(body: &str) -> Vec<String> {
     let Ok(v) = serde_json::from_str::<Value>(body) else { return Vec::new() };
     let list = v.get("data").or_else(|| v.get("models")).and_then(Value::as_array);
-    list.into_iter()
-        .flatten()
-        .filter_map(|m| m.get("id").or_else(|| m.get("name")).and_then(Value::as_str))
-        .map(str::to_owned)
-        .collect()
+    list.into_iter().flatten().filter_map(|m| m.get("id").or_else(|| m.get("name")).and_then(Value::as_str)).map(str::to_owned).collect()
 }
 
 /// Ollama lists `qwen3:8b` and also accepts `qwen3`; LM Studio may prefix publishers.

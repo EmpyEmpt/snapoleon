@@ -1,11 +1,14 @@
 //! What happens when you act on captures: the work (on threads) and what the view does with the answers.
 
-use std::path::{Path, PathBuf};
+use std::{
+    path::{Path, PathBuf},
+    time::Duration,
+};
 
 use egui::ColorImage;
 use snap_core::{CaptureKind, Error, t};
 use snap_history::Entry;
-use snap_ui::ToastKind;
+use snap_ui::{Toast, ToastKind};
 
 use super::{Act, LibraryView, Load, Msg, PREVIEW_EDGE, format, paint};
 use crate::{commands::Command, views::ViewCx};
@@ -119,10 +122,13 @@ impl LibraryView {
                 }
                 let engine = cx.engine.clone();
                 let format = cx.settings.links.copy_format;
-                cx.toast(ToastKind::Info, t("library.upload.started"));
+                let toast = Toast::new(ToastKind::Info, t("library.upload.started")).lifetime(Duration::from_secs(120)).progress(0.0);
+                self.upload_toast = Some(cx.toasts.push_toast(toast));
+                let handle = cx.handle();
                 cx.spawn(move || {
                     let ids = targets.iter().map(|e| e.id.0.clone()).collect();
-                    Msg::Uploaded { ids, result: upload(&engine, &targets, format) }
+                    let progress = |frac: f32| handle.send(Msg::UploadProgress(frac));
+                    Msg::Uploaded { ids, result: upload(&engine, &targets, format, &progress) }
                 });
             }
             Act::Recognize => {
@@ -237,9 +243,18 @@ impl LibraryView {
                 }
             }
             Msg::Done(Err(e)) => cx.toast_error(&e),
+            Msg::UploadProgress(frac) => {
+                if let Some(id) = self.upload_toast {
+                    let toast = Toast::new(ToastKind::Info, t("library.upload.started")).lifetime(Duration::from_secs(120)).progress(frac);
+                    cx.toasts.update(id, toast);
+                }
+            }
             Msg::Uploaded { ids, result } => {
                 for id in &ids {
                     self.uploading.remove(id);
+                }
+                if let Some(id) = self.upload_toast.take() {
+                    cx.toasts.dismiss(id);
                 }
                 match result {
                     Ok(done) => {
@@ -276,11 +291,17 @@ fn copy_files(entries: &[Entry]) -> Result<(), Error> {
 }
 
 /// Upload each capture, put the links on the clipboard in the configured format and re-read the entries.
-fn upload(engine: &snap_engine::Engine, entries: &[Entry], format: snap_core::settings::LinkFormat) -> Result<Uploaded, Error> {
+fn upload(
+    engine: &snap_engine::Engine,
+    entries: &[Entry],
+    format: snap_core::settings::LinkFormat,
+    progress: &dyn Fn(f32),
+) -> Result<Uploaded, Error> {
     let mut links = Vec::new();
-    for entry in entries {
+    for (i, entry) in entries.iter().enumerate() {
         let file = saved_file(entry)?;
-        let link = engine.upload_file(&file, None, Some(&entry.id), &|_, _| {})?;
+        let of_all = |sent: u64, total: u64| progress((i as f32 + sent as f32 / total.max(1) as f32) / entries.len() as f32);
+        let link = engine.upload_file(&file, None, Some(&entry.id), &of_all)?;
         let image = entry.kind != CaptureKind::Recording;
         links.push((snap_upload::format_link(link.best(), format, Some(&paint::title_of(entry)), image), link.best().to_owned()));
     }

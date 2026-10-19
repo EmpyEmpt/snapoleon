@@ -1,18 +1,13 @@
 //! Media Foundation: H.264/AAC MP4 encoding (hardware MFT when available) and decoding.
 
-use std::{
-    ffi::c_void,
-    path::Path,
-    ptr,
-    sync::Arc,
-};
+use std::{ffi::c_void, path::Path, ptr, sync::Arc};
 
 use anyhow::anyhow;
 use snap_core::{Error, Result, settings::EncoderPref};
 use windows::{
     Win32::{
         Media::MediaFoundation::*,
-        System::Com::{CoInitializeEx, CoTaskMemFree, CoUninitialize, COINIT_MULTITHREADED},
+        System::Com::{COINIT_MULTITHREADED, CoInitializeEx, CoTaskMemFree, CoUninitialize},
     },
     core::{GUID, HSTRING, PWSTR},
 };
@@ -245,7 +240,9 @@ pub(crate) fn native_encoders() -> Vec<EncoderInfo> {
     let Ok(_init) = MfInit::new() else { return Vec::new() };
     let mut out = Vec::new();
     let output = MFT_REGISTER_TYPE_INFO { guidMajorType: MFMediaType_Video, guidSubtype: MFVideoFormat_H264 };
-    for (flags, hardware) in [(MFT_ENUM_FLAG_HARDWARE | MFT_ENUM_FLAG_SORTANDFILTER, true), (MFT_ENUM_FLAG_SYNCMFT | MFT_ENUM_FLAG_SORTANDFILTER, false)] {
+    for (flags, hardware) in
+        [(MFT_ENUM_FLAG_HARDWARE | MFT_ENUM_FLAG_SORTANDFILTER, true), (MFT_ENUM_FLAG_SYNCMFT | MFT_ENUM_FLAG_SORTANDFILTER, false)]
+    {
         let mut list: *mut Option<IMFActivate> = ptr::null_mut();
         let mut count = 0u32;
         // SAFETY: MFTEnumEx allocates `list`; each activate is released and the array freed.
@@ -283,7 +280,6 @@ pub(crate) struct MfDecoder {
     info: VideoInfo,
     w: u32,
     h: u32,
-    bottom_up: bool,
     video_stream: Option<u32>,
     audio: bool,
     video_eos: bool,
@@ -300,9 +296,11 @@ impl MfDecoder {
             MFCreateAttributes(&mut attrs, 2).map_err(mf)?;
             let attrs = attrs.ok_or_else(|| Error::Other(anyhow!("MFCreateAttributes returned nothing")))?;
             attrs.SetUINT32(&MF_SOURCE_READER_ENABLE_VIDEO_PROCESSING, 1).map_err(mf)?;
-            let reader = MFCreateSourceReaderFromURL(&hstr(path), &attrs).map_err(|e| Error::NotFound(format!("{}: {e}", path.display())))?;
+            let reader =
+                MFCreateSourceReaderFromURL(&hstr(path), &attrs).map_err(|e| Error::NotFound(format!("{}: {e}", path.display())))?;
 
-            let native = reader.GetNativeMediaType(FIRST_VIDEO, 0).map_err(|_| Error::invalid(format!("{} has no video track", path.display())))?;
+            let native =
+                reader.GetNativeMediaType(FIRST_VIDEO, 0).map_err(|_| Error::invalid(format!("{} has no video track", path.display())))?;
             let fps = native.GetUINT64(&MF_MT_FRAME_RATE).map(|r| (r >> 32) as f32 / (r as u32).max(1) as f32).unwrap_or(30.0);
 
             let want = MFCreateMediaType().map_err(mf)?;
@@ -311,7 +309,6 @@ impl MfDecoder {
             reader.SetCurrentMediaType(FIRST_VIDEO, None, &want).map_err(mf)?;
             let current = reader.GetCurrentMediaType(FIRST_VIDEO).map_err(mf)?;
             let size = current.GetUINT64(&MF_MT_FRAME_SIZE).map_err(mf)?;
-            let bottom_up = current.GetUINT32(&MF_MT_DEFAULT_STRIDE).map(|s| (s as i32) < 0).unwrap_or(true);
 
             let has_audio = reader.GetNativeMediaType(FIRST_AUDIO, 0).is_ok();
             let audio = has_audio && with_audio;
@@ -332,7 +329,8 @@ impl MfDecoder {
                 reader.SetStreamSelection(FIRST_AUDIO, true).map_err(mf)?;
             }
 
-            let duration = reader.GetPresentationAttribute(MEDIA_SOURCE, &MF_PD_DURATION).ok().and_then(|v| u64::try_from(&v).ok()).unwrap_or(0);
+            let duration =
+                reader.GetPresentationAttribute(MEDIA_SOURCE, &MF_PD_DURATION).ok().and_then(|v| u64::try_from(&v).ok()).unwrap_or(0);
             let (w, h) = ((size >> 32) as u32, size as u32);
             Ok(Self {
                 video_stream: find_stream(&reader, &MFMediaType_Video),
@@ -340,7 +338,6 @@ impl MfDecoder {
                 info: VideoInfo { duration_ms: duration / 10_000, width: w, height: h, fps, has_audio },
                 w,
                 h,
-                bottom_up,
                 audio,
                 video_eos: false,
                 audio_eos: !audio,
@@ -353,15 +350,22 @@ impl MfDecoder {
         // SAFETY: the contiguous buffer is locked while its bytes are copied out.
         unsafe {
             let buf = sample.ConvertToContiguousBuffer().map_err(mf)?;
+            // The decoder hands out padded pictures (1008x576 for a 1000x562 clip) and says so only in the
+            // stream's current media type, which changes after the first sample: read the stride from there.
+            let current = self.reader.GetCurrentMediaType(FIRST_VIDEO).map_err(mf)?;
+            let signed = current.GetUINT32(&MF_MT_DEFAULT_STRIDE).map(|s| s as i32).unwrap_or(self.w as i32 * 4);
+            let (stride, bottom_up) = (signed.unsigned_abs() as usize, signed < 0);
+            let row = self.w as usize * 4;
             let (mut p, mut len) = (ptr::null_mut::<u8>(), 0u32);
             buf.Lock(&mut p, None, Some(&mut len)).map_err(mf)?;
-            let stride = self.w as usize * 4;
-            let rows = (len as usize / stride).min(self.h as usize);
             let src = std::slice::from_raw_parts(p, len as usize);
-            let mut data = vec![0u8; stride * self.h as usize];
-            for y in 0..rows {
-                let from = if self.bottom_up { rows - 1 - y } else { y };
-                data[y * stride..(y + 1) * stride].copy_from_slice(&src[from * stride..(from + 1) * stride]);
+            let memory_rows = len as usize / stride.max(1);
+            let mut data = vec![0u8; row * self.h as usize];
+            for (y, out) in data.chunks_exact_mut(row).enumerate() {
+                let from = if bottom_up { memory_rows.saturating_sub(1 + y) } else { y };
+                if let Some(line) = src.get(from * stride..from * stride + row) {
+                    out.copy_from_slice(line);
+                }
             }
             buf.Unlock().map_err(mf)?;
             data.iter_mut().skip(3).step_by(4).for_each(|a| *a = 255);
@@ -402,7 +406,8 @@ impl Decoder for MfDecoder {
             let (mut stream, mut flags, mut ts) = (0u32, 0u32, 0i64);
             let mut sample: Option<IMFSample> = None;
             // SAFETY: all out-parameters are valid locals.
-            unsafe { self.reader.ReadSample(ANY_STREAM, 0, Some(&mut stream), Some(&mut flags), Some(&mut ts), Some(&mut sample)) }.map_err(mf)?;
+            unsafe { self.reader.ReadSample(ANY_STREAM, 0, Some(&mut stream), Some(&mut flags), Some(&mut ts), Some(&mut sample)) }
+                .map_err(mf)?;
             let video = Some(stream) == self.video_stream;
             if flags & MF_SOURCE_READERF_ENDOFSTREAM.0 as u32 != 0 {
                 if video {
@@ -412,7 +417,11 @@ impl Decoder for MfDecoder {
                 }
             }
             let Some(sample) = sample else { continue };
-            return Ok(Some(if video { Decoded::Video(self.video_frame(&sample)?, ts) } else { Decoded::Audio(Self::audio_samples(&sample)?, ts) }));
+            return Ok(Some(if video {
+                Decoded::Video(self.video_frame(&sample)?, ts)
+            } else {
+                Decoded::Audio(Self::audio_samples(&sample)?, ts)
+            }));
         }
         Ok(None)
     }
@@ -421,7 +430,9 @@ impl Decoder for MfDecoder {
 /// Index of the first stream with the given major type.
 fn find_stream(reader: &IMFSourceReader, major: &GUID) -> Option<u32> {
     // SAFETY: probing stream types; an invalid index ends the scan.
-    (0..32).take_while(|&i| unsafe { reader.GetNativeMediaType(i, 0) }.is_ok()).find(|&i| unsafe { reader.GetNativeMediaType(i, 0).and_then(|t| t.GetGUID(&MF_MT_MAJOR_TYPE)) }.is_ok_and(|g| g == *major))
+    (0..32)
+        .take_while(|&i| unsafe { reader.GetNativeMediaType(i, 0) }.is_ok())
+        .find(|&i| unsafe { reader.GetNativeMediaType(i, 0).and_then(|t| t.GetGUID(&MF_MT_MAJOR_TYPE)) }.is_ok_and(|g| g == *major))
 }
 
 pub(crate) fn open_decoder(path: &Path, with_audio: bool) -> Result<Box<dyn Decoder>> {

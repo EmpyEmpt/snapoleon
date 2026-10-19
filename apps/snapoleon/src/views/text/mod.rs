@@ -4,7 +4,7 @@
 use std::{any::Any, path::PathBuf};
 
 use egui::{Context, Frame, Id, Key, Margin, Modifiers, Rect, RichText, ScrollArea, Sense, Stroke, TextEdit, Ui, UiBuilder, Vec2};
-use snap_core::{Error, t, tf};
+use snap_core::{Error, settings::TranslateProvider, t, tf};
 use snap_ocr::codes::Code;
 use snap_ui::{
     Palette, ToastKind, icon,
@@ -17,7 +17,7 @@ use super::{
     library::{menu, paint},
     window_spec,
 };
-use crate::commands::Command;
+use crate::{commands::Command, views::settings::SettingsPage};
 
 mod table;
 
@@ -33,6 +33,15 @@ const SIDE_BY_SIDE: f32 = 700.0;
 
 pub fn open(cx: &mut OpenCx, title: String, text: String) {
     open_with_codes(cx, title, text, Vec::new());
+}
+
+/// Whether translating can work at all: a service is chosen, and when that service is the AI endpoint, AI is set up.
+pub fn translation_ready(settings: &snap_core::Settings) -> bool {
+    match settings.translate.provider {
+        TranslateProvider::None => false,
+        TranslateProvider::Ai => settings.ai.enabled && !settings.ai.endpoint.trim().is_empty() && !settings.ai.model.trim().is_empty(),
+        TranslateProvider::LibreTranslate { .. } | TranslateProvider::DeepL { .. } => true,
+    }
 }
 
 /// Like [`open`], with decoded QR codes and barcodes listed above the text.
@@ -111,6 +120,15 @@ impl TextView {
 
     fn translate(&mut self, cx: &mut ViewCx) {
         if self.translating || self.text.trim().is_empty() {
+            return;
+        }
+        if !translation_ready(cx.settings) {
+            cx.toast_action(
+                ToastKind::Info,
+                t("text.translate_off"),
+                t("text.translate_setup"),
+                Command::OpenSettings { page: Some(SettingsPage::TextAi) },
+            );
             return;
         }
         self.translating = true;

@@ -11,7 +11,10 @@ use snap_ui::{
 };
 
 use super::{PanelCx, empty, field};
-use crate::{commands::Command, views::editor::output::Msg};
+use crate::{
+    commands::Command,
+    views::{editor::output::Msg, settings::SettingsPage},
+};
 
 enum Job {
     Idle,
@@ -203,6 +206,13 @@ fn result_ui(ui: &mut Ui, st: &mut State, cx: &mut PanelCx) -> Option<RectF> {
                 spinner(ui);
                 ui.label(text::dim(t("editor.ocr.translating")));
             });
+        }
+        _ if !crate::views::text::translation_ready(cx.vcx.settings) => {
+            ui.add(egui::Label::new(text::dim(t("editor.ocr.translate_off"))).wrap());
+            let setup = ui.add(Button::new(&t("editor.ocr.translate_setup")).icon(icon::GEAR).kind(ButtonKind::Secondary));
+            if setup.clicked() {
+                cx.vcx.push(Command::OpenSettings { page: Some(SettingsPage::TextAi) });
+            }
         }
         _ => {
             let label = tf("editor.ocr.translate_to", &[("lang", &target)]);

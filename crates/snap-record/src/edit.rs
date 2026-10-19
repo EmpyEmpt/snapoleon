@@ -3,12 +3,7 @@
 //! ffmpeg is used when it can be found; otherwise the native decoder/encoder
 //! pair of the platform (Media Foundation on Windows) does the work.
 
-use std::{
-    ffi::OsString,
-    path::Path,
-    process::Stdio,
-    sync::Arc,
-};
+use std::{ffi::OsString, path::Path, process::Stdio, sync::Arc};
 
 use image::{RgbaImage, imageops::FilterType};
 use snap_core::{
@@ -67,6 +62,8 @@ pub fn frame_at(p: &Path, ms: u64, max_w: u32) -> Result<RgbaImage> {
         return Ok(img);
     }
     let mut dec = decode::open(p, false)?;
+    // Seeking to or past the end is refused by the decoder; the clip's last picture is what a late position means.
+    let ms = ms.min(dec.info().duration_ms.saturating_sub(1));
     if ms > 0 {
         dec.seek(ms)?;
     }
@@ -160,7 +157,10 @@ impl Plan {
             let Some(max) = self.opts.max_bytes.filter(|&m| size > m) else { return Ok(size) };
             if attempt == 2 {
                 let _ = std::fs::remove_file(output);
-                return Err(Error::invalid(tf("record.error.size_unreachable", &[("smallest", &size.to_string()), ("limit", &max.to_string())])));
+                return Err(Error::invalid(tf(
+                    "record.error.size_unreachable",
+                    &[("smallest", &size.to_string()), ("limit", &max.to_string())],
+                )));
             }
             let ratio = max as f64 * 0.92 / size as f64;
             width = even(((self.dims(width).0 as f64) * ratio.sqrt()) as u32).max(64);
@@ -182,14 +182,26 @@ impl Plan {
             if (w, h) != (even(self.info.width), even(self.info.height)) {
                 vf.push(format!("scale={w}:{h}:flags=lanczos"));
             }
-            let mut args: Vec<OsString> = vec!["-y".into(), "-ss".into(), format!("{:.3}", self.start as f64 / 1000.0).into(), "-t".into(), format!("{:.3}", self.duration_s()).into(), "-i".into(), input.into()];
+            let mut args: Vec<OsString> = vec![
+                "-y".into(),
+                "-ss".into(),
+                format!("{:.3}", self.start as f64 / 1000.0).into(),
+                "-t".into(),
+                format!("{:.3}", self.duration_s()).into(),
+                "-i".into(),
+                input.into(),
+            ];
             if !vf.is_empty() {
                 args.extend(["-vf".into(), vf.join(",").into()]);
             }
             match bitrate {
                 Some(b) => args.extend(ffmpeg::encoder_args(&enc, b).into_iter().map(OsString::from)),
-                None if enc.name == "libx264" => args.extend(["-c:v", "libx264", "-crf", "18", "-preset", "veryfast", "-pix_fmt", "yuv420p"].map(OsString::from)),
-                None => args.extend(ffmpeg::encoder_args(&enc, auto_bitrate(w, h, fps.map_or(self.info.fps, |f| f as f32))).into_iter().map(OsString::from)),
+                None if enc.name == "libx264" => {
+                    args.extend(["-c:v", "libx264", "-crf", "18", "-preset", "veryfast", "-pix_fmt", "yuv420p"].map(OsString::from))
+                }
+                None => args.extend(
+                    ffmpeg::encoder_args(&enc, auto_bitrate(w, h, fps.map_or(self.info.fps, |f| f as f32))).into_iter().map(OsString::from),
+                ),
             }
             if self.has_audio() {
                 args.extend(["-c:a", "aac", "-b:a", "128k"].map(OsString::from));
@@ -233,13 +245,25 @@ impl Plan {
             run_transcode(
                 &mut *dec,
                 output,
-                &Transcode { format, start: self.start, end: self.end, size: (w, h), fps, bitrate: 0, audio: false, dither: format == VideoFormat::Gif },
+                &Transcode {
+                    format,
+                    start: self.start,
+                    end: self.end,
+                    size: (w, h),
+                    fps,
+                    bitrate: 0,
+                    audio: false,
+                    dither: format == VideoFormat::Gif,
+                },
             )?;
             let size = std::fs::metadata(output)?.len();
             let Some(max) = self.opts.max_bytes.filter(|&m| size > m) else { return Ok(size) };
             if attempt == 3 {
                 let _ = std::fs::remove_file(output);
-                return Err(Error::invalid(tf("record.error.size_unreachable", &[("smallest", &size.to_string()), ("limit", &max.to_string())])));
+                return Err(Error::invalid(tf(
+                    "record.error.size_unreachable",
+                    &[("smallest", &size.to_string()), ("limit", &max.to_string())],
+                )));
             }
             let ratio = max as f64 * 0.9 / size as f64;
             width = even(((w as f64) * ratio.sqrt().min(0.9)) as u32).max(64);
@@ -344,8 +368,17 @@ fn pump(dec: &mut dyn Decoder, sink: &mut dyn sink::Sink, t: &Transcode, audio: 
 // ---------------------------------------------------------------- ffmpeg helpers
 
 fn frame_with_ffmpeg(ff: &Path, p: &Path, ms: u64, max_w: u32) -> Result<RgbaImage> {
+    let from_start = ["-ss".to_owned(), format!("{:.3}", ms as f64 / 1000.0)];
+    match grab_with_ffmpeg(ff, p, &from_start, max_w) {
+        // A position at or past the last frame yields nothing: take the picture that closes the clip instead.
+        Err(_) if ms > 0 => grab_with_ffmpeg(ff, p, &["-sseof".to_owned(), "-0.2".to_owned()], max_w),
+        other => other,
+    }
+}
+
+fn grab_with_ffmpeg(ff: &Path, p: &Path, seek: &[String; 2], max_w: u32) -> Result<RgbaImage> {
     let mut cmd = ffmpeg::command(ff);
-    cmd.arg("-ss").arg(format!("{:.3}", ms as f64 / 1000.0)).arg("-i").arg(p).args(["-frames:v", "1"]);
+    cmd.args(seek).arg("-i").arg(p).args(["-frames:v", "1"]);
     if max_w > 0 {
         cmd.arg("-vf").arg(format!("scale='min({max_w},iw)':-2:flags=lanczos"));
     }

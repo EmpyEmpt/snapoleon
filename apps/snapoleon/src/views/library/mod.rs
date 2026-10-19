@@ -103,6 +103,8 @@ enum Msg {
     },
     /// A database write finished; the screen already shows its result.
     Written,
+    /// How far the running upload is, 0 to 1.
+    UploadProgress(f32),
     /// A database write failed; the optimistic change on screen is reloaded.
     WriteFailed(Error),
 }
@@ -173,6 +175,8 @@ pub struct LibraryView {
     menu: Option<OpenMenu>,
     recognizing: HashSet<String>,
     uploading: HashSet<String>,
+    /// The toast that shows how far the running upload is.
+    upload_toast: Option<u64>,
 }
 
 impl LibraryView {
@@ -212,6 +216,7 @@ impl LibraryView {
             menu: None,
             recognizing: HashSet::new(),
             uploading: HashSet::new(),
+            upload_toast: None,
         }
     }
 

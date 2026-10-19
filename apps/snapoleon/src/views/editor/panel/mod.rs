@@ -146,15 +146,23 @@ pub fn switch_row(ui: &mut Ui, label: &str, hint: Option<&str>, on: &mut bool) -
     let mut flipped = false;
     ui.horizontal(|ui| {
         let text_w = (ui.available_width() - 48.0).max(80.0);
-        ui.vertical(|ui| {
-            ui.set_max_width(text_w);
-            ui.spacing_mut().item_spacing.y = 2.0;
-            ui.add(egui::Label::new(label).wrap());
-            if let Some(hint) = hint {
-                ui.add(egui::Label::new(text::caption(hint)).wrap());
+        match hint {
+            // A one-line label and its toggle share a centre line.
+            None => {
+                ui.set_min_height(28.0);
+                ui.add(egui::Label::new(label).truncate());
             }
-        });
-        ui.with_layout(egui::Layout::right_to_left(egui::Align::Min), |ui| {
+            Some(hint) => {
+                ui.vertical(|ui| {
+                    ui.set_max_width(text_w);
+                    ui.spacing_mut().item_spacing.y = 2.0;
+                    ui.add(egui::Label::new(label).wrap());
+                    ui.add(egui::Label::new(text::caption(hint)).wrap());
+                });
+            }
+        }
+        let align = if hint.is_some() { egui::Align::Min } else { egui::Align::Center };
+        ui.with_layout(egui::Layout::right_to_left(align), |ui| {
             flipped = snap_ui::widgets::toggle(ui, on).changed();
         });
     });

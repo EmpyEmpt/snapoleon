@@ -140,9 +140,17 @@ fn path_row(ui: &mut Ui, rc: &mut Rows, cx: &mut ViewCx, key: &str, path: &Path,
 
 fn command_line(ui: &mut Ui, rc: &mut Rows, cx: &mut ViewCx, exe: &str) {
     let quoted = if exe.contains(' ') { format!("\"{exe}\"") } else { exe.to_owned() };
-    let cli = format!(
-        "{quoted} url \"snapoleon://capture_region\"\n{quoted} url \"snapoleon://capture_window?pipeline=share\"\n{quoted} edit screenshot.png\n{quoted} pin screenshot.png\n{quoted} settings"
-    );
+    let cli = [
+        "capture --monitor 0 --out screenshot.png",
+        "capture --window \"Notepad\" --pipeline share",
+        "ocr screenshot.png",
+        "upload screenshot.png",
+        "edit screenshot.png",
+        "pin screenshot.png",
+        "history search invoice",
+    ]
+    .map(|args| format!("{quoted} {args}"))
+    .join("\n");
     let mcp_json = serde_json::json!({ "mcpServers": { "snapoleon": { "command": exe, "args": ["mcp"] } } });
     let mcp = serde_json::to_string_pretty(&mcp_json).unwrap_or_default();
     let claude_code = format!("claude mcp add snapoleon -- {quoted} mcp");

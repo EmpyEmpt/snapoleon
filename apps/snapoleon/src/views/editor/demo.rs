@@ -8,6 +8,8 @@
 //! - `SNAPOLEON_DEV_EDITOR_BEAUTIFY=1`: turn on the first beautify preset.
 //! - `SNAPOLEON_DEV_EDITOR_EDIT_TEXT=1`: start editing the first text shape.
 //! - `SNAPOLEON_DEV_EDITOR_RUN=ocr|redact`: run text recognition or auto-redact on the first frame.
+//! - `SNAPOLEON_DEV_EDITOR_OPEN=<file.snap>`: open a saved project instead of the screenshot.
+//! - `SNAPOLEON_DEV_EDITOR_PII=1`: a page with a card number, e-mail and phone number instead of the screenshot.
 
 use snap_annotate::{ArrowHead, ShapeKind, Stamp, Style, TextBg};
 use snap_core::{PointF, RectF, settings::RedactStyle};
@@ -23,6 +25,12 @@ fn var(name: &str) -> Option<String> {
 pub fn apply(view: &mut EditorView) {
     if var("SNAPOLEON_DEV").as_deref() != Some("editor") {
         return;
+    }
+    if let Some(path) = var("SNAPOLEON_DEV_EDITOR_OPEN") {
+        reopen_project(view, &path);
+    }
+    if var("SNAPOLEON_DEV_EDITOR_PII").is_some() {
+        sensitive_page(view);
     }
     if var("SNAPOLEON_DEV_EDITOR_DEMO").is_some() {
         sample_shapes(view);
@@ -71,6 +79,49 @@ pub fn first_frame(view: &mut EditorView, cx: &mut ViewCx) {
         Some("ocr") => view.panel.run_ocr(&view.s, cx),
         _ => {}
     }
+}
+
+/// Replace the screenshot with a `.snap` project, the way the library's Edit does.
+fn reopen_project(view: &mut EditorView, path: &str) {
+    match super::EditorInput::from_project(std::path::Path::new(path)) {
+        Ok(super::EditorInput { mut capture, document: Some(doc), project_path, .. }) => {
+            capture.image = image::RgbaImage::new(1, 1);
+            view.meta = capture;
+            view.project = project_path;
+            view.ui_scale = 1.0;
+            view.s = super::Session::new(doc);
+        }
+        Ok(_) => tracing::warn!("{path} has no document"),
+        Err(e) => tracing::warn!("cannot open {path}: {e}"),
+    }
+}
+
+/// Replace the screenshot with a page that shows a card number, an e-mail address and other personal data,
+/// as pixels, so that auto-redact has something to find.
+fn sensitive_page(view: &mut EditorView) {
+    let mut page = snap_annotate::Document::new(image::RgbaImage::from_pixel(1100, 520, image::Rgba([250, 250, 252, 255])), 1.0);
+    let lines = [
+        "Payment confirmation",
+        "Card number: 4539 1488 0343 6467",
+        "E-mail: john.smith@example.com",
+        "Phone: +1 (415) 555-0132",
+        "Server: 192.168.10.24",
+        "Order total: 129.90 EUR",
+    ];
+    for (i, text) in lines.iter().enumerate() {
+        let kind = ShapeKind::Text {
+            pos: PointF::new(60.0, 50.0 + 72.0 * i as f32),
+            text: (*text).into(),
+            size: 34.0,
+            bold: i == 0,
+            bg: TextBg::None,
+            max_width: None,
+        };
+        page.add(kind, Style { stroke: [20, 22, 30, 255], ..Style::default() });
+    }
+    let base = snap_annotate::render(&page, &snap_annotate::RenderOptions::default());
+    view.s = super::Session::new(snap_annotate::Document::new(base, 1.0));
+    view.ui_scale = 1.0;
 }
 
 fn sample_shapes(view: &mut EditorView) {

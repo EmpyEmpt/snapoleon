@@ -1,8 +1,7 @@
 //! ShareX-compatible custom HTTP uploader.
 //!
-//! One extension over [`CustomUploader`]'s plain fields: for `json` / `xml`
-//! bodies, an argument with an empty name holds the raw body template
-//! (ShareX's `Data`); without it a JSON object is built from the arguments.
+//! For `json` / `xml` bodies [`CustomUploader::data`] holds the raw body template (ShareX's `Data`);
+//! without it a JSON object is built from the arguments.
 
 pub mod sxcu;
 pub(crate) mod template;
@@ -11,7 +10,7 @@ use snap_core::{Error, Result, settings::CustomUploader, t, tf};
 use template::{Escape, ResponseView, Vars, expand};
 
 use crate::{
-    Uploader, UploadRequest, UploadResult,
+    UploadRequest, UploadResult, Uploader,
     http::{Call, Progress},
     multipart::Multipart,
     util::mime_or_octet,
@@ -58,7 +57,14 @@ impl Custom {
 
     fn vars<'a>(&'a self, req: &'a UploadRequest) -> Vars<'a> {
         let input = if req.mime.starts_with("text/") { String::from_utf8_lossy(req.data).into_owned() } else { req.file_name.to_string() };
-        Vars { file_name: req.file_name, input, mime: mime_or_octet(req.mime), title: req.title.unwrap_or_default(), secret: &self.secret, file: req.data }
+        Vars {
+            file_name: req.file_name,
+            input,
+            mime: mime_or_octet(req.mime),
+            title: req.title.unwrap_or_default(),
+            secret: &self.secret,
+            file: req.data,
+        }
     }
 
     fn request_url(&self, vars: &Vars) -> Result<String> {

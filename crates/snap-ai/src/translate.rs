@@ -12,13 +12,7 @@ use crate::{Ai, client::Client};
 
 /// Translates `text` into `target` using the provider chosen in `settings`.
 /// An empty `target` falls back to `settings.target_lang`.
-pub fn translate(
-    text: &str,
-    target: &str,
-    settings: &TranslateSettings,
-    ai: &AiSettings,
-    secrets: &dyn SecretStore,
-) -> Result<String> {
+pub fn translate(text: &str, target: &str, settings: &TranslateSettings, ai: &AiSettings, secrets: &dyn SecretStore) -> Result<String> {
     let target = if target.trim().is_empty() { settings.target_lang.trim() } else { target.trim() };
     if target.is_empty() {
         return Err(Error::invalid(t("ai.error.no_target")));
@@ -56,7 +50,7 @@ fn libre(url: &str, text: &str, target: &str, key: Option<String>) -> Result<Str
         .get("translatedText")
         .and_then(Value::as_str)
         .map(str::to_owned)
-        .ok_or_else(|| Error::Network(t("ai.error.bad_response").into_owned()))
+        .ok_or_else(|| Error::Network(t("ai.error.service_bad_response").into_owned()))
 }
 
 fn deepl(free: bool, text: &str, target: &str, key: Option<String>) -> Result<String> {
@@ -72,17 +66,13 @@ fn deepl(free: bool, text: &str, target: &str, key: Option<String>) -> Result<St
         .pointer("/translations/0/text")
         .and_then(Value::as_str)
         .map(str::to_owned)
-        .ok_or_else(|| Error::Network(t("ai.error.bad_response").into_owned()))
+        .ok_or_else(|| Error::Network(t("ai.error.service_bad_response").into_owned()))
 }
 
 /// LibreTranslate uses lowercase base codes (`pt`, `zh`), with `zt` for Traditional Chinese.
 fn libre_code(code: &str) -> String {
     let lower = code.to_ascii_lowercase().replace('_', "-");
-    if matches!(lower.as_str(), "zh-tw" | "zh-hant") {
-        "zt".into()
-    } else {
-        lower.split('-').next().unwrap_or("").to_owned()
-    }
+    if matches!(lower.as_str(), "zh-tw" | "zh-hant") { "zt".into() } else { lower.split('-').next().unwrap_or("").to_owned() }
 }
 
 /// DeepL wants uppercase codes and rejects bare `EN` / `PT` as targets.

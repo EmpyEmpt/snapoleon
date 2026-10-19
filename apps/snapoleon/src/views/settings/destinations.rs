@@ -257,17 +257,6 @@ fn unique_id(set: &Settings, name: &str) -> String {
     kit::unique_slug(name, "destination", |id| set.destinations.iter().any(|d| d.id == id))
 }
 
-fn oauth_provider(kind: &DestinationKind) -> Option<Provider> {
-    match kind {
-        DestinationKind::YandexDisk { .. } => Some(Provider::YandexDisk),
-        DestinationKind::Dropbox { .. } => Some(Provider::Dropbox),
-        DestinationKind::GoogleDrive { .. } => Some(Provider::GoogleDrive),
-        DestinationKind::OneDrive { .. } => Some(Provider::OneDrive),
-        DestinationKind::Box { .. } => Some(Provider::Box),
-        _ => None,
-    }
-}
-
 // ---------------------------------------------------------------------------------------------------------------------
 // Pages
 
@@ -782,6 +771,8 @@ fn custom_http(
         ("binary".to_owned(), "settings.destinations.body.binary"),
         ("form_url_encoded".to_owned(), "settings.destinations.body.form"),
         ("json".to_owned(), "settings.destinations.body.json"),
+        ("xml".to_owned(), "settings.destinations.body.xml"),
+        ("none".to_owned(), "settings.destinations.body.none"),
     ]);
     if c.request_method.is_empty() {
         c.request_method = "POST".into();
@@ -799,7 +790,7 @@ fn custom_http(
             rc.text(ui, "destinations.f.file_form_name", &mut c.file_form_name, "file", true, 160.0);
         }
         rc.stacked(ui, false, "destinations.f.arguments", |ui| kv_editor(ui, "custom-arguments", &mut c.arguments));
-        if c.body == "json" {
+        if c.body == "json" || c.body == "xml" {
             rc.stacked(ui, false, "destinations.f.data", |ui| {
                 let width = ui.available_width();
                 ui.add(widgets::TextField::new(&mut c.data).mono(true).rows(5).width(width));

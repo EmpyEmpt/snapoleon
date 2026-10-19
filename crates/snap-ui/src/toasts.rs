@@ -2,9 +2,7 @@
 
 use std::time::Duration;
 
-use egui::{
-    Align2, Area, Context, Frame, Id, Margin, Order, Pos2, Rect, Sense, Stroke, Vec2, emath::easing,
-};
+use egui::{Align2, Area, Context, Frame, Id, Margin, Order, Pos2, Rect, Sense, Stroke, Vec2, emath::easing};
 use snap_core::t;
 
 use crate::{
@@ -57,16 +55,19 @@ pub struct Toast {
     pub text: String,
     pub action: Option<(String, String)>,
     pub lifetime: Duration,
+    /// A determinate progress bar (0..=1) under the text, for work that reports as it goes.
+    pub progress: Option<f32>,
 }
 
 impl Toast {
     pub fn new(kind: ToastKind, text: impl Into<String>) -> Self {
-        Self {
-            kind,
-            text: text.into(),
-            action: None,
-            lifetime: LIFETIME,
-        }
+        Self { kind, text: text.into(), action: None, lifetime: LIFETIME, progress: None }
+    }
+
+    /// Shows a progress bar. Pair with [`Toasts::update`]; each update restarts the lifetime.
+    pub fn progress(mut self, frac: f32) -> Self {
+        self.progress = Some(frac.clamp(0.0, 1.0));
+        self
     }
 
     /// Adds an action button (e.g. "Open"); `id` comes back from [`Toasts::show`] when it is clicked.
@@ -105,28 +106,39 @@ impl Toasts {
         Self::default()
     }
 
-    pub fn push(&mut self, kind: ToastKind, text: impl Into<String>) {
-        self.push_toast(Toast::new(kind, text));
+    /// Shows a toast and returns its id, for [`Toasts::update`] and [`Toasts::dismiss`].
+    pub fn push(&mut self, kind: ToastKind, text: impl Into<String>) -> u64 {
+        self.push_toast(Toast::new(kind, text))
     }
 
-    pub fn push_toast(&mut self, toast: Toast) {
+    pub fn push_toast(&mut self, toast: Toast) -> u64 {
         self.next_id += 1;
-        self.items.push(Item {
-            id: self.next_id,
-            toast,
-            age: 0.0,
-            since_enter: 0.0,
-            since_exit: None,
-            height: 44.0,
-        });
+        let id = self.next_id;
+        self.items.push(Item { id, toast, age: 0.0, since_enter: 0.0, since_exit: None, height: 44.0 });
         // Never stack more than a handful: retire the oldest.
         let live = self.items.iter().filter(|i| i.since_exit.is_none()).count();
-        for item in self
-            .items
-            .iter_mut()
-            .filter(|i| i.since_exit.is_none())
-            .take(live.saturating_sub(MAX_VISIBLE))
-        {
+        for item in self.items.iter_mut().filter(|i| i.since_exit.is_none()).take(live.saturating_sub(MAX_VISIBLE)) {
+            item.since_exit = Some(0.0);
+        }
+        id
+    }
+
+    /// Replaces the content of a live toast in place (same slot, no enter animation) and restarts its
+    /// lifetime. Returns false when the toast is already gone, so the caller can push a new one.
+    pub fn update(&mut self, id: u64, toast: Toast) -> bool {
+        match self.items.iter_mut().find(|i| i.id == id && i.since_exit.is_none()) {
+            Some(item) => {
+                item.toast = toast;
+                item.age = 0.0;
+                true
+            }
+            None => false,
+        }
+    }
+
+    /// Starts dismissing a toast; unknown ids are ignored.
+    pub fn dismiss(&mut self, id: u64) {
+        if let Some(item) = self.items.iter_mut().find(|i| i.id == id && i.since_exit.is_none()) {
             item.since_exit = Some(0.0);
         }
     }
@@ -152,11 +164,7 @@ impl Toasts {
             if let Some(t) = &mut item.since_exit {
                 *t += dt;
             }
-            let enter = if instant {
-                1.0
-            } else {
-                easing::cubic_out(((item.since_enter) / ENTER).clamp(0.0, 1.0) as f32)
-            };
+            let enter = if instant { 1.0 } else { easing::cubic_out(((item.since_enter) / ENTER).clamp(0.0, 1.0) as f32) };
             let exit = match item.since_exit {
                 Some(_) if instant => 1.0,
                 Some(t) => (t / EXIT).clamp(0.0, 1.0) as f32,
@@ -169,10 +177,7 @@ impl Toasts {
             let target = util::anim_value(ctx, id.with("offset"), offset, 0.16);
             let area = Area::new(id)
                 .order(Order::Tooltip)
-                .anchor(
-                    Align2::RIGHT_BOTTOM,
-                    Vec2::new(-MARGIN + slide, -MARGIN - target),
-                )
+                .anchor(Align2::RIGHT_BOTTOM, Vec2::new(-MARGIN + slide, -MARGIN - target))
                 .interactable(true)
                 .sense(Sense::hover());
             let out = area.show(ctx, |ui| {
@@ -205,8 +210,7 @@ impl Toasts {
             }
         }
 
-        self.items
-            .retain(|i| i.since_exit.is_none_or(|t| !instant && t < EXIT));
+        self.items.retain(|i| i.since_exit.is_none_or(|t| !instant && t < EXIT));
         if !self.items.is_empty() {
             ctx.request_repaint_after(Duration::from_millis(16));
         }
@@ -246,60 +250,38 @@ fn toast_ui(ui: &mut egui::Ui, p: &Palette, toast: &Toast, width: f32) -> Clicke
         let hovered = hover.hovered() || ui.rect_contains_pointer(rect.expand(8.0));
 
         let cy = rect.center().y;
-        ui.painter()
-            .circle_filled(Pos2::new(rect.left() + 9.0, cy), 12.0, p.tone_soft(tone));
-        util::paint_icon(
-            ui,
-            Pos2::new(rect.left() + 9.0, cy),
-            toast.kind.icon(),
-            16.0,
-            p.tone(tone),
-        );
+        ui.painter().circle_filled(Pos2::new(rect.left() + 9.0, cy), 12.0, p.tone_soft(tone));
+        util::paint_icon(ui, Pos2::new(rect.left() + 9.0, cy), toast.kind.icon(), 16.0, p.tone(tone));
         let text_pos = Pos2::new(rect.left() + icon_w, cy - galley.size().y / 2.0);
-        ui.painter()
-            .galley(util::snap(ui, text_pos), galley, p.text);
+        ui.painter().galley(util::snap(ui, text_pos), galley, p.text);
 
         let mut x = rect.right();
-        let close_rect =
-            Rect::from_center_size(Pos2::new(x - close_w / 2.0, cy), Vec2::splat(24.0));
+        let close_rect = Rect::from_center_size(Pos2::new(x - close_w / 2.0, cy), Vec2::splat(24.0));
         x -= close_w;
         let close = ui.interact(close_rect, ui.scope_id().with("close"), Sense::click());
         let close_t = util::anim(ui.ctx(), close.id.with("vis"), hovered, 0.1);
         if close_t > 0.0 {
             let h = hover_anim(ui, &close);
-            ui.painter().circle_filled(
-                close_rect.center(),
-                11.0,
-                p.hover().gamma_multiply(h * close_t),
-            );
-            util::paint_icon(
-                ui,
-                close_rect.center(),
-                icon::X,
-                12.0,
-                util::lerp_color(p.text_faint, p.text, h).gamma_multiply(close_t),
-            );
+            ui.painter().circle_filled(close_rect.center(), 11.0, p.hover().gamma_multiply(h * close_t));
+            util::paint_icon(ui, close_rect.center(), icon::X, 12.0, util::lerp_color(p.text_faint, p.text, h).gamma_multiply(close_t));
         }
         if close.clicked() {
             clicked = Clicked::Close;
         }
         close.on_hover_text(t("ui.toast.dismiss"));
 
+        if let Some(frac) = toast.progress {
+            ui.add_space(8.0);
+            crate::widgets::progress_sized(ui, frac, inner_w);
+        }
+
         if let Some((w, galley)) = action {
             let r = Rect::from_center_size(Pos2::new(x - w / 2.0 - 4.0, cy), Vec2::new(w, 28.0));
             let resp = ui.interact(r, ui.scope_id().with("action"), Sense::click());
             let h = hover_anim(ui, &resp);
-            ui.painter()
-                .rect_filled(r, 6.0, p.accent_soft.gamma_multiply(0.5 + 0.5 * h));
-            let color = if resp.is_pointer_button_down_on() {
-                p.accent.gamma_multiply(0.8)
-            } else {
-                p.accent
-            };
-            let pos = Pos2::new(
-                r.center().x - galley.size().x / 2.0,
-                r.center().y - galley.size().y / 2.0,
-            );
+            ui.painter().rect_filled(r, 6.0, p.accent_soft.gamma_multiply(0.5 + 0.5 * h));
+            let color = if resp.is_pointer_button_down_on() { p.accent.gamma_multiply(0.8) } else { p.accent };
+            let pos = Pos2::new(r.center().x - galley.size().x / 2.0, r.center().y - galley.size().y / 2.0);
             ui.painter().galley(util::snap(ui, pos), galley, color);
             if resp.clicked() {
                 clicked = Clicked::Action;

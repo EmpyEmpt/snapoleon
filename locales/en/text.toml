@@ -12,6 +12,8 @@ open_link = "Open link"
 translate = "Translate"
 translate_to = "Translate to"
 translating = "Translating…"
+translate_off = "Translation is not set up yet. Choose a service in Settings first."
+translate_setup = "Set up"
 source = "Original"
 translation_title = "Translation to {lang}"
 
