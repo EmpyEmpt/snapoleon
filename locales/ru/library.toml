@@ -1,0 +1,161 @@
+# Окно «Библиотека»: сетка истории, фильтры и панель сведений.
+# Счётные ключи имеют формы one / few / many / other.
+
+[library]
+title = "Библиотека"
+
+[library.search]
+hint = "Поиск по тексту, заголовкам, приложениям и ссылкам"
+
+[library.filter]
+all = "Все"
+screenshots = "Скриншоты"
+recordings = "Записи"
+favorites = "Избранное"
+today = "Сегодня"
+week = "На этой неделе"
+month = "В этом месяце"
+
+[library.action]
+edit = "Редактировать"
+edit_video = "Редактировать видео"
+copy = "Копировать"
+pin = "Закрепить на экране"
+favorite = "В избранное"
+unfavorite = "Убрать из избранного"
+upload = "Загрузить"
+reveal = "Показать в папке"
+copy_file = "Копировать файл"
+copy_path = "Копировать путь"
+delete = "Удалить"
+more = "Ещё"
+quick_look = "Быстрый просмотр"
+combine = "Склеить"
+combine_hint = "Склеить выбранные изображения в одно"
+
+[library.selected]
+one = "Выбран {n}"
+few = "Выбрано {n}"
+many = "Выбрано {n}"
+other = "Выбрано {n}"
+
+[library.selection]
+clear = "Снять выделение"
+
+[library.delete]
+one = "Удалить этот снимок?"
+one_hint = "Он исчезнет из библиотеки."
+files = "Удалить и файлы с диска"
+confirm = "Удалить"
+
+[library.delete.many]
+one = "Удалить {n} снимок?"
+few = "Удалить {n} снимка?"
+many = "Удалить {n} снимков?"
+other = "Удалить {n} снимков?"
+
+[library.deleted]
+one = "Удалён {n} снимок"
+few = "Удалено {n} снимка"
+many = "Удалено {n} снимков"
+other = "Удалено {n} снимков"
+
+[library.drawer]
+close = "Закрыть сведения"
+missing = "Файла больше нет на месте."
+
+[library.empty]
+title = "Здесь пока пусто"
+body = "Нажмите {key}, чтобы сделать первый снимок."
+body_nokey = "Сделайте первый снимок через значок в трее."
+
+[library.none]
+title = "Ничего не найдено"
+body = "Попробуйте другие слова или сбросьте фильтры."
+action = "Сбросить фильтры"
+
+[library.off]
+title = "История выключена"
+body = "Включите её в настройках, чтобы снимки сохранялись здесь."
+action = "Открыть настройки"
+
+[library.error]
+missing = "Файл не найден: возможно, его переместили."
+
+[library.info]
+app = "Приложение"
+window = "Окно"
+url = "Адрес"
+size = "Размер"
+file_size = "Размер файла"
+duration = "Длительность"
+captured = "Снято"
+file = "Файл"
+
+[library.links]
+title = "Ссылки"
+copy_as = "Копировать ссылку как"
+open = "Открыть ссылку"
+
+[library.links.format]
+url = "URL"
+markdown = "Markdown"
+html = "HTML"
+bbcode = "BBCode"
+
+[library.tags]
+title = "Теги"
+add = "Добавить тег"
+
+[library.text]
+title = "Текст"
+copy = "Копировать текст"
+open = "Открыть в окне текста"
+none = "Текста пока нет."
+recognize = "Распознать текст"
+recognizing = "Распознаём текст…"
+found_none = "Текст не найден"
+
+[library.time]
+now = "только что"
+minutes = "{n} мин назад"
+hours = "{n} ч назад"
+yesterday = "вчера"
+
+[library.time.days]
+one = "{n} день назад"
+few = "{n} дня назад"
+many = "{n} дней назад"
+other = "{n} дня назад"
+
+[library.upload]
+started = "Загружаем…"
+done = "Загружено, ссылка скопирована"
+
+[library.combine]
+loading = "Открываем склейку…"
+
+[library.date]
+short = "{day} {month}"
+short_year = "{day} {month} {year}"
+full = "{day} {month} {year}, {time}"
+
+[library.month]
+jan = "янв."
+feb = "февр."
+mar = "мар."
+apr = "апр."
+may = "мая"
+jun = "июн."
+jul = "июл."
+aug = "авг."
+sep = "сент."
+oct = "окт."
+nov = "нояб."
+dec = "дек."
+
+[library.size]
+b = "{n} Б"
+kb = "{n} КБ"
+mb = "{n} МБ"
+gb = "{n} ГБ"

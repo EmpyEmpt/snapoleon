@@ -1,0 +1,60 @@
+# The text result window: recognised or translated text, tables and decoded codes.
+
+[text]
+title = "Text"
+copy = "Copy"
+copy_tip = "Copy all text"
+copy_table = "Copy as table"
+copy_value = "Copy"
+search_web = "Search the web"
+open_file = "Open as file"
+open_link = "Open link"
+translate = "Translate"
+translate_to = "Translate to"
+translating = "Translating…"
+source = "Original"
+translation_title = "Translation to {lang}"
+
+[text.translation]
+copy = "Copy translation"
+use = "Use as the text"
+dismiss = "Close translation"
+
+[text.font]
+sans = "Proportional font"
+mono = "Monospace font"
+
+[text.empty]
+title = "No text found"
+body = "Try a larger area, or pick another recognition language in settings."
+
+[text.table]
+title = "Table"
+spreadsheet = "Copy for a spreadsheet"
+markdown = "Copy as Markdown"
+
+[text.codes]
+title = "Codes"
+qr = "QR code"
+
+[text.links]
+title = "Links"
+
+[text.stats]
+chars = "Characters"
+words = "Words"
+lines = "Lines"
+
+[text.lang]
+en = "English"
+ru = "Russian"
+de = "German"
+fr = "French"
+es = "Spanish"
+it = "Italian"
+pt = "Portuguese"
+pl = "Polish"
+uk = "Ukrainian"
+tr = "Turkish"
+zh = "Chinese"
+ja = "Japanese"
