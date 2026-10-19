@@ -120,7 +120,7 @@ the XDG desktop portals:
   permission dialog the first time. Install the portal backend for your desktop: `xdg-desktop-portal-gnome`,
   `xdg-desktop-portal-kde`, `xdg-desktop-portal-wlr` (Sway, Hyprland uses `xdg-desktop-portal-hyprland`).
 - Global hotkeys use the GlobalShortcuts portal. GNOME 48 and KDE Plasma 6 support it; older compositors and some
-  wlroots-based ones do not. Where it is missing, bind a key in your compositor to `snapoleon capture region`
+  wlroots-based ones do not. Where it is missing, bind a key in your compositor to `snapoleon capture`
   (the command forwards to the running instance).
 - Window and element snapping and the frozen-screen overlay are limited on Wayland compared with X11 or
   Windows, because applications cannot see other windows' geometry.
