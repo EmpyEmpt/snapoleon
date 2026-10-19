@@ -66,7 +66,8 @@ opt-level = 3
 lto = "fat"
 codegen-units = 1
 strip = true
-panic = "abort"
+# Unwinding, not aborting: the tray app is resident, and a bug in one window's view should cost that window
+# (`App::with_view` catches the panic and closes it), not every hotkey until the user notices and restarts it.
 
 [profile.dev.package."*"]
 opt-level = 2

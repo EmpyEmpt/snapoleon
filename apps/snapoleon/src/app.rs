@@ -6,11 +6,12 @@
 use std::{
     any::Any,
     collections::{HashMap, HashSet},
+    panic::AssertUnwindSafe,
 };
 
 use egui::Context;
-use snap_core::{Settings, paths, policy::Policy};
-use snap_engine::Engine;
+use snap_core::{Settings, paths, policy::Policy, t};
+use snap_engine::{Engine, Notice, NoticeKind};
 use snap_platform::tray::Tray;
 use snap_shell::{Shell, ShellApp, WindowKey};
 use snap_ui::Toasts;
@@ -89,6 +90,8 @@ pub struct App {
     pub(crate) jobs_running: usize,
     /// The pin windows, for the tray's pin items.
     pub(crate) pins: HashSet<WindowKey>,
+    /// Windows whose view panicked since the user was last told.
+    crashed: Vec<WindowKey>,
     pub(crate) hotkeys: Option<Hotkeys>,
     pub(crate) tray: Option<Tray>,
     pub(crate) ipc: Option<snap_platform::ipc::Server>,
@@ -114,6 +117,7 @@ impl App {
             progress: None,
             jobs_running: 0,
             pins: HashSet::new(),
+            crashed: Vec::new(),
             hotkeys: None,
             tray: None,
             ipc: None,
@@ -142,24 +146,37 @@ impl App {
         self.open_windows(sh, open);
     }
 
-    /// Call into a window's view with a fresh `ViewCx`. `None` when the window has no view.
+    /// Call into a window's view with a fresh `ViewCx`. `None` when the window has no view, or when the view
+    /// panicked: that window is closed and the user is told, but the app lives on.
     fn with_view<R>(&mut self, sh: &mut Shell<AppEvent>, win: WindowKey, call: impl FnOnce(&mut dyn View, &mut ViewCx) -> R) -> Option<R> {
         let proxy = sh.proxy();
         let slot = self.slots.get_mut(&win)?;
         let mut view = slot.view.take()?;
-        let mut cx = ViewCx {
-            shell: sh,
-            win,
-            engine: &self.engine,
-            settings: &self.settings,
-            cmds: &mut self.cmds,
-            toasts: &mut slot.toasts,
-            proxy,
-            toast_actions: &mut self.toast_actions,
+        let out = {
+            let mut cx = ViewCx {
+                shell: sh,
+                win,
+                engine: &self.engine,
+                settings: &self.settings,
+                cmds: &mut self.cmds,
+                toasts: &mut slot.toasts,
+                proxy,
+                toast_actions: &mut self.toast_actions,
+            };
+            std::panic::catch_unwind(AssertUnwindSafe(|| call(view.as_mut(), &mut cx)))
         };
-        let out = call(view.as_mut(), &mut cx);
+        // The view goes back even after a panic: closing the window calls its `closed`, which ends what it owns
+        // (an overlay session, a recording).
         slot.view = Some(view);
-        Some(out)
+        match out {
+            Ok(out) => Some(out),
+            Err(_) => {
+                tracing::error!("a view panicked; closing its window");
+                self.crashed.push(win);
+                sh.close(win);
+                None
+            }
+        }
     }
 
     /// Process queued commands until none are left.
@@ -396,7 +413,14 @@ impl ShellApp<AppEvent> for App {
                 toasts: &mut slot.toasts,
                 toast_actions: &mut self.toast_actions,
             };
-            view.closed(&mut cx);
+            if std::panic::catch_unwind(AssertUnwindSafe(|| view.closed(&mut cx))).is_err() {
+                tracing::error!("a view panicked while closing");
+            }
+        }
+        if let Some(at) = self.crashed.iter().position(|crashed| *crashed == win) {
+            self.crashed.swap_remove(at);
+            let notice = Notice { kind: NoticeKind::Error, title: t("app.error.crashed").into_owned(), ..Notice::default() };
+            self.notice(sh, notice);
         }
         self.flush(sh);
         if self.quit_when_empty && self.slots.is_empty() {

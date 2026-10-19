@@ -23,6 +23,7 @@ cancelled = "Cancelled"
 
 [app.error]
 window = "Could not open the window"
+crashed = "A window hit a problem and was closed"
 capture = "Could not capture the screen"
 job = "Something went wrong"
 no_pipeline = "There is no pipeline named {id}"
