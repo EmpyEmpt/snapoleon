@@ -380,7 +380,9 @@ pub(crate) fn xml_select(xml: &str, path: &str) -> Option<String> {
 /// (or the whole match when the pattern has no groups).
 pub(crate) fn regex_select(text: &str, spec: &str) -> Option<String> {
     let (pattern, group) = match spec.rsplit_once('|') {
-        Some((p, g)) if !p.is_empty() && !g.is_empty() && g.chars().all(|c| c.is_alphanumeric() || c == '_') && Regex::new(p).is_ok() => (p, Some(g)),
+        Some((p, g)) if !p.is_empty() && !g.is_empty() && g.chars().all(|c| c.is_alphanumeric() || c == '_') && Regex::new(p).is_ok() => {
+            (p, Some(g))
+        }
         _ => (spec, None),
     };
     let re = Regex::new(pattern).ok()?;

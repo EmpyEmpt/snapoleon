@@ -91,7 +91,12 @@ impl EditorInput {
 }
 
 pub fn open(cx: &mut OpenCx, input: EditorInput) {
-    let view = EditorView::new(input, cx.settings);
+    let mut view = EditorView::new(input, cx.settings);
+    // A project from the library belongs to an entry with a picture: saving updates both.
+    if view.project.is_some() {
+        view.output_file =
+            cx.engine.history().and_then(|h| h.get(&view.meta.id).ok().flatten()).and_then(|e| e.file).filter(|f| f.exists());
+    }
     cx.open(window_spec(t("editor.title"), TAG, (1200.0, 800.0), (820.0, 540.0)), view);
 }
 
@@ -161,6 +166,14 @@ pub struct EditorView {
     /// The capture's context for naming and history; its image is a 1x1 stand-in, the pixels live in the document.
     meta: Capture,
     project: Option<PathBuf>,
+    /// The picture the last save wrote (the library entry's file); saving again replaces it in place.
+    output_file: Option<PathBuf>,
+    /// The document revision `output_file` shows; an upload sends the file as is while the document still is that.
+    output_rev: u64,
+    /// The document revision the running output was started from.
+    export_rev: u64,
+    /// The toast showing the progress of a long step of an output.
+    progress_toast: Option<u64>,
     reply: Option<Sender<Option<Annotated>>>,
     tool: Tool,
     tools: ToolSet,
@@ -205,6 +218,10 @@ impl EditorView {
             s: Session::new(doc),
             meta: capture,
             project: project_path,
+            output_file: None,
+            output_rev: 0,
+            export_rev: 0,
+            progress_toast: None,
             reply,
             tool,
             tools,
@@ -232,7 +249,7 @@ impl EditorView {
     }
 
     fn title(&self) -> String {
-        match self.project.as_deref().and_then(|p| p.file_stem()) {
+        match self.output_file.as_deref().or(self.project.as_deref()).and_then(|p| p.file_stem()) {
             Some(name) => name.to_string_lossy().into_owned(),
             None => t("editor.title").into_owned(),
         }

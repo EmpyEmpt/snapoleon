@@ -1,7 +1,10 @@
 //! Text and AI: OCR engines and languages, translation, the AI endpoint.
 
 use egui::Ui;
-use snap_core::settings::{AiSettings, OcrEngine, OcrSettings, TranslateProvider, TranslateSettings};
+use snap_core::{
+    settings::{AiSettings, OcrEngine, OcrSettings, TranslateProvider, TranslateSettings},
+    tf,
+};
 use snap_ui::{Tone, icon, space, text, widgets};
 
 use super::kit::{self, Msg, Pick, Rows, SecretSlot, field_mono, managed_banner, opts, s, wrap};
@@ -90,6 +93,7 @@ fn ocr(ui: &mut Ui, rc: &mut Rows, st: &mut State, cx: &mut ViewCx, o: &mut OcrS
     ]);
     let statuses: Option<Vec<(OcrEngine, bool, String)>> =
         rc.env.probe.as_ref().map(|p| p.ocr.iter().map(|e| (e.engine, e.available, e.note.clone())).collect());
+    let tesseract_langs: Vec<String> = rc.env.probe.as_ref().map(|p| p.ocr_tesseract_langs.clone()).unwrap_or_default();
     let mut languages: Vec<(String, String)> =
         LANGUAGES.iter().map(|(code, name)| ((*code).to_owned(), format!("{name} ({code})"))).collect();
     let extra = rc.env.probe.iter().flat_map(|p| p.ocr_native_langs.iter()).chain(o.languages.iter());
@@ -118,6 +122,9 @@ fn ocr(ui: &mut Ui, rc: &mut Rows, st: &mut State, cx: &mut ViewCx, o: &mut OcrS
             });
             if o.languages.is_empty() {
                 kit::note(ui, &s("text_ai.ocr_languages.system"));
+            }
+            if !tesseract_langs.is_empty() && matches!(o.engine, OcrEngine::Tesseract | OcrEngine::Auto) {
+                kit::note(ui, &tf("settings.text_ai.tesseract_installed", &[("langs", &tesseract_langs.join(", "))]));
             }
         });
         let hint = s("text_ai.tesseract_hint");

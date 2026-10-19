@@ -4,7 +4,7 @@
 use std::{any::Any, path::PathBuf};
 
 use egui::{Context, Frame, Id, Key, Margin, Modifiers, Rect, RichText, ScrollArea, Sense, Stroke, TextEdit, Ui, UiBuilder, Vec2};
-use snap_core::{Error, t, tf};
+use snap_core::{Error, settings::TranslateProvider, t, tf};
 use snap_ocr::codes::Code;
 use snap_ui::{
     Palette, ToastKind, icon,
@@ -17,7 +17,7 @@ use super::{
     library::{menu, paint},
     window_spec,
 };
-use crate::commands::Command;
+use crate::{commands::Command, views::settings::SettingsPage};
 
 mod table;
 
@@ -111,6 +111,15 @@ impl TextView {
 
     fn translate(&mut self, cx: &mut ViewCx) {
         if self.translating || self.text.trim().is_empty() {
+            return;
+        }
+        if matches!(cx.settings.translate.provider, TranslateProvider::None) {
+            cx.toast_action(
+                ToastKind::Info,
+                t("text.translate_off"),
+                t("text.translate_setup"),
+                Command::OpenSettings { page: Some(SettingsPage::TextAi) },
+            );
             return;
         }
         self.translating = true;

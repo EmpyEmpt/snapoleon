@@ -12,6 +12,8 @@ open_link = "Открыть ссылку"
 translate = "Перевести"
 translate_to = "Перевести на"
 translating = "Переводим…"
+translate_off = "Перевод выключен. Сначала выберите сервис в настройках."
+translate_setup = "Настроить"
 source = "Оригинал"
 translation_title = "Перевод: {lang}"
 

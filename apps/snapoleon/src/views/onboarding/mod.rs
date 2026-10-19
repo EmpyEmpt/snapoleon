@@ -29,7 +29,7 @@ pub fn open(cx: &mut OpenCx) {
         return;
     }
     let view = Onboarding::new(cx.settings);
-    cx.open(window_spec(t("onboarding.title"), TAG, (720.0, 680.0), (640.0, 560.0)), view);
+    cx.open(window_spec(t("onboarding.title"), TAG, (720.0, 740.0), (640.0, 560.0)), view);
 }
 
 #[derive(Clone, Copy, PartialEq, Eq)]

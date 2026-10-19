@@ -520,6 +520,8 @@ multipart = "Form with file"
 binary = "File as body"
 form = "URL-encoded form"
 json = "JSON"
+xml = "XML"
+none = "No body"
 
 [settings.destinations.kv]
 name = "Name"
@@ -823,6 +825,7 @@ testing = "Testing…"
 ai_disabled = "AI features are turned off by your administrator."
 privacy_note = "Screenshots and text go only to the endpoint above. The default is a local server on this computer, and nothing is sent while AI is off."
 tesseract_hint = "Found automatically"
+tesseract_installed = "Installed in Tesseract: {langs}"
 
 [settings.text_ai.section]
 ocr = "Text recognition"

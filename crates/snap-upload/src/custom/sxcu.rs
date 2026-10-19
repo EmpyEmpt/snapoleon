@@ -6,7 +6,8 @@ use snap_core::{Error, Result, settings::CustomUploader, t};
 
 /// Parse a `.sxcu` document into a display name and an uploader definition.
 pub fn import(json: &str) -> Result<(String, CustomUploader)> {
-    let doc: Value = serde_json::from_str(json.trim_start_matches('\u{feff}')).map_err(|e| Error::invalid(format!("{}: {e}", t("upload.error.sxcu_invalid"))))?;
+    let doc: Value = serde_json::from_str(json.trim_start_matches('\u{feff}'))
+        .map_err(|e| Error::invalid(format!("{}: {e}", t("upload.error.sxcu_invalid"))))?;
     let Value::Object(top) = doc else {
         return Err(Error::invalid(t("upload.error.sxcu_invalid").into_owned()));
     };
@@ -14,7 +15,8 @@ pub fn import(json: &str) -> Result<(String, CustomUploader)> {
     let fields: std::collections::HashMap<String, &Value> = top.iter().map(|(k, v)| (k.to_ascii_lowercase(), v)).collect();
     let text = |key: &str| fields.get(key).map(|v| value_text(v)).unwrap_or_default();
 
-    let regex_list: Vec<String> = fields.get("regexlist").and_then(|v| v.as_array()).map(|a| a.iter().map(value_text).collect()).unwrap_or_default();
+    let regex_list: Vec<String> =
+        fields.get("regexlist").and_then(|v| v.as_array()).map(|a| a.iter().map(value_text).collect()).unwrap_or_default();
     let convert = |s: String| convert_legacy(&s, &regex_list);
 
     let name = Some(text("name")).filter(|n| !n.trim().is_empty()).unwrap_or_else(|| t("upload.sxcu.default_name").into_owned());
@@ -23,7 +25,10 @@ pub fn import(json: &str) -> Result<(String, CustomUploader)> {
         return Err(Error::invalid(t("upload.error.sxcu_no_url").into_owned()));
     }
 
-    let method = Some(text("requestmethod")).filter(|m| !m.is_empty()).or_else(|| Some(text("requesttype")).filter(|m| !m.is_empty())).unwrap_or_else(|| "POST".into());
+    let method = Some(text("requestmethod"))
+        .filter(|m| !m.is_empty())
+        .or_else(|| Some(text("requesttype")).filter(|m| !m.is_empty()))
+        .unwrap_or_else(|| "POST".into());
     let pairs = |key: &str| -> Vec<(String, String)> {
         match fields.get(key) {
             Some(Value::Object(o)) => o.iter().map(|(k, v)| (k.clone(), convert(value_text(v)))).collect(),
@@ -108,7 +113,9 @@ pub fn export(name: &str, c: &CustomUploader) -> String {
     if !c.file_form_name.is_empty() {
         fields.push(("FileFormName", quote(&c.file_form_name)));
     }
-    for (key, value) in [("URL", &c.url), ("ThumbnailURL", &c.thumbnail_url), ("DeletionURL", &c.deletion_url), ("ErrorMessage", &c.error_message)] {
+    for (key, value) in
+        [("URL", &c.url), ("ThumbnailURL", &c.thumbnail_url), ("DeletionURL", &c.deletion_url), ("ErrorMessage", &c.error_message)]
+    {
         if !value.is_empty() {
             fields.push((key, quote(value)));
         }

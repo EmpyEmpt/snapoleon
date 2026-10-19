@@ -520,6 +520,8 @@ multipart = "Форма с файлом"
 binary = "Файл в теле запроса"
 form = "Форма URL-encoded"
 json = "JSON"
+xml = "XML"
+none = "Без тела"
 
 [settings.destinations.kv]
 name = "Имя"
@@ -823,6 +825,7 @@ testing = "Проверка…"
 ai_disabled = "Функции ИИ отключены администратором."
 privacy_note = "Снимки и текст отправляются только на указанный выше адрес. По умолчанию это локальный сервер на этом компьютере, а при выключенном ИИ ничего не отправляется."
 tesseract_hint = "Ищется автоматически"
+tesseract_installed = "Установлено в Tesseract: {langs}"
 
 [settings.text_ai.section]
 ocr = "Распознавание текста"

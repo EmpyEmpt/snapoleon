@@ -2,8 +2,8 @@
 
 use egui::{Align, Layout, Sense, Stroke, StrokeKind, Ui, Vec2};
 use snap_annotate::{RenderOptions, render};
-use snap_core::t;
 use snap_core::{PointF, RectF, Result, tf};
+use snap_core::{settings::TranslateProvider, t};
 use snap_engine::OcrResult;
 use snap_ui::{
     ToastKind, icon, palette, radius, space, text,
@@ -11,7 +11,10 @@ use snap_ui::{
 };
 
 use super::{PanelCx, empty, field};
-use crate::{commands::Command, views::editor::output::Msg};
+use crate::{
+    commands::Command,
+    views::{editor::output::Msg, settings::SettingsPage},
+};
 
 enum Job {
     Idle,
@@ -203,6 +206,13 @@ fn result_ui(ui: &mut Ui, st: &mut State, cx: &mut PanelCx) -> Option<RectF> {
                 spinner(ui);
                 ui.label(text::dim(t("editor.ocr.translating")));
             });
+        }
+        _ if matches!(cx.vcx.settings.translate.provider, TranslateProvider::None) => {
+            ui.add(egui::Label::new(text::dim(t("editor.ocr.translate_off"))).wrap());
+            let setup = ui.add(Button::new(&t("editor.ocr.translate_setup")).icon(icon::GEAR).kind(ButtonKind::Secondary));
+            if setup.clicked() {
+                cx.vcx.push(Command::OpenSettings { page: Some(SettingsPage::TextAi) });
+            }
         }
         _ => {
             let label = tf("editor.ocr.translate_to", &[("lang", &target)]);

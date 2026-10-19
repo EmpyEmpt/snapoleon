@@ -5,7 +5,7 @@ use std::path::PathBuf;
 
 use image::RgbaImage;
 use snap_annotate::{Document, RenderOptions, render};
-use snap_core::{Result, Settings, settings::ImageFormat};
+use snap_core::{CaptureId, Result, Settings, settings::ImageFormat};
 use snap_engine::{Hit, Link, OcrResult};
 use snap_image::{encode, resize};
 
@@ -70,13 +70,24 @@ pub struct Estimate {
     pub preview: RgbaImage,
 }
 
+/// What a save wrote: the picture, the editable project and the library entry (id) they belong to.
+pub struct Saved {
+    pub id: CaptureId,
+    pub file: Option<PathBuf>,
+    pub project: Option<PathBuf>,
+}
+
 /// Everything worker threads send back to the editor window.
 pub enum Msg {
+    /// A long step of an output (redaction, upload) reports; an empty label means it is over.
+    Progress {
+        label: String,
+        frac: Option<f32>,
+    },
     Copied(Result<()>),
-    Saved(Result<PathBuf>),
-    ProjectSaved(Result<PathBuf>),
-    /// `None` when the dialog was dismissed; the flag says a project was written.
-    SavedAs(Result<Option<(PathBuf, bool)>>),
+    Saved(Result<Saved>),
+    /// `None` when the dialog was dismissed.
+    SavedAs(Result<Option<Saved>>),
     Uploaded(Result<Link>),
     Finished(RgbaImage),
     Pinned(RgbaImage),

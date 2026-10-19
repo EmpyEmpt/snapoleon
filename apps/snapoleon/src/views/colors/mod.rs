@@ -39,8 +39,6 @@ pub struct Measurement {
 }
 
 pub enum ColorToolInput {
-    /// Just show the history.
-    Open,
     Picked(ColorSample),
     Measured(Measurement),
 }
@@ -54,7 +52,6 @@ pub fn open(cx: &mut OpenCx, input: ColorToolInput) {
         _ => cx.open(window_spec(t("colors.title"), TAG, (480.0, 680.0), (420.0, 460.0)), ColorsView::new()),
     };
     match input {
-        ColorToolInput::Open => {}
         ColorToolInput::Picked(sample) => cx.post(win, sample),
         ColorToolInput::Measured(measurement) => cx.post(win, measurement),
     }

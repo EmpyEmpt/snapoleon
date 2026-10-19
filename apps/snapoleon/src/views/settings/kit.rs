@@ -3,7 +3,10 @@
 
 use std::{hash::Hash, path::PathBuf};
 
-use egui::{Align, Layout, Rect, Response, Sense, Stroke, StrokeKind, Ui, Widget};
+use egui::{
+    Align, Color32, Layout, Rect, Response, Sense, Stroke, StrokeKind, Ui, Widget,
+    epaint::text::{LayoutJob, TextWrapping},
+};
 use snap_core::{
     policy::Policy,
     settings::{CustomUploader, OcrSettings},
@@ -138,11 +141,6 @@ impl<'a> Rows<'a> {
         }
         let hay = format!("{label} {desc}").to_lowercase();
         self.terms.iter().all(|term| hay.contains(term.as_str()))
-    }
-
-    /// Whether a piece of content that is not a row (a page link, a list) should show for the current search.
-    pub fn shows(&self, text: &str) -> bool {
-        self.matches(text, "")
     }
 
     /// A titled card of rows.
@@ -553,18 +551,6 @@ pub fn list_row(ui: &mut Ui, glyph: &str, title: &str, subtitle: &str, trailing:
         let tile = Rect::from_center_size(egui::pos2(rect.left() + 16.0 + 16.0, rect.center().y), egui::vec2(32.0, 32.0));
         painter.rect_filled(tile, 8.0, p.accent_soft);
         util::paint_icon(ui, tile.center(), glyph, 18.0, p.accent);
-        let title_g = util::layout(ui, title, &text::body_strong_style(), p.text);
-        let sub_g = util::layout(ui, subtitle, &text::caption_style(), p.text_dim);
-        let block = title_g.size().y + if subtitle.is_empty() { 0.0 } else { sub_g.size().y + 2.0 };
-        let x = rect.left() + 64.0;
-        let y = rect.center().y - block / 2.0;
-        let title_h = title_g.size().y;
-        ui.painter().galley(util::snap(ui, egui::pos2(x, y)), title_g, p.text);
-        if !subtitle.is_empty() {
-            // Long subtitles fade out under the chevron instead of running into the badges.
-            let clip = Rect::from_min_max(rect.min, egui::pos2(rect.right() - 44.0, rect.max.y));
-            ui.painter().with_clip_rect(clip).galley(util::snap(ui, egui::pos2(x, y + title_h + 2.0)), sub_g, p.text_dim);
-        }
         util::paint_icon(
             ui,
             egui::pos2(rect.right() - 20.0, rect.center().y),
@@ -572,12 +558,32 @@ pub fn list_row(ui: &mut Ui, glyph: &str, title: &str, subtitle: &str, trailing:
             14.0,
             util::lerp_color(p.text_faint, p.text_dim, hover),
         );
+        // The trailing widgets (a badge) go first so the text knows how much room is left for it.
         let mut child = ui.new_child(
             egui::UiBuilder::new()
                 .max_rect(Rect::from_min_max(rect.min, egui::pos2(rect.right() - 40.0, rect.max.y)))
                 .layout(Layout::right_to_left(Align::Center)),
         );
         trailing(&mut child);
+        let used = child.min_rect();
+        let text_right = if used.is_positive() { used.left() - space::SM } else { rect.right() - 44.0 };
+        let x = rect.left() + 64.0;
+        let room = (text_right - x).max(40.0);
+        let font = |style: &egui::TextStyle| util::font_id(ui, style);
+        let elide = |text: &str, style: &egui::TextStyle, color: Color32| {
+            let mut job = LayoutJob::simple_singleline(text.to_owned(), font(style), color);
+            job.wrap = TextWrapping { max_width: room, max_rows: 1, break_anywhere: true, overflow_character: Some('…') };
+            ui.painter().layout_job(job)
+        };
+        let title_g = elide(title, &text::body_strong_style(), p.text);
+        let sub_g = elide(subtitle, &text::caption_style(), p.text_dim);
+        let block = title_g.size().y + if subtitle.is_empty() { 0.0 } else { sub_g.size().y + 2.0 };
+        let y = rect.center().y - block / 2.0;
+        let title_h = title_g.size().y;
+        ui.painter().galley(util::snap(ui, egui::pos2(x, y)), title_g, p.text);
+        if !subtitle.is_empty() {
+            ui.painter().galley(util::snap(ui, egui::pos2(x, y + title_h + 2.0)), sub_g, p.text_dim);
+        }
     }
     resp.on_hover_cursor(egui::CursorIcon::PointingHand)
 }

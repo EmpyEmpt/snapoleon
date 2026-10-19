@@ -65,7 +65,7 @@ fn hero(ui: &mut Ui) {
     ui.add_space(space::XS);
     ui.label(text::headline("Snapoleon"));
     ui.label(text::mono_text(tf("about.version", &[("version", VERSION)])));
-    ui.label(text::caption(format!("{} · {}", std::env::consts::OS, std::env::consts::ARCH)));
+    ui.label(text::caption(format!("{} · {}", os_name(), std::env::consts::ARCH)));
     ui.add_space(space::XS);
     ui.add(egui::Label::new(text::dim(t("about.tagline"))).halign(Align::Center));
 }
@@ -81,7 +81,7 @@ fn links(ui: &mut Ui, cx: &mut ViewCx) {
             cx.push(Command::OpenUrl(format!("{}/issues", REPOSITORY.trim_end_matches('/'))));
         }
         if Button::new(&t("about.copy_info")).kind(ButtonKind::Ghost).icon(icon::COPY).ui(ui).clicked() {
-            let info = format!("Snapoleon {VERSION} ({} {})", std::env::consts::OS, std::env::consts::ARCH);
+            let info = format!("Snapoleon {VERSION} ({} {})", os_name(), std::env::consts::ARCH);
             cx.push(Command::CopyText(info));
             cx.toast(ToastKind::Success, t("common.copied"));
         }
@@ -104,4 +104,14 @@ fn body(ui: &mut Ui, cx: &mut ViewCx) {
         }
     });
     ui.label(text::caption(t("about.credits_note")));
+}
+
+/// The platform as people write it: `Windows`, `macOS`, `Linux`.
+fn os_name() -> &'static str {
+    match std::env::consts::OS {
+        "windows" => "Windows",
+        "macos" => "macOS",
+        "linux" => "Linux",
+        other => other,
+    }
 }
