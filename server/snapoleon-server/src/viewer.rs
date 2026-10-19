@@ -13,7 +13,8 @@ use axum::{
 };
 use bytes::Bytes;
 use serde::Deserialize;
-use snap_core::{now_ms, t};
+use crate::i18n::t;
+use snap_core::now_ms;
 use tokio::sync::OnceCell;
 
 use crate::{

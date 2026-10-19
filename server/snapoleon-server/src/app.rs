@@ -59,6 +59,7 @@ pub fn router(state: AppState) -> Router {
         .merge(viewer::routes())
         .fallback(not_found)
         .layer(middleware::from_fn(security_headers))
+        .layer(middleware::from_fn(crate::i18n::negotiate))
         .layer(compression)
         .layer(RequestBodyLimitLayer::new(max_body))
         .layer(TraceLayer::new_for_http())

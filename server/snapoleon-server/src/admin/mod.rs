@@ -17,7 +17,7 @@ use axum::{
 };
 use maud::{Markup, html};
 use serde::Deserialize;
-use snap_core::{t, tf};
+use crate::i18n::{t, tf};
 
 use crate::{
     auth::{self, MaybeMe, Me, SESSION_COOKIE, SESSION_TTL_MS, cookie_value, set_cookie},

@@ -1,7 +1,8 @@
 //! Users, workspaces, memberships, API tokens, sessions and webhooks.
 
 use rusqlite::{Connection, OptionalExtension, params};
-use snap_core::{now_ms, t};
+use crate::i18n::t;
+use snap_core::now_ms;
 
 use super::{Db, Member, Membership, Role, Token, Usage, User, Webhook, Workspace};
 use crate::{

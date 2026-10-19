@@ -2,7 +2,7 @@
 
 use axum::http::StatusCode;
 use maud::{DOCTYPE, Markup, PreEscaped, html};
-use snap_core::{i18n::current_language, t, tf};
+use crate::i18n::{lang as current_language, t, tf};
 
 use crate::{
     db::{Comment, Item},

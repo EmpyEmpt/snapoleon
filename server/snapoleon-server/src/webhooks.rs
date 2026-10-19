@@ -4,7 +4,8 @@
 use std::time::Duration;
 
 use serde_json::json;
-use snap_core::{now_ms, t, tf};
+use crate::i18n::{t, tf};
+use snap_core::now_ms;
 
 use crate::{
     db::{Event, Item, Webhook, WebhookKind},

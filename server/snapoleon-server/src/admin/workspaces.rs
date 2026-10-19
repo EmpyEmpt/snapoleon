@@ -8,7 +8,7 @@ use axum::{
 };
 use maud::{Markup, html};
 use serde::Deserialize;
-use snap_core::t;
+use crate::i18n::t;
 
 use super::{Nav, NoticeQuery, checked_box, field, page, redirect_with, valid_username};
 use crate::{

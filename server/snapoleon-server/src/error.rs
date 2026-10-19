@@ -5,7 +5,7 @@ use axum::{
     http::StatusCode,
     response::{IntoResponse, Response},
 };
-use snap_core::t;
+use crate::i18n::t;
 
 use crate::views;
 

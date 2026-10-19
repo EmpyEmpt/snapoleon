@@ -331,7 +331,7 @@ async fn callback(
         (q.code, q.state, cookie_value(&headers, FLOW_COOKIE))
     else {
         return Err(
-            AppError::bad_request(snap_core::t("server.error.sso_failed").into_owned()).into(),
+            AppError::bad_request(crate::i18n::t("server.error.sso_failed").into_owned()).into(),
         );
     };
     let identity = state
@@ -340,7 +340,7 @@ async fn callback(
         .await
         .map_err(|e| {
             tracing::warn!("OIDC login failed: {e:#}");
-            AppError::bad_request(snap_core::t("server.error.sso_failed").into_owned())
+            AppError::bad_request(crate::i18n::t("server.error.sso_failed").into_owned())
         })?;
 
     let user = provision(&state, &identity).await?;

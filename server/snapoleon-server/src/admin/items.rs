@@ -8,7 +8,7 @@ use axum::{
 };
 use maud::{Markup, html};
 use serde::Deserialize;
-use snap_core::{t, tf};
+use crate::i18n::{t, tf};
 
 use super::{Nav, NoticeQuery, page, redirect_with};
 use crate::{

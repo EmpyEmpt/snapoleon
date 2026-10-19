@@ -7,6 +7,7 @@ mod auth;
 mod config;
 mod db;
 mod error;
+mod i18n;
 mod og;
 mod oidc;
 mod state;
@@ -20,7 +21,7 @@ mod webhooks;
 use std::{net::SocketAddr, path::PathBuf, sync::Arc, time::Duration};
 
 use anyhow::{Context, Result, bail};
-use snap_core::{i18n, t, tf};
+use crate::i18n::{t, tf};
 use tracing_subscriber::EnvFilter;
 
 use crate::{
@@ -99,7 +100,7 @@ async fn main() -> Result<()> {
     if matches!(args.command, Command::Healthcheck) {
         return healthcheck(&cfg).await;
     }
-    i18n::set_language(&cfg.language);
+    snap_core::i18n::set_language(&cfg.language);
     std::fs::create_dir_all(&cfg.data_dir)
         .with_context(|| format!("creating {}", cfg.data_dir.display()))?;
     let db = Db::open(&cfg.data_dir.join("snapoleon.sqlite"))?;
