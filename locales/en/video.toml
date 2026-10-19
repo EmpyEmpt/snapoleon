@@ -1,0 +1,47 @@
+# Video editor: player, scrubber, trim and export.
+
+[video]
+title_file = "{name}"
+play = "Play"
+pause = "Pause"
+to_start = "Go to start"
+trim_reset = "Reset trim"
+set_in = "Start the clip here"
+set_out = "End the clip here"
+in = "In"
+out = "Out"
+length = "Length"
+
+[video.error]
+title = "This video cannot be opened"
+body = "The file may be damaged or in a format this computer cannot read."
+
+[video.export]
+title = "Export"
+format = "Format"
+size_limit = "Size limit"
+no_limit = "No limit"
+telegram = "Telegram, 2 GB"
+email = "Email, 25 MB"
+discord = "Discord, 10 MB"
+custom = "Custom"
+width = "Width"
+fps = "Frame rate"
+original = "Original"
+mute = "Remove sound"
+run = "Export"
+running = "Exporting"
+with_audio = "with sound"
+no_audio = "no sound"
+done = "Export finished"
+failed = "Export failed"
+
+[video.result]
+copy_file = "Copy file"
+file_copied = "File copied"
+show = "Show in folder"
+upload = "Upload"
+uploading = "Uploading"
+copy_link = "Copy link"
+copy_link_tip = "Copy the link again"
+link_copied = "Link copied"
