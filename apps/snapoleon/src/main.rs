@@ -5,9 +5,6 @@
 
 // A GUI-subsystem binary in release builds; `console::attach` gives CLI output back its terminal.
 #![cfg_attr(all(windows, not(debug_assertions)), windows_subsystem = "windows")]
-// The view contract (`ViewCx`, `OpenCx`, `Command`, the input types) offers more than the stubs
-// use; the view implementations consume the rest.
-#![allow(dead_code)]
 
 mod actions;
 mod app;
