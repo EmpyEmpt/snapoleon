@@ -42,6 +42,8 @@ impl App {
                 });
             }
             Command::OpenEditor(input) => self.open_with(sh, |cx| views::editor::open(cx, input)),
+            // The editor is for pictures and projects; a video goes to the video editor.
+            Command::EditFile(path) if is_video(&path) => self.cmds.push(Command::OpenVideoEditor { path }),
             Command::EditFile(path) => {
                 load_in_background(sh, path, |path| views::editor::EditorInput::from_file(&path).map(Command::OpenEditor))
             }
@@ -171,8 +173,16 @@ fn shows_text(steps: &[Step]) -> bool {
 }
 
 fn file_kind(path: &std::path::Path) -> CaptureKind {
-    let ext = path.extension().map(|e| e.to_string_lossy().to_lowercase()).unwrap_or_default();
-    if matches!(ext.as_str(), "mp4" | "webm" | "mkv" | "mov" | "gif") { CaptureKind::Recording } else { CaptureKind::File }
+    if is_video(path) || extension(path) == "gif" { CaptureKind::Recording } else { CaptureKind::File }
+}
+
+/// A file the video editor opens.
+pub(crate) fn is_video(path: &std::path::Path) -> bool {
+    matches!(extension(path).as_str(), "mp4" | "m4v" | "mov" | "webm" | "mkv")
+}
+
+fn extension(path: &std::path::Path) -> String {
+    path.extension().map(|e| e.to_string_lossy().to_lowercase()).unwrap_or_default()
 }
 
 /// Decode a file on a worker thread, then queue the command built from it (or an error notice).

@@ -146,12 +146,14 @@ vocabulary; the "view must send back" column is what the receiving view owes the
 | `OpenEditor(EditorInput)` | `editor::open` | when `input.reply` is `Some`, send **exactly once** on close: `Some(Annotated { image, document })` if the user finished (Done / Copy / Save), `None` if they discarded. A dropped sender counts as `None`. The pipeline's `Annotate` step blocks on this. |
 | `EditFile(path)` | loads on a thread, then `OpenEditor` | (no view) |
 | `OpenPin { image, origin }` | `pin::open` | `origin` is the physical screen rect of the source pixels: appear exactly over them. |
+| `ClosePins` / `UnlockPins` | every window tagged `pin` | tray items: close them all / leave click-through (`on_msg(Box<pin::Unlock>)`). The tray shows them only while a pin is open. |
 | `PinFile(path)` | loads on a thread, then `OpenPin` | (no view) |
 | `OpenLibrary` | `library::open` (singleton) | |
 | `OpenSettings { page }` | `settings::open` (singleton); an open window gets `on_msg(Box<SettingsPage>)` | switch to the page. Pages: General, Capture, Hotkeys, Pipelines, Destinations, Links, Recording, TextAi, Privacy, History, Advanced. |
 | `OpenOnboarding` | `onboarding::open` (singleton) | set `general.first_run_done = true` via `cx.update_settings` when finished. |
 | `OpenAbout` | `about::open` (singleton) | |
 | `ShowText { title, text }` | `text::open` | |
+| `ShowCodes { title, text, codes }` | `text::open_with_codes` | decoded QR codes and barcodes (`PipelineUi::show_codes`, i.e. a `DecodeCodes { copy: false }` step). |
 | `StartRecording { target, format }` | `recorder::open(RecorderInput)`; refused with a notice if policy disables recording, ignored if one runs | start `snap_record`; push `Command::RecordingState { active: true }` when recording starts and `{ active: false }` when it ends (tray icon, quit handling). On stop: `engine.add_recording(..)`, then a notice or `Command::OpenVideoEditor`. |
 | `StopRecording` | `on_msg(Box<RecorderMsg::Stop>)` of every recorder window | finish and keep the recording. |
 | `RecordingState { active }` | tray icon + menu | sent by the recorder view only. |
@@ -159,8 +161,8 @@ vocabulary; the "view must send back" column is what the receiving view owes the
 | `StartScrolling { rect, pipeline }` | `scroll::open(ScrollInput)` | run `engine.scrolling(rect, &cancel, ..)` on a thread, stream `ScrollProgress` previews, then push `RunPipeline { capture, pipeline: pipeline or settings.default_pipeline }`. |
 | `StartStepCapture` | `steps::open` (singleton). The step-capture hotkey while a session runs sends `on_msg(Box<StepsMsg::Toggle>)` | session HUD via `engine::steps::StepRecorder`; afterwards the guide editor. |
 | `OpenCombine { images }` | `combine::open` | empty `images` = start empty. |
-| `OpenDiff { a, b }` | `diff::open` | |
-| `OpenColorTool(ColorToolInput)` | `colors::open` (singleton); a sample or measurement reaches an open window as `on_msg(Box<ColorSample>)` / `Box<Measurement>` | keep a history of picks and measurements. |
+| `OpenDiff { a, b }` | `diff::open` | `None` leaves that side to the tool's own picker. The tray's "Compare images" sends `{ None, None }`; a view that has the two images (a two-card selection in the Library) can send them. |
+| `OpenColorTool(ColorToolInput)` | `colors::open` (singleton); a sample or measurement reaches an open window as `on_msg(Box<ColorSample>)` / `Box<Measurement>` | keep a history of picks and measurements. `ColorToolInput::Open` (tray: "Colors and measurements") just shows the history. |
 | `PauseHotkeys(bool)` | hotkey manager | the Settings hotkey recorder sends `true` on focus and `false` on blur. |
 | `CopyText`, `Reveal`, `OpenPath`, `OpenUrl` | platform helpers (errors become a notice) | |
 | `Open(closure)` | runs the closure with an `OpenCx` | see "Opening windows". |
@@ -181,6 +183,28 @@ vocabulary; the "view must send back" column is what the receiving view owes the
   Ocr/DecodeCodes/Translate/PinRegion/ColorPicker/Measure -> overlay modes; PinClipboard,
   OpenEditorFromClipboard -> clipboard image or a notice; StepCaptureToggle, OpenLibrary,
   OpenSettings -> their views.
+
+## History changes
+
+The engine tells the app whenever it adds to the history or changes an entry it added (a finished pipeline, a
+recording, a new link, OCR text found by the background indexing): `Engine::set_history_listener` is wired to
+`AppEvent::HistoryChanged`. The app refreshes the tray's recent list and delivers `crate::events::HistoryChanged`
+(a unit struct) to **every** open window's `View::on_msg`. A view that lists the history (the Library) should
+reload on it (`msg.downcast::<HistoryChanged>()`) instead of waiting for its poll. A view that writes to the history without going through the engine sends the event itself with
+`cx.proxy.send(AppEvent::HistoryChanged)`.
+
+## The overlay's covers
+
+Opening a borderless full-screen window, its GPU surface and the first frame takes longer than the 100 ms the
+overlay has to appear in. The tray app therefore opens one cover window per monitor **hidden** at start-up
+(`overlay::prewarm`, after the tray is up) and keeps them (`views/overlay/pool.rs`). A session freezes the screen,
+gives each cover its monitor's snapshot (a `Seat`) and calls `Shell::present`, which renders a fresh frame while the
+window is still hidden and shows it with that frame. When the session ends the covers are hidden again
+(`Shell::set_visible(false)` plus `Shell::refresh_hidden`, so the snapshot texture is released). A monitor layout
+that differs from the pooled covers replaces them on the next session. The dev harness has no pool (it must end with
+its last window), and a tray-less app has none either. Use `overlay::active()` to ask whether a session is running;
+`windows_with_tag(overlay::TAG)` also finds the resting covers. `overlay ready N ms after the hotkey` in the log is
+the measurement (about 30 ms on a 2560x1440 monitor).
 
 ## Jobs
 
@@ -271,7 +295,10 @@ Read your screenshots (the Read tool shows PNGs) and fix what looks off before y
 
 ## Startup, for reference
 
-`main`: `dev::prepare` (dev data dir) -> `dpi::init` -> `console::attach` -> logging -> CLI parse
+`main`: `dev::prepare` (dev data dir) -> `dpi::init` -> `console::attach` -> settings (they decide the language
+of the help) -> `cli::parse` (localised help; a bare `snapoleon://` URL or an existing path as the first argument
+means `url` / `edit`, which is how desktop entries and file associations call the app) -> logging (headless
+commands: warnings on stderr only, never stdout, so `snapoleon mcp` stays clean; the app: stderr plus the log file)
 -> headless subcommands run in-process; GUI ones forward to a running instance
 (`ipc::instance_running`) or start the shell. In `App::init` (first callback, after the event
 loop started): serve IPC (a lost race forwards and exits), register hotkeys (conflicts become

@@ -1,13 +1,16 @@
 # Command line interface
 
-Status: stub. This page lists the planned subcommands from [SPEC.md](SPEC.md). The engine owns the final
-interface; run `snapoleon --help` and `snapoleon <command> --help` for the authoritative option list once the CLI
-is released.
+Run `snapoleon --help` and `snapoleon <command> --help` for the authoritative option list (the text follows the
+app language).
 
 `snapoleon` with no arguments starts the tray app. The app is a single instance: if one is already running, a
-second invocation forwards its arguments to it over local IPC and exits, so `snapoleon capture region` from a
-script or a compositor key binding triggers the running app. When no instance is running, the command runs
+second invocation forwards its arguments to it over local IPC and exits, so `snapoleon capture` from a script or a
+compositor key binding opens the overlay of the running app. When no instance is running, the command runs
 headless where that makes sense.
+
+A bare first argument is understood without a subcommand, which is how desktop entries (`snapoleon %U`), file
+associations and drag-and-drop call the app: `snapoleon snapoleon://capture_region` is `snapoleon url ...`, and
+`snapoleon shot.png` (any existing path) is `snapoleon edit shot.png`.
 
 On Windows the binary uses the GUI subsystem and attaches to the parent console when started from a terminal, so
 output appears in `cmd` and PowerShell.

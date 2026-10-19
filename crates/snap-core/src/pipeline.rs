@@ -89,8 +89,9 @@ pub fn default_pipelines() -> Vec<Pipeline> {
         },
         Pipeline {
             id: "annotate".into(),
-            name: "Annotate".into(),
-            steps: vec![Step::Annotate],
+            name: "Annotate, copy + save".into(),
+            // "Done" in the editor continues here: without these steps the finished image would go nowhere.
+            steps: vec![Step::Annotate, Step::CopyImage, Step::Save { dir: None, template: None, format: None }, Step::Notify],
         },
         Pipeline {
             id: "share".into(),

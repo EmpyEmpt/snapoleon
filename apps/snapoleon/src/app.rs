@@ -286,9 +286,10 @@ impl App {
             self.handle_request(sh, request, None);
         }
         self.flush(sh);
-        if !dev {
+        if !dev && self.tray.is_some() {
             // Last, so the first window the user asked for is not kept waiting for the GPU: the overlay's covers
-            // open hidden now, and the first PrintScreen is as fast as every later one.
+            // open hidden now, and the first PrintScreen is as fast as every later one. Without a tray the app ends
+            // with its last window, which hidden covers would prevent.
             self.open_with(sh, views::overlay::prewarm);
         }
     }

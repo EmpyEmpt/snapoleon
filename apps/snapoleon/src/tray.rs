@@ -229,6 +229,7 @@ impl App {
         let command = match entry {
             Some(e) => match (e.project, e.file) {
                 (Some(path), _) | (None, Some(path)) if e.kind != CaptureKind::Recording => Command::EditFile(path),
+                (_, Some(path)) if crate::routing::is_video(&path) => Command::OpenVideoEditor { path },
                 (_, Some(path)) => Command::OpenPath(path),
                 _ => Command::OpenLibrary,
             },

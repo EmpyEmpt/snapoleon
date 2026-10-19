@@ -127,8 +127,10 @@ pub fn prewarm(cx: &mut OpenCx) {
     pool::enable();
     match snap_capture::monitors() {
         Ok(monitors) => {
+            let began = Instant::now();
             let rects: Vec<snap_core::Rect> = monitors.iter().map(|m| m.rect).collect();
             pool::covers(cx, &rects, false);
+            tracing::info!("{} overlay covers opened hidden in {} ms", rects.len(), began.elapsed().as_millis());
         }
         Err(e) => tracing::warn!("overlay covers not pre-opened: {e}"),
     }
