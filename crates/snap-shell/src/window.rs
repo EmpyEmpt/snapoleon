@@ -51,17 +51,10 @@ pub(crate) struct Setup {
 }
 
 impl WindowState {
-    pub fn new(
-        gpu: &Gpu,
-        window: Arc<Window>,
-        surface: wgpu::Surface<'static>,
-        setup: Setup,
-        ctx: egui::Context,
-    ) -> Result<Self> {
+    pub fn new(gpu: &Gpu, window: Arc<Window>, surface: wgpu::Surface<'static>, setup: Setup, ctx: egui::Context) -> Result<Self> {
         let size = window.inner_size();
         let caps = surface.get_capabilities(&gpu.adapter);
-        let format = egui_wgpu::preferred_framebuffer_format(&caps.formats)
-            .map_err(|e| Error::Other(anyhow!("surface format: {e}")))?;
+        let format = egui_wgpu::preferred_framebuffer_format(&caps.formats).map_err(|e| Error::Other(anyhow!("surface format: {e}")))?;
         let alpha_mode = if caps.alpha_modes.contains(&wgpu::CompositeAlphaMode::Opaque) {
             wgpu::CompositeAlphaMode::Opaque
         } else {
@@ -143,23 +136,13 @@ impl WindowState {
     /// Apply egui's cursor, clipboard, IME and viewport output. Returns true
     /// when egui asked for the window to be closed.
     pub fn handle_output(&mut self, el: &ActiveEventLoop, out: &mut FullOutput) -> bool {
-        self.egui_state.handle_platform_output_with_event_loop(
-            &self.window,
-            el,
-            std::mem::take(&mut out.platform_output),
-        );
+        self.egui_state.handle_platform_output_with_event_loop(&self.window, el, std::mem::take(&mut out.platform_output));
 
         let Some(viewport) = out.viewport_output.remove(&ViewportId::ROOT) else {
             return false;
         };
         let mut actions = Vec::new();
-        egui_winit::process_viewport_commands(
-            &self.ctx,
-            &mut self.viewport_info,
-            viewport.commands,
-            &self.window,
-            &mut actions,
-        );
+        egui_winit::process_viewport_commands(&self.ctx, &mut self.viewport_info, viewport.commands, &self.window, &mut actions);
         for action in actions {
             let event = match action {
                 egui_winit::ActionRequested::Cut => egui::Event::Cut,
@@ -213,13 +196,9 @@ impl WindowState {
         }
 
         let primitives = self.ctx.tessellate(std::mem::take(&mut out.shapes), out.pixels_per_point);
-        let screen = egui_wgpu::ScreenDescriptor {
-            size_in_pixels: [self.config.width, self.config.height],
-            pixels_per_point: out.pixels_per_point,
-        };
-        let mut encoder = gpu
-            .device
-            .create_command_encoder(&wgpu::CommandEncoderDescriptor { label: Some("snap-shell frame") });
+        let screen =
+            egui_wgpu::ScreenDescriptor { size_in_pixels: [self.config.width, self.config.height], pixels_per_point: out.pixels_per_point };
+        let mut encoder = gpu.device.create_command_encoder(&wgpu::CommandEncoderDescriptor { label: Some("snap-shell frame") });
         let extra = self.renderer.update_buffers(&gpu.device, &gpu.queue, &mut encoder, &primitives, &screen);
 
         let frame = match self.surface.get_current_texture() {
@@ -257,12 +236,7 @@ impl WindowState {
                     depth_slice: None,
                     resolve_target: None,
                     ops: wgpu::Operations {
-                        load: wgpu::LoadOp::Clear(wgpu::Color {
-                            r: clear[0] as f64,
-                            g: clear[1] as f64,
-                            b: clear[2] as f64,
-                            a: 1.0,
-                        }),
+                        load: wgpu::LoadOp::Clear(wgpu::Color { r: clear[0] as f64, g: clear[1] as f64, b: clear[2] as f64, a: 1.0 }),
                         store: wgpu::StoreOp::Store,
                     },
                 })],

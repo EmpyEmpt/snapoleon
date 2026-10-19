@@ -13,8 +13,9 @@ use winit::{
 };
 
 use crate::{
-    Shell, ShellApp, ShellConfig, WindowKey, platform,
+    Shell, ShellApp, ShellConfig, WindowKey,
     gpu::Gpu,
+    platform,
     proxy::{Msg, Proxy},
     shell::{Core, GpuSlot, monitor_list},
 };
@@ -34,10 +35,7 @@ pub fn run<E: Send + 'static>(cfg: ShellConfig, app: impl ShellApp<E>) -> Result
     let display = event_loop.owned_display_handle();
     let gpu = {
         let display = display.clone();
-        std::thread::Builder::new()
-            .name("snap-shell-gpu".into())
-            .spawn(move || Gpu::create(display))
-            .map_err(Error::Io)?
+        std::thread::Builder::new().name("snap-shell-gpu".into()).spawn(move || Gpu::create(display)).map_err(Error::Io)?
     };
 
     let mut runner = Runner {

@@ -26,7 +26,9 @@ pub enum Step {
         style: Option<RedactStyle>,
     },
     /// Apply a beautify preset by name (background, padding, frame...).
-    Beautify { preset: String },
+    Beautify {
+        preset: String,
+    },
     /// Downscale to fit; `readable` keeps strokes/text legible.
     Resize {
         max_width: Option<u32>,
@@ -46,7 +48,9 @@ pub enum Step {
         #[serde(default = "yes")]
         copy: bool,
     },
-    Translate { target_lang: Option<String> },
+    Translate {
+        target_lang: Option<String>,
+    },
     /// Write to disk. `None` fields fall back to settings.
     Save {
         dir: Option<String>,
@@ -55,9 +59,13 @@ pub enum Step {
     },
     CopyImage,
     /// Upload to a destination id (`None` = default destination).
-    Upload { destination: Option<String> },
+    Upload {
+        destination: Option<String>,
+    },
     Shorten,
-    CopyLink { format: Option<LinkFormat> },
+    CopyLink {
+        format: Option<LinkFormat>,
+    },
     Pin,
     /// Generate alt text / title with the configured AI endpoint.
     AltText {
@@ -65,7 +73,10 @@ pub enum Step {
         copy: bool,
     },
     /// Run an external program; `{file}`, `{url}`, `{text}` are substituted.
-    RunCommand { program: String, args: Vec<String> },
+    RunCommand {
+        program: String,
+        args: Vec<String>,
+    },
     Notify,
 }
 
@@ -109,10 +120,6 @@ pub fn default_pipelines() -> Vec<Pipeline> {
             name: "Copy text (OCR)".into(),
             steps: vec![Step::Ocr { copy: true, as_markdown_table: false }, Step::Notify],
         },
-        Pipeline {
-            id: "pin".into(),
-            name: "Pin to screen".into(),
-            steps: vec![Step::Pin],
-        },
+        Pipeline { id: "pin".into(), name: "Pin to screen".into(), steps: vec![Step::Pin] },
     ]
 }
