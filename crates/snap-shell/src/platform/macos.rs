@@ -53,6 +53,9 @@ pub(crate) fn configure_window(window: &Window, spec: &WindowSpec) {
     }
 }
 
+/// AppKit windows keep their rectangle; only Windows clips to a pill.
+pub(crate) fn set_pill(_window: &Window, _on: bool) {}
+
 pub(crate) fn refresh(_window: &Window, _tool_style: bool) {}
 
 pub(crate) fn set_exclude_from_capture(window: &Window, on: bool) -> Result<()> {

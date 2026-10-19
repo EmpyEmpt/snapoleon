@@ -45,9 +45,9 @@ const LANGUAGES: [(&str, &str); 13] = [
     ("pt", "Português"),
     ("pl", "Polski"),
     ("tr", "Türkçe"),
-    ("zh", "Chinese"),
-    ("ja", "Japanese"),
-    ("ko", "Korean"),
+    ("zh", "中文"),
+    ("ja", "日本語"),
+    ("ko", "한국어"),
 ];
 
 #[derive(Clone, Copy, PartialEq)]
@@ -79,6 +79,8 @@ impl Provider {
 }
 
 pub fn show(ui: &mut Ui, rc: &mut Rows, st: &mut State, cx: &mut ViewCx, set: &mut snap_core::Settings) {
+    // The language chips carry native names, including the CJK ones.
+    snap_ui::ensure_cjk(ui.ctx(), "中文日本語한국어");
     ocr(ui, rc, st, cx, &mut set.ocr);
     translate(ui, rc, st, cx, &mut set.translate);
     ai(ui, rc, st, cx, &mut set.ai);

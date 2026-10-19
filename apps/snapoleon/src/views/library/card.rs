@@ -89,6 +89,7 @@ pub fn show(ui: &mut Ui, rect: Rect, entry: &Entry, tex: Option<&TextureHandle>,
     let text_left = tile.right() + 10.0;
     let text_w = rect.right() - 12.0 - text_left;
     let title = paint::title_of(entry);
+    snap_ui::ensure_cjk(ui.ctx(), &title);
     resp.widget_info(|| WidgetInfo::selected(Role::Button, true, look.selected, &title));
     let title_g = paint::elided(ui, &title, body_strong_style().resolve(ui.style()), p.text, text_w);
     let when = format::relative(look.now_ms, entry.created_ms);

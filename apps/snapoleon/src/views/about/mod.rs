@@ -72,15 +72,15 @@ fn hero(ui: &mut Ui) {
 
 fn links(ui: &mut Ui, cx: &mut ViewCx) {
     ui.add_space(space::SM);
-    ui.horizontal_wrapped(|ui| {
-        ui.spacing_mut().item_spacing.x = space::SM;
+    // A centred column: three equal-rank links that never wrap into an orphan.
+    ui.vertical_centered(|ui| {
         if Button::new(&t("about.repository")).kind(ButtonKind::Secondary).icon(icon::CODE).ui(ui).clicked() {
             cx.push(Command::OpenUrl(REPOSITORY.to_owned()));
         }
-        if Button::new(&t("about.issues")).kind(ButtonKind::Ghost).icon(icon::BUG).ui(ui).clicked() {
+        if Button::new(&t("about.issues")).kind(ButtonKind::Secondary).icon(icon::BUG).ui(ui).clicked() {
             cx.push(Command::OpenUrl(format!("{}/issues", REPOSITORY.trim_end_matches('/'))));
         }
-        if Button::new(&t("about.copy_info")).kind(ButtonKind::Ghost).icon(icon::COPY).ui(ui).clicked() {
+        if Button::new(&t("about.copy_info")).kind(ButtonKind::Secondary).icon(icon::COPY).ui(ui).clicked() {
             let info = format!("Snapoleon {VERSION} ({} {})", os_name(), std::env::consts::ARCH);
             cx.push(Command::CopyText(info));
             cx.toast(ToastKind::Success, t("common.copied"));

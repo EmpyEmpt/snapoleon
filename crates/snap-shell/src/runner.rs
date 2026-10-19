@@ -197,7 +197,12 @@ impl<E: Send + 'static, A: ShellApp<E>> ApplicationHandler<Msg<E>> for Runner<E,
                 }
                 w.cover_dirty = w.cover.is_some();
             }
-            WindowEvent::Resized(_) | WindowEvent::Moved(_) => w.cover_dirty = w.cover.is_some(),
+            WindowEvent::Resized(_) | WindowEvent::Moved(_) => {
+                w.cover_dirty = w.cover.is_some();
+                if w.pill && matches!(event, WindowEvent::Resized(_)) {
+                    platform::set_pill(&w.window, true);
+                }
+            }
             _ => {}
         }
         let response = w.egui_state.on_window_event(&w.window, &event);

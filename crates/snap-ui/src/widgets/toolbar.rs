@@ -19,6 +19,17 @@ pub fn toolbar_pill<R>(ui: &mut Ui, add: impl FnOnce(&mut Ui) -> R) -> InnerResp
         })
 }
 
+/// The panel frame for a window that is itself a pill (the window is clipped to the same shape):
+/// elevated fill, 1 px border, fully rounded ends, `inset` points of air at the ends.
+pub fn pill_window_frame(ui: &Ui, inset: i8) -> Frame {
+    let p = Palette::of(ui);
+    Frame::new()
+        .fill(p.elevated)
+        .stroke(Stroke::new(1.0, p.border))
+        .corner_radius(radius::PILL as u8)
+        .inner_margin(Margin::symmetric(inset, 0))
+}
+
 /// A pill toolbar floating above everything at `pos` (top-left, in screen points).
 pub fn floating_toolbar<R>(ctx: &Context, id: Id, pos: Pos2, add: impl FnOnce(&mut Ui) -> R) -> InnerResponse<R> {
     let out = Area::new(id)

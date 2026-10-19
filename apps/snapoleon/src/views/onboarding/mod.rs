@@ -14,13 +14,21 @@ use snap_ui::{
     widgets::{self, Button, ButtonKind, RecorderState, badge, card_frame, hotkey_recorder, toolbar_pill},
 };
 
-use super::{Chrome, OpenCx, View, ViewCx, settings::step_label, window_spec};
+use super::{
+    Chrome, OpenCx, View, ViewCx,
+    settings::{pipeline_label, step_label},
+    window_spec,
+};
 use crate::commands::Command;
 
 pub const TAG: &str = "onboarding";
 
 /// How long a card takes to fade in.
 const FADE: f32 = 0.18;
+/// The mock-up toolbar on the hotkey card: its glyphs, their button size and the pill's margin plus border.
+const MOCK_GLYPHS: [&str; 5] = [icon::COPY, icon::FLOPPY_DISK, icon::PENCIL_SIMPLE, icon::PUSH_PIN, icon::CLOUD_ARROW_UP];
+const MOCK_BUTTON: f32 = 32.0;
+const MOCK_PILL_CHROME: f32 = 14.0;
 /// How often the permission status is read again while the last card is open.
 const PERMISSION_POLL: Duration = Duration::from_millis(900);
 
@@ -252,8 +260,8 @@ impl Onboarding {
                     cx.update_settings(move |s| set_capture_accel(s, &accel));
                 }
             }
-            ui.label(text::caption(t("onboarding.hotkey.change")));
         });
+        ui.add(egui::Label::new(text::caption(t("onboarding.hotkey.change"))).wrap());
         ui.add_space(space::MD);
         ui.separator();
         ui.add_space(space::MD);
@@ -261,12 +269,16 @@ impl Onboarding {
         ui.add(egui::Label::new(text::dim(t("onboarding.hotkey.explain"))).wrap());
         ui.add_space(space::SM);
         ui.vertical_centered(|ui| {
-            toolbar_pill(ui, |ui| {
-                let p = Palette::of(ui);
-                for glyph in [icon::COPY, icon::FLOPPY_DISK, icon::PENCIL_SIMPLE, icon::PUSH_PIN, icon::CLOUD_ARROW_UP] {
-                    let (rect, _) = ui.allocate_exact_size(vec2(32.0, 32.0), Sense::hover());
-                    widgets::util::paint_icon(ui, rect.center(), glyph, 16.0, p.text_dim);
-                }
+            // A centred layout cannot centre content of unknown width, so the row gets the pill's exact width.
+            let width = MOCK_GLYPHS.len() as f32 * MOCK_BUTTON + (MOCK_GLYPHS.len() - 1) as f32 * 2.0 + MOCK_PILL_CHROME;
+            ui.allocate_ui_with_layout(vec2(width, 0.0), Layout::left_to_right(Align::Center), |ui| {
+                toolbar_pill(ui, |ui| {
+                    let p = Palette::of(ui);
+                    for glyph in MOCK_GLYPHS {
+                        let (rect, _) = ui.allocate_exact_size(vec2(MOCK_BUTTON, MOCK_BUTTON), Sense::hover());
+                        widgets::util::paint_icon(ui, rect.center(), glyph, 16.0, p.text_dim);
+                    }
+                });
             });
         });
     }
@@ -403,7 +415,7 @@ fn files_card(ui: &mut Ui, cx: &mut ViewCx) {
     let current = cx.settings.default_pipeline.clone();
     let mut chosen = None;
     for pipeline in &cx.settings.pipelines {
-        if choice_row(ui, pipeline.id == current, &pipeline.name, &summary(pipeline)).clicked() {
+        if choice_row(ui, pipeline.id == current, &pipeline_label(pipeline), &summary(pipeline)).clicked() {
             chosen = Some(pipeline.id.clone());
         }
     }

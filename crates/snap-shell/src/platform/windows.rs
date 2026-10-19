@@ -3,7 +3,10 @@ use std::mem::size_of;
 use snap_core::{Error, Rect, Result};
 use windows_sys::Win32::{
     Foundation::HWND,
-    Graphics::Dwm::{DWMNCRP_DISABLED, DWMWA_NCRENDERING_POLICY, DwmSetWindowAttribute},
+    Graphics::{
+        Dwm::{DWMNCRP_DISABLED, DWMWA_NCRENDERING_POLICY, DwmSetWindowAttribute},
+        Gdi::{CreateRoundRectRgn, SetWindowRgn},
+    },
     System::Threading::{AttachThreadInput, GetCurrentThreadId},
     UI::WindowsAndMessaging::{
         BringWindowToTop, GWL_EXSTYLE, GetForegroundWindow, GetWindowLongW, GetWindowThreadProcessId, HWND_TOPMOST, SWP_FRAMECHANGED,
@@ -56,6 +59,22 @@ pub(crate) fn configure_window(window: &Window, spec: &WindowSpec) {
         let policy = DWMNCRP_DISABLED;
         // SAFETY: `policy` outlives the call and the size matches DWMNCRENDERINGPOLICY (i32).
         unsafe { DwmSetWindowAttribute(h, DWMWA_NCRENDERING_POLICY as u32, (&raw const policy).cast(), size_of::<i32>() as u32) };
+    }
+}
+
+/// Clip the window to a stadium (corner diameter = height), or lift the clip. The region is not
+/// anti-aliased, but it is the only way to get round ends without a transparent swap chain.
+pub(crate) fn set_pill(window: &Window, on: bool) {
+    let Some(h) = hwnd(window) else { return };
+    let size = window.inner_size();
+    // SAFETY: the region is handed to the window, which owns and frees it; null removes the clip.
+    unsafe {
+        let region = if on {
+            CreateRoundRectRgn(0, 0, size.width as i32 + 1, size.height as i32 + 1, size.height as i32, size.height as i32)
+        } else {
+            std::ptr::null_mut()
+        };
+        SetWindowRgn(h, region, 1);
     }
 }
 

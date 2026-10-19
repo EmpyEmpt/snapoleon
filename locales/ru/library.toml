@@ -10,7 +10,7 @@ hint = "Поиск по тексту, заголовкам, приложения
 [library.filter]
 all = "Все"
 screenshots = "Скриншоты"
-recordings = "Записи"
+recordings = "Видео"
 favorites = "Избранное"
 today = "Сегодня"
 week = "На этой неделе"

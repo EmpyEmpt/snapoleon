@@ -52,9 +52,7 @@ pub fn ui(ui: &mut Ui, st: &mut State, cx: &mut PanelCx) {
     heading(ui, &t("editor.export.format"));
     let mut format = settings.capture.format;
     let formats = [(ImageFormat::Png, "PNG"), (ImageFormat::Jpeg, "JPG"), (ImageFormat::Webp, "WebP")];
-    ui.vertical_centered_justified(|ui| {
-        segmented(ui, &mut format, &formats);
-    });
+    segmented(ui, &mut format, &formats);
     if format != settings.capture.format {
         cx.vcx.update_settings(move |s| s.capture.format = format);
     }

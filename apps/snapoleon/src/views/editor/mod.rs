@@ -483,7 +483,7 @@ impl EditorView {
                 if icon_button(ui, icon::FLOPPY_DISK, &t("editor.save_tip"), Some("Ctrl+S")).clicked() {
                     acts.push(Act::Save);
                 }
-                if icon_button(ui, icon::FLOPPY_DISK_BACK, &t("editor.save_as_tip"), Some("Ctrl+Shift+S")).clicked() {
+                if icon_button(ui, icon::FILE_ARROW_DOWN, &t("editor.save_as_tip"), Some("Ctrl+Shift+S")).clicked() {
                     acts.push(Act::SaveAs);
                 }
             });

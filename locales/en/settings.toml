@@ -285,6 +285,13 @@ copy_name = "Copy of {name}"
 presets = "Beautify presets"
 presets_hint = "Backgrounds, padding and frames that the Beautify step can apply."
 
+[settings.pipelines.builtin]
+quick = "Quick: copy + save"
+annotate = "Annotate, copy + save"
+share = "Redact + upload + copy Markdown"
+ocr = "Copy text (OCR)"
+pin = "Pin to screen"
+
 [settings.pipelines.section]
 defaults = "Defaults"
 
@@ -748,6 +755,7 @@ ffmpeg_hint = "Found automatically"
 ffmpeg_missing = "ffmpeg was not found. Linux needs it for MP4, GIF and WebP, and video trimming uses it everywhere it is present."
 ffmpeg_found = "Using {path}"
 fps_unit = "{n} fps"
+secs_unit = " s"
 bitrate_unit = "{n} Mbit/s"
 mic_default = "System default"
 
