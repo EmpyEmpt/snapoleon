@@ -10,6 +10,7 @@ pub(crate) enum Decoded {
     /// Opaque BGRA picture.
     Video(Frame, Hns),
     /// Interleaved 48 kHz stereo f32.
+    #[cfg_attr(target_os = "linux", expect(dead_code, reason = "Linux has no native decoder, only the GIF one"))]
     Audio(Vec<f32>, Hns),
 }
 

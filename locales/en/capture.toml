@@ -76,3 +76,6 @@ incrementor = "Stepper"
 disclosure_triangle = "Disclosure triangle"
 link = "Link"
 toolbar = "Toolbar"
+
+[capture.error]
+backend_crashed = "The screen capture service of this desktop failed. Run Snapoleon in an X11 session or install a desktop portal."

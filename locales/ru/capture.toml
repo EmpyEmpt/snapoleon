@@ -76,3 +76,6 @@ incrementor = "Шаговый регулятор"
 disclosure_triangle = "Треугольник раскрытия"
 link = "Ссылка"
 toolbar = "Панель инструментов"
+
+[capture.error]
+backend_crashed = "Служба захвата экрана этого рабочего стола дала сбой. Запустите Snapoleon в сеансе X11 или установите desktop portal."

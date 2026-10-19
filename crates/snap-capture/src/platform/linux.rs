@@ -27,6 +27,41 @@ pub fn pointer() -> Option<(f64, f64)> {
     Some((reply.root_x() as f64, reply.root_y() as f64))
 }
 
+/// Read a window by X11 id straight off the server, without needing window-manager (EWMH) support.
+/// Returns the pixels and the window's position on the root.
+pub fn window_by_id(id: u64) -> Result<(RgbaImage, Rect)> {
+    let x_err = |e: xcb::Error| Error::Other(anyhow::anyhow!("X11: {e}"));
+    let id = u32::try_from(id).map_err(|_| Error::invalid("window id"))?;
+    let window: x::Window = xcb::XidNew::new(id);
+    let (conn, root) = connect()?;
+    let geometry = conn.wait_for_reply(conn.send_request(&x::GetGeometry { drawable: x::Drawable::Window(window) })).map_err(x_err)?;
+    let origin = conn
+        .wait_for_reply(conn.send_request(&x::TranslateCoordinates { src_window: window, dst_window: root, src_x: 0, src_y: 0 }))
+        .map_err(x_err)?;
+    let (w, h) = (geometry.width() as u32, geometry.height() as u32);
+    let reply = conn
+        .wait_for_reply(conn.send_request(&x::GetImage {
+            format: x::ImageFormat::ZPixmap,
+            drawable: x::Drawable::Window(window),
+            x: 0,
+            y: 0,
+            width: geometry.width(),
+            height: geometry.height(),
+            plane_mask: u32::MAX,
+        }))
+        .map_err(x_err)?;
+    let bgrx = reply.data();
+    if bgrx.len() < w as usize * h as usize * 4 {
+        return Err(Error::unsupported(format!("{}-bit X11 visuals", reply.depth())));
+    }
+    let mut rgba = Vec::with_capacity(bgrx.len());
+    for px in bgrx.as_chunks::<4>().0 {
+        rgba.extend_from_slice(&[px[2], px[1], px[0], 255]);
+    }
+    let image = RgbaImage::from_raw(w, h, rgba).ok_or_else(|| Error::invalid("X11 image size"))?;
+    Ok((image, Rect::new(origin.dst_x() as i32, origin.dst_y() as i32, w, h)))
+}
+
 pub fn exe_path(pid: u32) -> Option<String> {
     std::fs::read_link(format!("/proc/{pid}/exe")).ok().map(|p| p.to_string_lossy().into_owned())
 }
