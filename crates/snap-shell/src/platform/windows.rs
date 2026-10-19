@@ -4,10 +4,12 @@ use snap_core::{Error, Rect, Result};
 use windows_sys::Win32::{
     Foundation::HWND,
     Graphics::Dwm::{DWMNCRP_DISABLED, DWMWA_NCRENDERING_POLICY, DwmSetWindowAttribute},
+    System::Threading::{AttachThreadInput, GetCurrentThreadId},
     UI::WindowsAndMessaging::{
-        GWL_EXSTYLE, GetWindowLongW, HWND_TOPMOST, SWP_FRAMECHANGED, SWP_NOACTIVATE, SWP_NOMOVE, SWP_NOSIZE,
-        SWP_NOZORDER, SetWindowDisplayAffinity, SetWindowLongW, SetWindowPos, WDA_EXCLUDEFROMCAPTURE, WDA_NONE,
-        WS_EX_APPWINDOW, WS_EX_TOOLWINDOW,
+        BringWindowToTop, GWL_EXSTYLE, GetForegroundWindow, GetWindowLongW, GetWindowThreadProcessId, HWND_TOPMOST,
+        SWP_FRAMECHANGED, SWP_NOACTIVATE, SWP_NOMOVE, SWP_NOSIZE, SWP_NOZORDER, SetForegroundWindow,
+        SetWindowDisplayAffinity, SetWindowLongW, SetWindowPos, WDA_EXCLUDEFROMCAPTURE, WDA_NONE, WS_EX_APPWINDOW,
+        WS_EX_TOOLWINDOW,
     },
 };
 use winit::{
@@ -125,4 +127,24 @@ pub(crate) fn native_id(window: &Window) -> Option<u64> {
     hwnd(window).map(|h| h as usize as u64)
 }
 
-pub(crate) fn activate(_window: &Window) {}
+/// Bring the window to the foreground. Windows only lets the process that last received input do that; a window
+/// opened by a global hotkey or a second launch usually is not, so the request is retried while borrowing the
+/// input state of the current foreground thread (no synthetic key presses, which would be seen by that app).
+pub(crate) fn activate(window: &Window) {
+    let Some(h) = hwnd(window) else { return };
+    // SAFETY: plain Win32 calls on a window owned by this process; the foreground window is only queried.
+    unsafe {
+        if GetForegroundWindow() == h || SetForegroundWindow(h) != 0 {
+            return;
+        }
+        let foreground = GetForegroundWindow();
+        let (theirs, ours) = (GetWindowThreadProcessId(foreground, std::ptr::null_mut()), GetCurrentThreadId());
+        if foreground.is_null() || theirs == 0 || theirs == ours {
+            return;
+        }
+        AttachThreadInput(ours, theirs, 1);
+        BringWindowToTop(h);
+        SetForegroundWindow(h);
+        AttachThreadInput(ours, theirs, 0);
+    }
+}
