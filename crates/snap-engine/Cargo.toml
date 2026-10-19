@@ -7,3 +7,21 @@ license.workspace = true
 
 [dependencies]
 snap-core.workspace = true
+snap-capture.workspace = true
+snap-image.workspace = true
+snap-annotate.workspace = true
+snap-ocr.workspace = true
+snap-redact.workspace = true
+snap-upload.workspace = true
+snap-history.workspace = true
+snap-platform.workspace = true
+snap-record.workspace = true
+snap-ai.workspace = true
+anyhow.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+tracing.workspace = true
+parking_lot.workspace = true
+crossbeam-channel.workspace = true
+image.workspace = true
+clap = { version = "4", features = ["derive"] }
