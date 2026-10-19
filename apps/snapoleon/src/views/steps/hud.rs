@@ -79,10 +79,14 @@ impl HudView {
         }
     }
 
-    fn finish(&mut self, cx: &mut ViewCx) {
+    fn stop_session(&mut self) {
         if let Some(session) = self.session.take() {
             session.stop();
         }
+    }
+
+    fn finish(&mut self, cx: &mut ViewCx) {
+        self.stop_session();
         let shots = std::mem::take(&mut self.shots);
         if shots.is_empty() {
             cx.notify(Notice { kind: NoticeKind::Info, title: t("steps.none").into_owned(), ..Notice::default() });
@@ -93,9 +97,7 @@ impl HudView {
     }
 
     fn discard(&mut self, cx: &mut ViewCx) {
-        if let Some(session) = self.session.take() {
-            session.stop();
-        }
+        self.stop_session();
         cx.close();
     }
 
@@ -106,9 +108,10 @@ impl HudView {
             // Counter group; also the handle for moving the HUD.
             let counter = ui.horizontal_centered(|ui| {
                 self.thumb(ui, &p);
-                ui.label(text::mono_text(self.shots.len().to_string()).size(18.0).strong().color(p.gold));
+                // The label comes first so the count never has to agree with a plural.
                 let (label, tone) = if self.paused { ("steps.hud.paused", p.warning) } else { ("steps.hud.steps", p.text_dim) };
                 ui.label(text::caption(t(label)).color(tone));
+                ui.label(text::mono_text(self.shots.len().to_string()).size(18.0).strong().color(p.gold));
             });
             if ui.interact(counter.response.rect, ui.scope_id().with("drag"), Sense::drag()).drag_started() {
                 cx.shell.drag_window(cx.win);
@@ -181,16 +184,12 @@ impl View for HudView {
     }
 
     fn close_requested(&mut self, _cx: &mut ViewCx) -> bool {
-        if let Some(session) = self.session.take() {
-            session.stop();
-        }
+        self.stop_session();
         true
     }
 
     fn closed(&mut self, _cx: &mut ViewCx) {
-        if let Some(session) = self.session.take() {
-            session.stop();
-        }
+        self.stop_session();
     }
 
     fn on_msg(&mut self, cx: &mut ViewCx, msg: Box<dyn Any + Send>) {

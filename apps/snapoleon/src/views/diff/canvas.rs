@@ -11,7 +11,6 @@ use snap_ui::{
 use super::{AFTER, BEFORE, DiffView, Mode, ViewCx};
 use crate::views::combine::{source, viewer::Placed};
 
-const FULL_UV: Rect = Rect { min: Pos2::ZERO, max: Pos2 { x: 1.0, y: 1.0 } };
 /// Half the width of the swipe handle's grab area.
 const GRAB: f32 = 14.0;
 

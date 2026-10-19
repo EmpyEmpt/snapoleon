@@ -267,7 +267,7 @@ impl CombineView {
         ui.add_space(((ui.available_height() - 200.0) / 2.0).max(0.0));
         let mut chosen = None;
         empty_state_with(ui, icon::SQUARES_FOUR, &t("combine.empty.title"), &t("combine.empty.body"), |ui| {
-            let resp = ui.add(Button::new(&t("combine.add")).icon(icon::PLUS).kind(ButtonKind::Primary));
+            let resp = ui.add(Button::new(&t("combine.add_images")).icon(icon::PLUS).kind(ButtonKind::Primary));
             chosen = source::source_menu(ui, &resp, false);
         });
         if let Some(pick) = chosen {

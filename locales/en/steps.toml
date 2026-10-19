@@ -10,8 +10,8 @@ copied_markdown = "Copied as Markdown"
 
 [steps.hud]
 title = "Step capture"
-steps = "steps"
-paused = "paused"
+steps = "Steps"
+paused = "Paused"
 snap = "Capture a step now"
 pause = "Pause"
 resume = "Resume"
@@ -66,5 +66,6 @@ nothing = "Add a step to export."
 [steps.export]
 writing_markdown = "Writing Markdown"
 writing_html = "Writing HTML"
+writing_ai = "Writing the guide with AI"
 rendering_video = "Rendering video"
 folder_dialog = "Choose a folder for the guide"

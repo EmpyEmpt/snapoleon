@@ -10,8 +10,8 @@ copied_markdown = "Скопировано как Markdown"
 
 [steps.hud]
 title = "Запись шагов"
-steps = "шагов"
-paused = "пауза"
+steps = "Шаги"
+paused = "Пауза"
 snap = "Сделать шаг сейчас"
 pause = "Пауза"
 resume = "Продолжить"
@@ -66,5 +66,6 @@ nothing = "Добавьте шаг, чтобы экспортировать."
 [steps.export]
 writing_markdown = "Записываем Markdown"
 writing_html = "Записываем HTML"
+writing_ai = "ИИ пишет руководство"
 rendering_video = "Собираем видео"
 folder_dialog = "Выберите папку для руководства"

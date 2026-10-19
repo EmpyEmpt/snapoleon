@@ -20,6 +20,8 @@ use crate::{commands::Command, views::ViewCx};
 /// The widest texture a preview uploads; bigger images are shrunk for display only.
 const MAX_TEXTURE_SIDE: u32 = 4096;
 const THUMB_SIDE: u32 = 320;
+/// Width of the add-image menu.
+const MENU_WIDTH: f32 = 208.0;
 const IMAGE_EXTENSIONS: [&str; 7] = ["png", "jpg", "jpeg", "webp", "bmp", "gif", "tiff"];
 
 pub struct Item {
@@ -392,12 +394,13 @@ pub fn source_menu(ui: &Ui, resp: &Response, latest: bool) -> Option<Pick> {
         .close_behavior(egui::PopupCloseBehavior::CloseOnClick)
         .frame(frame)
         .gap(4.0)
+        .width(MENU_WIDTH)
         .style(move |s: &mut egui::Style| {
             *s = (*style).clone();
             s.spacing.item_spacing.y = 2.0;
         })
         .show(|ui| {
-            ui.set_min_width(200.0);
+            ui.set_width(MENU_WIDTH - 8.0);
             let entries = [
                 (Pick::Files, icon::FOLDER_OPEN, "combine.source.files"),
                 (Pick::Clipboard, icon::CLIPBOARD, "combine.source.clipboard"),

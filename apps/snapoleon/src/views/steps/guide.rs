@@ -1,7 +1,7 @@
 //! The guide editor that opens when a step capture session finishes: an editable title and intro,
 //! a reorderable list of step cards and the export / AI panel.
 
-use std::{any::Any, time::Duration};
+use std::{any::Any, path::PathBuf, time::Duration};
 
 use egui::{Align, Context, Frame, Layout, Margin, ScrollArea, TextureHandle, Ui, Vec2};
 use image::RgbaImage;
@@ -18,7 +18,7 @@ use snap_ui::{
 
 use super::{
     GUIDE_TAG,
-    export::{self, Kind, Rewrite, Written},
+    export::{self, Kind, Rewrite},
     session::{Shot, THUMB_SIDE},
 };
 use crate::{
@@ -356,14 +356,14 @@ impl View for GuideView {
             Ok(msg) => return self.on_worker(cx, *msg),
             Err(msg) => msg,
         };
-        let msg = match msg.downcast::<snap_core::Result<Option<Written>>>() {
+        let msg = match msg.downcast::<snap_core::Result<Option<PathBuf>>>() {
             Ok(done) => {
                 self.busy = None;
                 match *done {
-                    Ok(Some(written)) => {
+                    Ok(Some(path)) => {
                         self.dirty = false;
-                        let toast = tf("steps.saved", &[("name", &export::display_name(&written.path))]);
-                        cx.toast_action(ToastKind::Success, toast, t("app.notice.show_in_folder"), Command::Reveal(written.path));
+                        let toast = tf("steps.saved", &[("name", &export::display_name(&path))]);
+                        cx.toast_action(ToastKind::Success, toast, t("app.notice.show_in_folder"), Command::Reveal(path));
                     }
                     Ok(None) => {}
                     Err(e) => cx.toast_error(&e),

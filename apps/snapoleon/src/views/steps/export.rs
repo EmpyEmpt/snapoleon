@@ -30,12 +30,6 @@ impl Kind {
     }
 }
 
-/// A finished export.
-pub struct Written {
-    pub kind: Kind,
-    pub path: PathBuf,
-}
-
 /// New wording from the AI, matched to steps by id.
 pub struct Rewrite {
     pub title: String,
@@ -43,10 +37,10 @@ pub struct Rewrite {
     pub captions: Vec<(u64, String)>,
 }
 
-/// Ask where to put the file, then write it. Resolves to `None` when the dialog was dismissed.
+/// Ask where to put the file, then write it. Resolves to the written path, or `None` when the dialog was dismissed.
 pub fn export(cx: &ViewCx, kind: Kind, guide: Guide, secs_per_step: u32) {
     let proxy = cx.proxy.clone();
-    cx.spawn(move || -> Result<Option<Written>> {
+    cx.spawn(move || -> Result<Option<PathBuf>> {
         let stem = file_stem(&guide.title);
         let target = match kind {
             Kind::Markdown => rfd::FileDialog::new().set_title(t("steps.export.folder_dialog")).pick_folder(),
@@ -61,14 +55,18 @@ pub fn export(cx: &ViewCx, kind: Kind, guide: Guide, secs_per_step: u32) {
             Kind::Video => steps::export_video(&guide, &target, secs_per_step).map(|()| target),
         };
         proxy.send(AppEvent::JobProgress { label: String::new(), frac: None });
-        written.map(|path| Some(Written { kind, path }))
+        written.map(Some)
     });
 }
 
 /// Rewrite the title, intro and captions with the configured AI.
 pub fn rewrite(cx: &ViewCx, engine: Engine, mut guide: Guide, ids: Vec<u64>) {
+    let proxy = cx.proxy.clone();
     cx.spawn(move || -> Result<Rewrite> {
-        steps::ai_howto(&engine, &mut guide)?;
+        proxy.send(AppEvent::JobProgress { label: t("steps.export.writing_ai").into_owned(), frac: None });
+        let rewritten = steps::ai_howto(&engine, &mut guide);
+        proxy.send(AppEvent::JobProgress { label: String::new(), frac: None });
+        rewritten?;
         let captions = ids.into_iter().zip(guide.steps.into_iter().map(|s| s.caption)).collect();
         Ok(Rewrite { title: guide.title, intro: guide.intro, captions })
     });

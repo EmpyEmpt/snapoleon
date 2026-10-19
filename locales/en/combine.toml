@@ -5,7 +5,7 @@
 title = "Combine"
 add = "Add"
 edit = "Edit"
-add_tip = "Add images"
+add_images = "Add images"
 need_two = "Add at least two images to export the result."
 output = "Result size"
 saved = "Saved {name}"

@@ -1,7 +1,7 @@
 //! Zoom and pan over one image: wheel zooms around the cursor, drag pans, double click toggles fit
 //! and 100%. Shared by the combine and diff views.
 
-use egui::{Color32, Id, Painter, Pos2, Rect, Response, Sense, Stroke, StrokeKind, TextureHandle, Ui, Vec2};
+use egui::{Color32, Id, Painter, Pos2, Rect, Sense, Stroke, StrokeKind, TextureHandle, Ui, Vec2};
 use snap_ui::{
     Palette, icon,
     widgets::{floating_toolbar, icon_button, toolbar_separator},
@@ -25,7 +25,6 @@ pub struct Viewer {
 pub struct Placed {
     pub image_rect: Rect,
     pub canvas: Rect,
-    pub response: Response,
 }
 
 impl Placed {
@@ -106,7 +105,7 @@ impl Viewer {
             self.pan = Vec2::ZERO;
         }
         let image_rect = Rect::from_center_size((canvas.center() + self.pan).round(), size);
-        Placed { image_rect, canvas, response }
+        Placed { image_rect, canvas }
     }
 
     /// The zoom pill in the corner of the canvas.

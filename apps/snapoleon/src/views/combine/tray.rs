@@ -177,7 +177,7 @@ fn add_tile(ui: &mut Ui) -> Option<source::Pick> {
     let label = util::layout(ui, &t("combine.add"), &text::caption_style(), p.text_dim);
     util::paint_centered(ui, rect.center() + Vec2::new(0.0, 15.0), label, p.text_dim);
     util::focus_ring(ui, &resp, rect, 8.0);
-    let resp = tooltip(resp, &t("combine.add_tip"), Some("CmdOrCtrl+O"));
+    let resp = tooltip(resp, &t("combine.add_images"), Some("CmdOrCtrl+O"));
     source::source_menu(ui, &resp, false)
 }
 
