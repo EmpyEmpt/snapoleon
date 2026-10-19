@@ -1,0 +1,15 @@
+# Strings of the scrolling capture panel.
+
+[scroll]
+title = "Scrolling capture"
+hint = "Snapoleon scrolls the area and stitches the frames for you."
+waiting = "Waiting for the first frame"
+height = "Height"
+frames = "Frames"
+px = "{n} px"
+thousands = ","
+stop = "Stop"
+stop_tip = "Stop and use what has been captured"
+discard = "Discard"
+finishing = "Finishing"
+error = "Scrolling capture failed"

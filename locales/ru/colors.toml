@@ -1,0 +1,45 @@
+# Строки окна «Цвета» и инструмента измерения.
+
+[colors]
+title = "Цвета"
+pick = "Выбрать цвет"
+measure = "Измерить"
+copy = "Копировать"
+copied = "Скопировано"
+
+[colors.current]
+title = "Выбранный цвет"
+at = "Взят в точке {x}, {y}"
+
+[colors.format]
+hex = "HEX"
+rgb = "RGB"
+hsl = "HSL"
+hsv = "HSV"
+oklch = "OKLCH"
+
+[colors.history]
+title = "Недавние цвета"
+clear = "Очистить"
+
+[colors.contrast]
+title = "Контраст"
+text = "Текст"
+background = "Фон"
+swap = "Поменять текст и фон местами"
+sample = "Аа"
+sample_text = "Съешь ещё этих мягких булок"
+normal = "Обычный текст"
+large = "Крупный текст"
+pass = "да"
+fail = "нет"
+
+[colors.measurements]
+title = "Измерения"
+clear = "Очистить"
+area = "Область в точке {x}, {y}"
+gap = "Отступ между элементами, по горизонтали × по вертикали"
+
+[colors.empty]
+title = "Пока ничего не выбрано"
+body = "Выберите цвет или измерьте что-нибудь на экране. Результаты соберутся здесь."

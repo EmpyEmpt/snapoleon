@@ -1,0 +1,39 @@
+# Strings of the diff view. Image sources, the library sheet and the zoom controls use the
+# [combine.*] tables.
+
+[diff]
+title = "Compare"
+capture = "Capture"
+before = "Before"
+after = "After"
+images = "Images"
+swap = "Swap before and after"
+opacity = "Opacity of the after image"
+swipe_hint = "Drag the handle in the preview to reveal one image over the other."
+tolerance = "Tolerance"
+choose = "Choose image"
+replace = "Change image"
+edit = "Edit"
+need_two = "Choose both images to export the result."
+
+[diff.mode]
+title = "View"
+highlight = "Highlight"
+overlay = "Overlay"
+side = "Side by side"
+difference = "Difference"
+swipe = "Swipe"
+
+[diff.stats]
+title = "Changes"
+identical = "Identical"
+changed = "of pixels changed"
+pixels = "Changed pixels"
+region = "Changed region"
+sizes = "The images differ in size ({a} and {b}), so the area that only one of them covers counts as changed."
+thousands = ","
+
+[diff.empty]
+title = "Compare two images"
+body = "Choose a before and an after image on the right. Changes show up right away."
+action = "Compare last two captures"
