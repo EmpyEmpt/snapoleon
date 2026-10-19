@@ -7,10 +7,11 @@ use std::{
 
 use egui::ColorImage;
 use snap_core::{CaptureKind, Error, t};
+use snap_engine::LinkAccess;
 use snap_history::Entry;
 use snap_ui::{Toast, ToastKind};
 
-use super::{Act, LibraryView, Load, Msg, PREVIEW_EDGE, format, paint};
+use super::{Act, LibraryView, Load, Msg, PREVIEW_EDGE, drawer, format, paint};
 use crate::{commands::Command, views::ViewCx};
 
 /// The result of a one-shot action.
@@ -116,21 +117,7 @@ impl LibraryView {
                 }
                 self.write(cx, move |history| ids.iter().try_for_each(|id| history.set_favorite(id, favorite)));
             }
-            Act::Upload => {
-                for entry in &targets {
-                    self.uploading.insert(entry.id.0.clone());
-                }
-                let engine = cx.engine.clone();
-                let format = cx.settings.links.copy_format;
-                let toast = Toast::new(ToastKind::Info, t("library.upload.started")).lifetime(Duration::from_secs(120)).progress(0.0);
-                self.upload_toast = Some(cx.toasts.push_toast(toast));
-                let handle = cx.handle();
-                cx.spawn(move || {
-                    let ids = targets.iter().map(|e| e.id.0.clone()).collect();
-                    let progress = |frac: f32| handle.send(Msg::UploadProgress(frac));
-                    Msg::Uploaded { ids, result: upload(&engine, &targets, format, &progress) }
-                });
-            }
+            Act::Upload => self.start_upload(cx, targets, None, LinkAccess::default()),
             Act::Recognize => {
                 if self.recognizing.insert(first.id.0.clone()) {
                     let engine = cx.engine.clone();
@@ -148,6 +135,45 @@ impl LibraryView {
                 }
             }
         }
+    }
+
+    /// Upload `targets` to `destination` (`None` = the default one) with `access`, copy the links and report.
+    pub(super) fn start_upload(&mut self, cx: &mut ViewCx, targets: Vec<Entry>, destination: Option<String>, access: LinkAccess) {
+        for entry in &targets {
+            self.uploading.insert(entry.id.0.clone());
+        }
+        let engine = cx.engine.clone();
+        let format = cx.settings.links.copy_format;
+        let toast = Toast::new(ToastKind::Info, t("library.upload.started")).lifetime(Duration::from_secs(120)).progress(0.0);
+        self.upload_toast = Some(cx.toasts.push_toast(toast));
+        let handle = cx.handle();
+        cx.spawn(move || {
+            let ids = targets.iter().map(|e| e.id.0.clone()).collect();
+            let progress = |frac: f32| handle.send(Msg::UploadProgress(frac));
+            Msg::Uploaded { ids, result: upload(&engine, &targets, destination.as_deref(), &access, format, &progress) }
+        });
+    }
+
+    /// Ask the team server about the link at `link` and show its sharing options meanwhile.
+    pub(super) fn open_remote(&mut self, cx: &mut ViewCx, entry: &Entry, link: usize) {
+        let Some(record) = entry.links.get(link) else { return };
+        self.drawer.manage = Some(drawer::Manage::new(&entry.id.0, link, cx.settings.links.expiry_hours));
+        let (engine, id, destination, url) = (cx.engine.clone(), entry.id.0.clone(), record.destination.clone(), record.url.clone());
+        cx.spawn(move || Msg::Remote { id, link, result: engine.remote_item(&destination, &url) });
+    }
+
+    /// Delete the item behind the link at `link` from its server and forget the link.
+    pub(super) fn delete_remote(&mut self, cx: &mut ViewCx, entry: &Entry, link: usize, item: String) {
+        let Some(record) = entry.links.get(link).cloned() else { return };
+        let (engine, id) = (cx.engine.clone(), entry.id.clone());
+        cx.spawn(move || {
+            Msg::RemoteDeleted((|| {
+                engine.delete_remote(&record.destination, &item)?;
+                let history = engine.history().ok_or_else(|| Error::NotFound(t("library.error.missing").into_owned()))?;
+                history.remove_link(&id, &record.url)?;
+                Ok(history.get(&id)?.into_iter().collect())
+            })())
+        });
     }
 
     /// Run a history write on a worker. The screen already shows the change; a failure reloads the truth.
@@ -276,6 +302,23 @@ impl LibraryView {
                     Err(e) => cx.toast_error(&e),
                 }
             }
+            Msg::Remote { id, link, result } => {
+                if let Some(manage) = self.drawer.manage.as_mut().filter(|m| m.entry == id && m.link == link) {
+                    manage.remote = match result {
+                        Ok(Some(item)) => drawer::Remote::Found(item),
+                        Ok(None) => drawer::Remote::Missing,
+                        Err(e) => drawer::Remote::Failed(crate::notices::error_text(&e)),
+                    };
+                }
+            }
+            Msg::RemoteDeleted(result) => match result {
+                Ok(entries) => {
+                    self.drawer.manage = None;
+                    self.message(cx, Msg::Entries(entries));
+                    cx.toast(ToastKind::Success, t("library.remote.deleted"));
+                }
+                Err(e) => cx.toast_error(&e),
+            },
             Msg::Written => {}
             Msg::WriteFailed(e) => {
                 cx.toast_error(&e);
@@ -294,6 +337,8 @@ fn copy_files(entries: &[Entry]) -> Result<(), Error> {
 fn upload(
     engine: &snap_engine::Engine,
     entries: &[Entry],
+    destination: Option<&str>,
+    access: &LinkAccess,
     format: snap_core::settings::LinkFormat,
     progress: &dyn Fn(f32),
 ) -> Result<Uploaded, Error> {
@@ -301,7 +346,7 @@ fn upload(
     for (i, entry) in entries.iter().enumerate() {
         let file = saved_file(entry)?;
         let of_all = |sent: u64, total: u64| progress((i as f32 + sent as f32 / total.max(1) as f32) / entries.len() as f32);
-        let link = engine.upload_file(&file, None, Some(&entry.id), &of_all)?;
+        let link = engine.upload_file_with(&file, destination, Some(&entry.id), access, &of_all)?;
         let image = entry.kind != CaptureKind::Recording;
         links.push((snap_upload::format_link(link.best(), format, Some(&paint::title_of(entry)), image), link.best().to_owned()));
     }

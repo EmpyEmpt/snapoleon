@@ -48,12 +48,12 @@ impl ToastKind {
     }
 }
 
-/// A toast to show. `action` is a button label plus an id reported back by [`Toasts::show`] when clicked.
+/// A toast to show. Each action is a button label plus an id reported back by [`Toasts::show`] when clicked.
 #[derive(Debug, Clone)]
 pub struct Toast {
     pub kind: ToastKind,
     pub text: String,
-    pub action: Option<(String, String)>,
+    pub actions: Vec<(String, String)>,
     pub lifetime: Duration,
     /// A determinate progress bar (0..=1) under the text, for work that reports as it goes.
     pub progress: Option<f32>,
@@ -61,7 +61,7 @@ pub struct Toast {
 
 impl Toast {
     pub fn new(kind: ToastKind, text: impl Into<String>) -> Self {
-        Self { kind, text: text.into(), action: None, lifetime: LIFETIME, progress: None }
+        Self { kind, text: text.into(), actions: Vec::new(), lifetime: LIFETIME, progress: None }
     }
 
     /// Shows a progress bar. Pair with [`Toasts::update`]; each update restarts the lifetime.
@@ -70,9 +70,10 @@ impl Toast {
         self
     }
 
-    /// Adds an action button (e.g. "Open"); `id` comes back from [`Toasts::show`] when it is clicked.
+    /// Adds an action button (e.g. "Open"); `id` comes back from [`Toasts::show`] when it is clicked. Buttons sit in
+    /// the order added, the last one next to the close button.
     pub fn action(mut self, label: impl Into<String>, id: impl Into<String>) -> Self {
-        self.action = Some((label.into(), id.into()));
+        self.actions.push((label.into(), id.into()));
         self
     }
 
@@ -198,8 +199,8 @@ impl Toasts {
                     item.since_exit = Some(0.0);
                 }
                 match clicked {
-                    Clicked::Action => {
-                        if let Some((_, id)) = &item.toast.action {
+                    Clicked::Action(n) => {
+                        if let Some((_, id)) = item.toast.actions.get(n) {
                             activated.push(id.clone());
                         }
                         item.since_exit = Some(0.0);
@@ -220,7 +221,7 @@ impl Toasts {
 
 enum Clicked {
     None,
-    Action,
+    Action(usize),
     Close,
 }
 
@@ -237,11 +238,15 @@ fn toast_ui(ui: &mut egui::Ui, p: &Palette, toast: &Toast, width: f32) -> Clicke
         let inner_w = width - 28.0;
         ui.set_width(inner_w);
         let icon_w = 18.0 + 10.0;
-        let action = toast.action.as_ref().map(|(label, _)| {
-            let g = util::layout(ui, label, &text::body_strong_style(), p.accent);
-            (g.size().x + 20.0, g)
-        });
-        let action_w = action.as_ref().map_or(0.0, |(w, _)| w + 8.0);
+        let actions: Vec<_> = toast
+            .actions
+            .iter()
+            .map(|(label, _)| {
+                let g = util::layout(ui, label, &text::body_strong_style(), p.accent);
+                (g.size().x + 20.0, g)
+            })
+            .collect();
+        let action_w: f32 = actions.iter().map(|(w, _)| w + 8.0).sum();
         let close_w = 24.0;
         let text_w = (inner_w - icon_w - action_w - close_w - 6.0).max(80.0);
         let galley = util::layout_wrapped(ui, &toast.text, &text::body_style(), p.text, text_w);
@@ -275,16 +280,17 @@ fn toast_ui(ui: &mut egui::Ui, p: &Palette, toast: &Toast, width: f32) -> Clicke
             crate::widgets::progress_sized(ui, frac, inner_w);
         }
 
-        if let Some((w, galley)) = action {
+        for (n, (w, galley)) in actions.into_iter().enumerate().rev() {
             let r = Rect::from_center_size(Pos2::new(x - w / 2.0 - 4.0, cy), Vec2::new(w, 28.0));
-            let resp = ui.interact(r, ui.scope_id().with("action"), Sense::click());
+            x -= w + 8.0;
+            let resp = ui.interact(r, ui.scope_id().with(("action", n)), Sense::click());
             let h = hover_anim(ui, &resp);
             ui.painter().rect_filled(r, 6.0, p.accent_soft.gamma_multiply(0.5 + 0.5 * h));
             let color = if resp.is_pointer_button_down_on() { p.accent.gamma_multiply(0.8) } else { p.accent };
             let pos = Pos2::new(r.center().x - galley.size().x / 2.0, r.center().y - galley.size().y / 2.0);
             ui.painter().galley(util::snap(ui, pos), galley, color);
             if resp.clicked() {
-                clicked = Clicked::Action;
+                clicked = Clicked::Action(n);
             }
         }
     });

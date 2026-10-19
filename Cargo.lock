@@ -6115,6 +6115,7 @@ dependencies = [
  "windows-core",
  "xcap",
  "xcb",
+ "zbus",
 ]
 
 [[package]]
@@ -6246,6 +6247,7 @@ dependencies = [
  "tracing",
  "tray-icon",
  "windows",
+ "windows-core",
  "windows-native-keyring-store",
  "winreg",
  "zbus",

@@ -281,6 +281,7 @@ impl App {
                 tracing::debug!("notification icon: {e}");
             }
             self.purge_history();
+            crate::server_events::start(self.engine.clone(), proxy.clone());
             if !paths::is_portable() {
                 // Every start, not just the first: the executable may have moved since (an update, a new install
                 // folder). Nothing is written when the registration is already right.

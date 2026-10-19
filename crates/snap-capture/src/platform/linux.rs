@@ -1,12 +1,14 @@
-//! Linux extras next to the xcap backend: pointer, input injection through XTest. Accessibility
-//! elements (AT-SPI) are not implemented.
+//! Linux extras next to the xcap backend: pointer, input injection through XTest, and accessibility elements
+//! and browser addresses through AT-SPI.
 
 use std::{thread, time::Duration};
 
 use snap_core::{Error, Point, Rect, Result, RgbaImage};
 use xcb::{Connection, x, xtest};
 
-use crate::{ElementInfo, WindowInfo};
+mod atspi;
+
+pub use atspi::{browser_url, elements_at};
 
 const MOTION_NOTIFY: u8 = 6;
 const BUTTON_PRESS: u8 = 4;
@@ -73,14 +75,6 @@ pub fn check_capture_access() -> Result<()> {
 
 pub fn trim_window_frame(img: RgbaImage, _expected: Rect) -> RgbaImage {
     img
-}
-
-pub fn elements_at(_p: Point) -> Result<Vec<ElementInfo>> {
-    Err(Error::unsupported("accessibility elements on Linux (AT-SPI) are not implemented"))
-}
-
-pub fn browser_url(_w: &WindowInfo) -> Option<String> {
-    None
 }
 
 /// Linux desktops have no common icon layer to hide, so no guard is ever created.

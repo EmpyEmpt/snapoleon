@@ -17,6 +17,7 @@ mod jobs;
 mod logging;
 mod notices;
 mod routing;
+mod server_events;
 mod theme;
 mod tray;
 mod views;

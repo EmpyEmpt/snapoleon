@@ -108,6 +108,14 @@ enum Msg {
     UploadProgress(f32),
     /// A database write failed; the optimistic change on screen is reloaded.
     WriteFailed(Error),
+    /// What the team server says about the link at this index of a capture.
+    Remote {
+        id: String,
+        link: usize,
+        result: Result<Option<snap_upload::server::RemoteItem>, Error>,
+    },
+    /// A link was deleted from its server (and from history); the capture re-read.
+    RemoteDeleted(Result<Vec<Entry>, Error>),
 }
 
 struct Preview {
@@ -122,6 +130,8 @@ enum MenuKind {
     Entry,
     /// "Copy link as" for the link at this index of the selected capture.
     Link(usize),
+    /// QR code and team-server options of the link at this index.
+    LinkMore(usize),
 }
 
 struct OpenMenu {
@@ -662,6 +672,12 @@ impl LibraryView {
                 cx.push(Command::ShowText { title: paint::title_of(entry), text });
             }
             Out::LinkMenu(index, rect) => self.toggle_menu(MenuKind::Link(index), &entry.id.0, menu::Anchor::Widget(rect)),
+            Out::LinkMore(index, rect) => self.toggle_menu(MenuKind::LinkMore(index), &entry.id.0, menu::Anchor::Widget(rect)),
+            Out::ShareAgain(access) => {
+                let destination = self.drawer.manage.as_ref().and_then(|m| entry.links.get(m.link)).map(|l| l.destination.clone());
+                self.start_upload(cx, vec![entry.clone()], destination, access);
+            }
+            Out::DeleteRemote { item, link } => self.delete_remote(cx, entry, link, item),
             Out::MoreMenu(rect) => self.toggle_menu(MenuKind::Entry, &entry.id.0, menu::Anchor::Widget(rect)),
             Out::SetTags(tags) => self.set_tags(cx, &entry.id.0, tags),
             Out::Delete => self.delete_selected(cx),

@@ -31,15 +31,23 @@ global-hotkey = "0.9"
 tray-icon = "0.26"
 
 [target.'cfg(windows)'.dependencies]
+# The `implement` macro for the drag-and-drop COM objects names this crate directly.
+windows-core = "0.62"
 tauri-winrt-notification = "0.8"
 winreg = "0.56"
 windows-native-keyring-store = "1"
 windows = { version = "0.62", features = [
     "Win32_Foundation",
+    "Win32_Graphics_Gdi",
     "Win32_Media_Audio",
     "Win32_Security",
     "Win32_Storage_FileSystem",
+    "Win32_System_Com",
+    "Win32_System_Com_StructuredStorage",
     "Win32_System_Console",
+    "Win32_System_Memory",
+    "Win32_System_Ole",
+    "Win32_System_SystemServices",
     "Win32_UI_HiDpi",
     "Win32_UI_Shell",
     "Win32_UI_WindowsAndMessaging",

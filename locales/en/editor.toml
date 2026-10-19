@@ -84,6 +84,8 @@ searching = "Looking for personal data"
 auto_tip = "Find email addresses, phone numbers, cards, keys and other personal data, and cover them"
 found = "Found {n} to cover. Review them and press Delete to remove any"
 none = "No personal data found"
+smart = "Smart redact"
+smart_tip = "Also ask your AI endpoint for names, addresses and other private text that patterns miss. The recognised text is sent to it"
 
 [editor.spotlight]
 rect = "Rectangle"

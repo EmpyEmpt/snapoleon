@@ -40,10 +40,14 @@ mod meta;
 mod platform;
 mod recording;
 mod redact;
+mod remote;
 mod scroll;
 
+pub use capture::icons_hidden;
+pub use remote::{LinkAccess, ServerEvent};
 pub use scroll::stitch_scroll;
 mod share;
+mod smart;
 
 /// A non-interactive capture.
 #[derive(Debug, Clone, PartialEq)]

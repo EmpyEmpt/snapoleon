@@ -63,6 +63,7 @@ pub fn show(ui: &mut Ui, rc: &mut Rows, st: &mut State, cx: &mut ViewCx, links: 
     rc.section(ui, &s("links.section.copy"), |ui, rc| {
         rc.choice(ui, "links.copy_format", &mut links.copy_format, &formats);
         rc.choice(ui, "links.expiry_hours", &mut links.expiry_hours, &expiry);
+        rc.toggle(ui, "links.notify_events", &mut links.notify_events);
     });
 
     rc.section(ui, &s("links.section.shortener"), |ui, rc| {

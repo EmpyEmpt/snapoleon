@@ -142,7 +142,10 @@ pub fn open(cx: &mut OpenCx, request: OverlayRequest) {
         return;
     }
     let started = Instant::now();
-    let frozen = match snap_capture::freeze(&CaptureOptions::from(&cx.settings.capture)) {
+    let icons = snap_engine::icons_hidden(cx.settings);
+    let frozen = snap_capture::freeze(&CaptureOptions::from(&cx.settings.capture));
+    drop(icons);
+    let frozen = match frozen {
         Ok(frozen) => frozen,
         Err(e) => {
             cx.notify(Notice {

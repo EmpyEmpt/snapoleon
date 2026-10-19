@@ -450,11 +450,13 @@ pub struct LinkSettings {
     pub shortener: Shortener,
     /// Default expiry for server links, in hours (0 = never).
     pub expiry_hours: u32,
+    /// Tell me when someone views or comments on a link on a team server.
+    pub notify_events: bool,
 }
 
 impl Default for LinkSettings {
     fn default() -> Self {
-        Self { copy_format: LinkFormat::Url, shortener: Shortener::None, expiry_hours: 0 }
+        Self { copy_format: LinkFormat::Url, shortener: Shortener::None, expiry_hours: 0, notify_events: true }
     }
 }
 
@@ -674,6 +676,8 @@ pub struct AiSettings {
     pub model: String,
     pub vision_model: String,
     pub secret_ref: Option<String>,
+    /// Name saved files and shared links after what the capture shows.
+    pub smart_names: bool,
 }
 
 impl Default for AiSettings {
@@ -684,6 +688,7 @@ impl Default for AiSettings {
             model: "qwen3:8b".into(),
             vision_model: "qwen2.5vl:7b".into(),
             secret_ref: None,
+            smart_names: false,
         }
     }
 }

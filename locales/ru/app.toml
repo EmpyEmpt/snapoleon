@@ -32,9 +32,15 @@ open_file = "Не удалось открыть файл"
 
 [app.notice]
 copy_link = "Скопировать ссылку"
+show_qr = "Показать QR"
 show_in_folder = "Показать в папке"
 settings_unreadable = "Не удалось прочитать настройки"
 settings_unreadable_body = "Snapoleon использует настройки по умолчанию и не будет перезаписывать {path}. Исправьте или удалите файл и перезапустите приложение."
+
+[app.events]
+viewed = "{who} посмотрел(а) «{title}»"
+commented = "{who} прокомментировал(а) «{title}»"
+someone = "Кто-то"
 
 [app.hotkey]
 conflict_title = "Не удалось назначить сочетание клавиш"

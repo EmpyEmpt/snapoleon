@@ -140,7 +140,7 @@ fn handle(req: Req, base: &str, dav: &Mutex<HashSet<String>>) -> Reply {
         }
         ("GET", p) if p.starts_with("/api/v1/events") => json(
             200,
-            serde_json::json!([{ "id": "e1", "kind": "view", "item_id": "abc123", "at_ms": 5 }, { "id": "e2", "kind": "weird", "item_id": "abc123", "at_ms": 6 }]),
+            serde_json::json!([{ "id": 1, "kind": "view", "item_id": "abc123", "created_ms": 5 }, { "id": 2, "kind": "weird", "item_id": "abc123", "created_ms": 6 }]),
         ),
         ("DELETE", p) if p.starts_with("/api/v1/items/") => (204, vec![], vec![]),
         ("MKCOL", p) => {

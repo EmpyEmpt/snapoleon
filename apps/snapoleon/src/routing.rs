@@ -13,6 +13,9 @@ use crate::{
     views,
 };
 
+/// Pixels per module of a QR code shown on screen.
+const QR_MODULE_PX: u32 = 8;
+
 impl App {
     pub(crate) fn run_command(&mut self, sh: &mut Shell<AppEvent>, cmd: Command) {
         match cmd {
@@ -88,6 +91,16 @@ impl App {
             Command::OpenDiff { a, b } => self.open_with(sh, |cx| views::diff::open(cx, a, b)),
             Command::OpenColorTool(input) => self.open_with(sh, |cx| views::colors::open(cx, input)),
             Command::PauseHotkeys(paused) => self.pause_hotkeys(sh, paused),
+            Command::Shutter => {
+                if self.settings.general.play_sounds {
+                    snap_platform::sound::shutter();
+                }
+            }
+            // A pin is the lightest window there is: it floats above everything and closes with a click.
+            Command::ShowQr(url) => match snap_ocr::codes::try_qr(&url, QR_MODULE_PX) {
+                Ok(image) => self.cmds.push(Command::OpenPin { image, origin: None }),
+                Err(e) => self.report_error(sh, &e),
+            },
             Command::CopyText(text) => {
                 if let Err(e) = snap_platform::clipboard::set_text(&text) {
                     self.report_error(sh, &e);
@@ -124,8 +137,12 @@ impl App {
             Work::Steps(steps) => shows_text(steps),
             Work::Pipeline(id) => self.settings.pipeline(id).is_some_and(|p| shows_text(&p.steps)),
         };
+        let sound = self.settings.general.play_sounds;
         self.run_job(sh, t("app.job.capturing").into_owned(), reply, show_text, move |engine, ui| {
             let capture = engine.capture(&request)?;
+            if sound {
+                snap_platform::sound::shutter();
+            }
             jobs::run_work(engine, capture, work, ui)
         });
     }

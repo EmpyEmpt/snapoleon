@@ -48,7 +48,9 @@ impl App {
             let text = if notice.body.is_empty() { notice.title.clone() } else { format!("{}: {}", notice.title, notice.body) };
             let toast = Toast::new(kind, text);
             let toast = match (&notice.url, &notice.file) {
-                (Some(url), _) => toast.action(t("app.notice.copy_link"), self.toast_actions.register(Command::CopyText(url.clone()))),
+                (Some(url), _) => toast
+                    .action(t("app.notice.copy_link"), self.toast_actions.register(Command::CopyText(url.clone())))
+                    .action(t("app.notice.show_qr"), self.toast_actions.register(Command::ShowQr(url.clone()))),
                 (None, Some(file)) => {
                     toast.action(t("app.notice.show_in_folder"), self.toast_actions.register(Command::Reveal(file.clone())))
                 }

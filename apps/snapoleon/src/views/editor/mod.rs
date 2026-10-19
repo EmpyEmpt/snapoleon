@@ -687,11 +687,12 @@ impl EditorView {
                 canvas: &mut self.canvas,
                 ui_scale: self.ui_scale,
                 searching: self.searching,
+                ai: cx.settings.ai.enabled,
             };
             request = options::show(ui, &mut ocx);
         });
-        if let Some(options::Request::AutoRedact) = request {
-            self.auto_redact(cx);
+        if let Some(options::Request::AutoRedact { smart }) = request {
+            self.auto_redact(cx, smart);
         }
 
         self.canvas.highlight = self.panel.highlight();

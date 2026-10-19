@@ -75,7 +75,7 @@ pub fn first_frame(view: &mut EditorView, cx: &mut ViewCx) {
         return;
     }
     match var("SNAPOLEON_DEV_EDITOR_RUN").as_deref() {
-        Some("redact") => view.auto_redact(cx),
+        Some("redact") => view.auto_redact(cx, false),
         Some("ocr") => view.panel.run_ocr(&view.s, cx),
         _ => {}
     }

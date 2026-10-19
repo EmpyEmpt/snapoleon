@@ -117,6 +117,7 @@ impl LibraryView {
                 self.select_only(&id);
                 self.run(cx, Act::Edit, vec![entry]);
             }
+            card::Event::Drag(pos) => self.drag_out(cx, &id, pos),
             card::Event::Context(pos) => {
                 if !self.selected.contains(&id) {
                     self.select_only(&id);
@@ -139,6 +140,23 @@ impl LibraryView {
                 }
             }
         }
+    }
+
+    /// Drag the files of card `id` (or of the whole selection it belongs to) into another program. The OS runs the
+    /// drag in a loop of its own and takes the mouse button release with it, so egui is told about the release after.
+    fn drag_out(&mut self, cx: &mut ViewCx, id: &str, pos: egui::Pos2) {
+        if !self.selected.contains(id) {
+            self.select_only(id);
+        }
+        let files: Vec<std::path::PathBuf> = self.targets_for(id).into_iter().filter_map(|e| e.file).filter(|f| f.exists()).collect();
+        if files.is_empty() {
+            return cx.toast(snap_ui::ToastKind::Error, t("library.error.missing"));
+        }
+        if let Err(e) = snap_platform::drag::files(&files) {
+            cx.toast_error(&e);
+        }
+        let event = egui::Event::PointerButton { pos, button: egui::PointerButton::Primary, pressed: false, modifiers: Default::default() };
+        cx.shell.push_input_event(cx.win, event);
     }
 
     /// The captures an action started from card `id` applies to: the whole selection when the card is part of it.
@@ -335,6 +353,32 @@ impl LibraryView {
                     }
                 }
             }
+            MenuKind::LinkMore(index) => {
+                let Some(link) = entry.links.get(index).cloned() else {
+                    self.menu = None;
+                    return;
+                };
+                let server = cx
+                    .settings
+                    .destinations
+                    .iter()
+                    .any(|d| d.id == link.destination && matches!(d.kind, snap_core::settings::DestinationKind::SnapServer { .. }));
+                let mut items = vec![menu::Item::new(icon::QR_CODE, t("library.links.show_qr"), LinkMore::Qr)];
+                if server {
+                    items.push(menu::Item::new(icon::LOCK, t("library.remote.options"), LinkMore::Options));
+                }
+                match menu::show(ctx, menu_id, anchor, &items) {
+                    menu::Outcome::Open => {}
+                    menu::Outcome::Closed => self.menu = None,
+                    menu::Outcome::Chosen(choice) => {
+                        self.menu = None;
+                        match choice {
+                            LinkMore::Qr => cx.push(Command::ShowQr(link.url)),
+                            LinkMore::Options => self.open_remote(cx, &entry, index),
+                        }
+                    }
+                }
+            }
             MenuKind::Link(index) => {
                 let Some(link) = entry.links.get(index).cloned() else {
                     self.menu = None;
@@ -361,6 +405,13 @@ impl LibraryView {
             }
         }
     }
+}
+
+/// What the "more" menu of a link offers.
+#[derive(Clone, Copy)]
+enum LinkMore {
+    Qr,
+    Options,
 }
 
 fn entry_items(entry: &snap_history::Entry, count: usize) -> Vec<menu::Item<Act>> {
