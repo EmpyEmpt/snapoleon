@@ -1,0 +1,70 @@
+# Strings of step capture: the session HUD and the guide editor.
+
+[steps]
+none = "No steps were captured"
+default_title = "Guide, {date}"
+step_n = "Step {n}"
+file_name = "Guide"
+saved = "Saved {name}"
+copied_markdown = "Copied as Markdown"
+
+[steps.hud]
+title = "Step capture"
+steps = "steps"
+paused = "paused"
+snap = "Capture a step now"
+pause = "Pause"
+resume = "Resume"
+discard = "Discard this session"
+finish = "Finish"
+
+[steps.error]
+start = "Could not start step capture"
+
+[steps.guide]
+title = "Guide editor"
+title_hint = "Guide title"
+intro_hint = "Add a short introduction"
+empty_title = "No steps yet"
+empty_body = "Capture your first step: the window hides, counts down and takes a screenshot."
+add_step = "Add a step"
+
+[steps.close]
+title = "Discard this guide?"
+body = "Your steps and captions have not been exported. Closing the window removes them."
+discard = "Discard"
+keep = "Keep editing"
+
+[steps.card]
+drag = "Drag to reorder"
+caption_hint = "Describe step {n}"
+annotate = "Crop and annotate"
+recapture = "Capture again"
+up = "Move up"
+down = "Move down"
+delete = "Delete step"
+
+[steps.panel]
+count = "Steps: {n}"
+ai = "AI"
+ai_off = "AI is turned off. Set up an endpoint to let it write the guide for you."
+ai_setup = "Set up AI"
+ai_write = "Write with AI"
+ai_working = "Writing"
+ai_wait = "The AI is reading your screenshots"
+ai_hint = "Rewrites the title, introduction and captions from your screenshots."
+export = "Export"
+markdown = "Markdown"
+html = "HTML"
+video = "Video (MP4)"
+secs_unit = " s"
+secs = "Seconds per step in the video"
+copy = "Copy as Markdown"
+exporting = "Exporting"
+nothing = "Add a step to export."
+
+[steps.export]
+writing_markdown = "Writing Markdown"
+writing_html = "Writing HTML"
+rendering_video = "Rendering video"
+folder_dialog = "Choose a folder for the guide"

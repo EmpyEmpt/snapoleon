@@ -1,0 +1,45 @@
+# Strings of the colors and measure tool window.
+
+[colors]
+title = "Colors"
+pick = "Pick color"
+measure = "Measure"
+copy = "Copy"
+copied = "Copied"
+
+[colors.current]
+title = "Selected color"
+at = "Picked at {x}, {y}"
+
+[colors.format]
+hex = "HEX"
+rgb = "RGB"
+hsl = "HSL"
+hsv = "HSV"
+oklch = "OKLCH"
+
+[colors.history]
+title = "Recent colors"
+clear = "Clear"
+
+[colors.contrast]
+title = "Contrast"
+text = "Text"
+background = "Background"
+swap = "Swap text and background"
+sample = "Aa"
+sample_text = "The quick brown fox"
+normal = "Normal text"
+large = "Large text"
+pass = "pass"
+fail = "fail"
+
+[colors.measurements]
+title = "Measurements"
+clear = "Clear"
+area = "Area at {x}, {y}"
+gap = "Gap between elements, horizontal × vertical"
+
+[colors.empty]
+title = "Nothing picked yet"
+body = "Pick a color or measure something on screen. Results collect here."

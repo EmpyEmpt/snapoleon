@@ -1,20 +1,32 @@
-//! Stub for step capture: the session HUD and, afterwards, the guide editor. Keep `TAG`,
-//! `StepsMsg` and the `open` signature: the app already calls them.
+//! Step capture: a session HUD that records screenshots (a step per click) and, when the session
+//! finishes, the guide editor with captions, reordering, AI rewrite and Markdown / HTML / MP4
+//! export. The HUD is the singleton `TAG` window; each finished guide gets its own editor window.
 
-use std::any::Any;
+mod cards;
+mod demo;
+mod export;
+mod guide;
+mod hud;
+mod session;
+mod side;
 
-use egui::Context;
-use snap_core::t;
-use snap_ui::{icon, widgets::empty_state};
+use snap_core::{Point, t};
+use snap_shell::WindowSpec;
 
-use super::{Chrome, OpenCx, View, ViewCx, window_spec};
+use super::{OpenCx, app_icon};
 
 pub const TAG: &str = "steps";
+/// Tag of the guide editor windows.
+const GUIDE_TAG: &str = "steps-guide";
+
+/// Logical size of the HUD.
+const HUD_SIZE: (f32, f32) = (440.0, 60.0);
+/// Distance of the HUD from the top of the screen, in logical pixels.
+const HUD_TOP: f32 = 24.0;
 
 /// Messages the app sends to a running step capture window.
 pub enum StepsMsg {
-    /// The step-capture hotkey was pressed while a session is running: take a shot, or finish the
-    /// session when it has none pending.
+    /// The step-capture hotkey was pressed while a session is running: finish it and open the guide.
     Toggle,
 }
 
@@ -23,23 +35,25 @@ pub fn open(cx: &mut OpenCx) {
     if cx.focus_tagged(TAG) {
         return;
     }
-    cx.open(window_spec(t("app.stub.steps.title"), TAG, (720.0, 520.0), (560.0, 420.0)), StepsView);
-}
-
-struct StepsView;
-
-impl View for StepsView {
-    fn ui(&mut self, cx: &mut ViewCx, ctx: &Context) {
-        let title = t("app.stub.steps.title");
-        Chrome::new(&title).show(cx, ctx, |ui, _cx| {
-            ui.add_space(((ui.available_height() - 150.0) / 2.0).max(0.0));
-            empty_state(ui, icon::LIST_NUMBERS, &title, &t("app.stub.body"));
-        });
+    if demo::mode() == Some(demo::Demo::Guide) {
+        guide::open_demo(cx, demo::guide());
+        return;
     }
-
-    fn on_msg(&mut self, cx: &mut ViewCx, msg: Box<dyn Any + Send>) {
-        if msg.downcast::<StepsMsg>().is_ok() {
-            cx.close();
-        }
-    }
+    let (area, scale) = cx.shell.monitors().first().copied().unwrap_or((snap_core::Rect::default(), 1.0));
+    let x = area.x + ((area.w as f32 - HUD_SIZE.0 * scale) / 2.0) as i32;
+    let spec = WindowSpec {
+        title: t("steps.hud.title").into_owned(),
+        size: Some(HUD_SIZE),
+        position: Some(Point::new(x, area.y + (HUD_TOP * scale) as i32)),
+        decorations: false,
+        resizable: false,
+        rounded: true,
+        always_on_top: true,
+        tool_window: true,
+        exclude_from_capture: true,
+        icon: Some(app_icon()),
+        tag: TAG.into(),
+        ..WindowSpec::default()
+    };
+    cx.open(spec, hud::HudView::new());
 }

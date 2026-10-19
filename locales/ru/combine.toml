@@ -1,0 +1,63 @@
+# Строки окна «Склейка». Таблицы [combine.source], [combine.library] и [combine.viewer]
+# общие с окном сравнения.
+
+[combine]
+title = "Склейка"
+add = "Добавить"
+edit = "В редактор"
+add_tip = "Добавить изображения"
+need_two = "Добавьте как минимум два изображения, чтобы сохранить результат."
+output = "Размер результата"
+saved = "Сохранено: {name}"
+
+[combine.empty]
+title = "Склейка изображений"
+body = "Выстройте два изображения или больше в ряд, столбец или сетку, а затем скопируйте, сохраните или откройте результат в редакторе."
+
+[combine.tile]
+name = "Изображение {n}"
+remove = "Убрать"
+position = "Изображение {n} из {total}"
+
+[combine.layout]
+title = "Раскладка"
+row = "Ряд"
+column = "Столбец"
+grid = "Сетка"
+columns = "Столбцов"
+gap = "Промежуток"
+align = "Выравнивание"
+
+[combine.align]
+top = "Сверху"
+bottom = "Снизу"
+left = "Слева"
+right = "Справа"
+start = "В начале"
+end = "В конце"
+center = "По центру"
+
+[combine.background]
+title = "Фон"
+
+[combine.source]
+dialog = "Выберите изображения"
+images = "Изображения"
+clipboard_name = "Буфер обмена"
+drop = "Отпустите, чтобы добавить изображения"
+files = "Из файлов"
+clipboard = "Из буфера обмена"
+library = "Из библиотеки"
+latest = "Последний снимок"
+
+[combine.library]
+title = "Выбор из библиотеки"
+empty_title = "В библиотеке пусто"
+empty_body = "Сделайте снимок экрана, и он появится здесь."
+selected = "Выбрано: {n}"
+add = "Добавить"
+
+[combine.viewer]
+zoom_out = "Уменьшить"
+zoom_in = "Увеличить"
+fit = "Вписать в окно"

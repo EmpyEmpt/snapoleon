@@ -1,0 +1,63 @@
+# Strings of the combine view. The [combine.source], [combine.library] and [combine.viewer]
+# tables are shared with the diff view.
+
+[combine]
+title = "Combine"
+add = "Add"
+edit = "Edit"
+add_tip = "Add images"
+need_two = "Add at least two images to export the result."
+output = "Result size"
+saved = "Saved {name}"
+
+[combine.empty]
+title = "Combine images"
+body = "Put two or more images in a row, a column or a grid, then copy, save or edit the result."
+
+[combine.tile]
+name = "Image {n}"
+remove = "Remove"
+position = "Image {n} of {total}"
+
+[combine.layout]
+title = "Layout"
+row = "Row"
+column = "Column"
+grid = "Grid"
+columns = "Columns"
+gap = "Gap"
+align = "Alignment"
+
+[combine.align]
+top = "Top"
+bottom = "Bottom"
+left = "Left"
+right = "Right"
+start = "Start"
+end = "End"
+center = "Center"
+
+[combine.background]
+title = "Background"
+
+[combine.source]
+dialog = "Choose images"
+images = "Images"
+clipboard_name = "Clipboard"
+drop = "Drop images to add them"
+files = "From files"
+clipboard = "From clipboard"
+library = "From library"
+latest = "Latest capture"
+
+[combine.library]
+title = "Choose from library"
+empty_title = "The library is empty"
+empty_body = "Take a screenshot and it will show up here."
+selected = "{n} selected"
+add = "Add"
+
+[combine.viewer]
+zoom_out = "Zoom out"
+zoom_in = "Zoom in"
+fit = "Fit to window"
