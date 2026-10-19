@@ -64,11 +64,3 @@ pub(crate) fn desktop_quote(arg: &str) -> String {
     out.push('"');
     out.replace('%', "%%")
 }
-
-/// Account name used to namespace per-user resources (pipe/socket names).
-#[cfg_attr(not(any(windows, unix)), allow(dead_code))]
-pub(crate) fn user_name() -> String {
-    let raw = std::env::var("USERNAME").or_else(|_| std::env::var("USER")).unwrap_or_else(|_| "user".into());
-    let clean: String = raw.chars().map(|c| if c.is_ascii_alphanumeric() || c == '-' || c == '_' { c } else { '_' }).collect();
-    if clean.is_empty() { "user".into() } else { clean }
-}

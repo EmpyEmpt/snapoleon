@@ -17,16 +17,19 @@ pub fn show(ui: &mut Ui, rc: &mut Rows, p: &mut PrivacySettings) {
         rc.stacked(ui, false, "privacy.redact_kinds", |ui| {
             wrap(ui, |ui| {
                 ui.spacing_mut().item_spacing.x = space::XL;
-                for kind in RedactKind::ALL {
-                    let mut on = p.redact_kinds.contains(kind);
-                    if widgets::checkbox(ui, &mut on, &snap_redact::kind_label(*kind)).changed() {
-                        if on {
-                            p.redact_kinds.push(*kind);
-                        } else {
-                            p.redact_kinds.retain(|k| k != kind);
+                // The policy decides what is covered before an upload.
+                ui.add_enabled_ui(!force, |ui| {
+                    for kind in RedactKind::ALL {
+                        let mut on = p.redact_kinds.contains(kind);
+                        if widgets::checkbox(ui, &mut on, &snap_redact::kind_label(*kind)).changed() {
+                            if on {
+                                p.redact_kinds.push(*kind);
+                            } else {
+                                p.redact_kinds.retain(|k| k != kind);
+                            }
                         }
                     }
-                }
+                });
             });
         });
         rc.segments(ui, "privacy.redact_style", &mut p.redact_style, &styles);

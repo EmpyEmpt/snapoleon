@@ -31,6 +31,21 @@ output appears in `cmd` and PowerShell.
 | `snapoleon quit` | Quit the running app (does nothing when it is not running). |
 | `snapoleon url <snapoleon://...>` | Handle a `snapoleon://` URL (used by the OS URL scheme registration). |
 
+## URL scheme
+
+A `snapoleon://` link can be fired by any web page, so it is untrusted and deliberately weak. The link names an action
+by its key (`snapoleon://capture_region`, `capture_window`, `record_region`, `ocr_region`, ...), and the app starts
+that action the way its hotkey would, with the default pipeline: the overlay or picker opens and the user chooses the
+target. Everything after `?` is ignored, so a link cannot carry a region, window, monitor, pipeline or file path.
+
+- `capture_monitor`, `capture_all_monitors` and `capture_last_region` open the region overlay, and `record_screen`
+  opens the region recorder, because a link must not capture or record the screen on its own.
+- `step_capture_toggle` is refused.
+- `snapoleon://library` and `snapoleon://settings` open those windows.
+- There are no `edit` or `pin` links. To open or pin a file use `snapoleon edit <path>` / `snapoleon pin <path>`
+  (file associations do this), and for a non-interactive capture with a region, window, monitor or pipeline use
+  `snapoleon capture`; both come from your own command line, not from a link.
+
 ## MCP
 
 `snapoleon mcp` speaks JSON-RPC 2.0 over stdio. Tools planned for the first release: `list_monitors`,

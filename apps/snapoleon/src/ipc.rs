@@ -80,6 +80,18 @@ fn allow_foreground() {
 #[cfg(not(windows))]
 fn allow_foreground() {}
 
+/// What a `snapoleon://` link may start: always an action where the user still makes the choice (overlay, picker).
+/// Captures that would fire at once, and recording and step sessions, are turned into their interactive form or
+/// refused, so a web page can neither photograph the screen nor start recording behind the user's back.
+fn link_action(action: Action) -> Option<Action> {
+    match action {
+        Action::CaptureMonitor | Action::CaptureAllMonitors | Action::CaptureLastRegion => Some(Action::CaptureRegion),
+        Action::RecordScreen => Some(Action::RecordRegion),
+        Action::StepCaptureToggle => None,
+        action => Some(action),
+    }
+}
+
 impl App {
     /// Handle a request from the CLI, a URL or a second instance. `reply` is `None` for this
     /// process's own launch request.
@@ -105,6 +117,13 @@ impl App {
                     }
                 }
             }
+            Request::Link { action } => match link_action(action) {
+                Some(action) => {
+                    self.start_action(sh, action, None);
+                    answer(reply, Response::ok());
+                }
+                None => answer(reply, Response::err(t("app.ipc.link_refused"))),
+            },
             Request::Edit { path } => answer(reply, self.queue_file(path, Command::EditFile)),
             Request::Pin { path } => answer(reply, self.queue_file(path, Command::PinFile)),
             Request::Process { path, pipeline } => {

@@ -23,6 +23,12 @@ pub enum Request {
         #[serde(default)]
         monitor: Option<usize>,
     },
+    /// A `snapoleon://` link. A web page can fire one, so it names only the action: the app runs
+    /// the interactive form of it (overlay, picker) with the default pipeline, never a target,
+    /// a pipeline or a path taken from the URL.
+    Link {
+        action: Action,
+    },
     /// Open a file (image or `.snap` project) in the editor.
     Edit {
         path: String,
@@ -72,45 +78,14 @@ impl Response {
     }
 }
 
-/// Parse a `snapoleon://<action>?pipeline=x&region=x,y,w,h` URL.
+/// Parse a `snapoleon://<action>` URL. Anything after `?` is ignored: a URL is untrusted input,
+/// so it cannot carry a region, a window, a pipeline or a file path.
 pub fn parse_url(url: &str) -> Option<Request> {
     let rest = url.strip_prefix(&format!("{}://", crate::URL_SCHEME))?;
-    let (path, query) = rest.split_once('?').unwrap_or((rest, ""));
-    let path = path.trim_matches('/');
-    let param = |k: &str| query.split('&').find_map(|kv| kv.split_once('=').filter(|(a, _)| *a == k).map(|(_, v)| percent_decode(v)));
+    let path = rest.split(['?', '#']).next().unwrap_or_default().trim_matches('/');
     match path {
-        "edit" => Some(Request::Edit { path: param("path")? }),
-        "pin" => Some(Request::Pin { path: param("path")? }),
         "library" => Some(Request::ShowWindow { window: AppWindow::Library }),
         "settings" => Some(Request::ShowWindow { window: AppWindow::Settings }),
-        key => Some(Request::Action {
-            action: Action::from_key(key)?,
-            pipeline: param("pipeline"),
-            region: param("region").and_then(|r| Rect::parse(&r)),
-            window_title: param("window"),
-            monitor: param("monitor").and_then(|m| m.parse().ok()),
-        }),
+        key => Some(Request::Link { action: Action::from_key(key)? }),
     }
-}
-
-fn percent_decode(s: &str) -> String {
-    let b = s.as_bytes();
-    let mut out = Vec::with_capacity(b.len());
-    let mut i = 0;
-    while i < b.len() {
-        match b[i] {
-            b'%' if i + 2 < b.len() => {
-                if let Ok(v) = u8::from_str_radix(&s[i + 1..i + 3], 16) {
-                    out.push(v);
-                    i += 3;
-                    continue;
-                }
-                out.push(b'%');
-            }
-            b'+' => out.push(b' '),
-            c => out.push(c),
-        }
-        i += 1;
-    }
-    String::from_utf8_lossy(&out).into_owned()
 }

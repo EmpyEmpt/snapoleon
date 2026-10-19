@@ -1,8 +1,9 @@
 //! Single-instance IPC.
 //!
-//! Transport is a local socket (named pipe `\\.\pipe\snapoleon-<user>` on
-//! Windows, a Unix domain socket in `$XDG_RUNTIME_DIR` or a private temp
-//! directory elsewhere) carrying one newline-delimited JSON
+//! Transport is a local socket (named pipe `\\.\pipe\snapoleon-<key>` on
+//! Windows, where `<key>` is a random secret kept in the user's data directory so no other
+//! account can create the pipe first; a Unix domain socket in `$XDG_RUNTIME_DIR` or a private
+//! temp directory elsewhere) carrying one newline-delimited JSON
 //! [`Request`] and one [`Response`] per connection.
 //!
 //! [`serve`] doubles as the single-instance check: it fails with
@@ -166,7 +167,7 @@ fn bind() -> Result<Listener> {
 
 #[cfg(unix)]
 fn reclaim_stale(name: Name<'static>) -> Result<Listener> {
-    let _ = std::fs::remove_file(socket_path());
+    let _ = std::fs::remove_file(socket_path().map_err(Error::Io)?);
     ListenerOptions::new().name(name).create_sync().map_err(Error::Io)
 }
 
@@ -194,28 +195,72 @@ fn connect(timeout: Duration) -> std::io::Result<Stream> {
     }
 }
 
+/// The pipe namespace is global and open to every account, so a name derived from the user name could be created
+/// first by another user, who would then receive every request (or just keep the app from starting). The name carries a
+/// random key stored in the user's own data directory instead, which other accounts cannot read.
 #[cfg(windows)]
 fn socket_name() -> Result<Name<'static>> {
     use interprocess::local_socket::{GenericNamespaced, ToNsName};
-    format!("snapoleon-{}", crate::util::user_name()).to_ns_name::<GenericNamespaced>().map_err(Error::Io)
+    format!("snapoleon-{}", endpoint_key().map_err(Error::Io)?).to_ns_name::<GenericNamespaced>().map_err(Error::Io)
+}
+
+#[cfg(windows)]
+fn endpoint_key() -> std::io::Result<String> {
+    use std::hash::{BuildHasher, Hasher};
+
+    let path = snap_core::paths::data_dir().join("ipc.key");
+    let read = || std::fs::read_to_string(&path).map(|k| k.trim().to_owned()).ok().filter(|k| k.len() == 32);
+    if let Some(key) = read() {
+        return Ok(key);
+    }
+    // Each `RandomState` is seeded from the OS, so two of them give 128 unpredictable bits.
+    let bits = || std::hash::RandomState::new().build_hasher().finish();
+    let key = format!("{:016x}{:016x}", bits(), bits());
+    std::fs::create_dir_all(snap_core::paths::data_dir())?;
+    match std::fs::OpenOptions::new().write(true).create_new(true).open(&path) {
+        Ok(mut file) => {
+            file.write_all(key.as_bytes())?;
+            Ok(key)
+        }
+        // Another process created it between our read and now.
+        Err(e) if e.kind() == std::io::ErrorKind::AlreadyExists => read().ok_or(e),
+        Err(e) => Err(e),
+    }
 }
 
 #[cfg(unix)]
 fn socket_name() -> Result<Name<'static>> {
     use interprocess::local_socket::{GenericFilePath, ToFsName};
-    socket_path().to_fs_name::<GenericFilePath>().map_err(Error::Io)
+    socket_path().map_err(Error::Io)?.to_fs_name::<GenericFilePath>().map_err(Error::Io)
 }
 
-/// `$XDG_RUNTIME_DIR/snapoleon.sock`, or inside a private (0700) temp directory
-/// where there is no runtime dir (macOS temp dirs are already per-user).
+/// `$XDG_RUNTIME_DIR/snapoleon.sock`, or inside a private (0700) temp directory where there is no runtime dir
+/// (macOS temp dirs are already per-user). A temp directory that someone else created first is refused: its owner
+/// could swap our socket for theirs.
 #[cfg(unix)]
-fn socket_path() -> std::path::PathBuf {
-    use std::os::unix::fs::DirBuilderExt;
+fn socket_path() -> std::io::Result<std::path::PathBuf> {
+    use std::os::unix::fs::{DirBuilderExt, MetadataExt};
 
-    if let Some(dir) = std::env::var_os("XDG_RUNTIME_DIR").map(std::path::PathBuf::from).filter(|p| p.is_dir()) {
-        return dir.join("snapoleon.sock");
+    unsafe extern "C" {
+        fn geteuid() -> u32;
     }
-    let dir = std::env::temp_dir().join(format!("snapoleon-{}", crate::util::user_name()));
-    let _ = std::fs::DirBuilder::new().recursive(true).mode(0o700).create(&dir);
-    dir.join("snapoleon.sock")
+    if let Some(dir) = std::env::var_os("XDG_RUNTIME_DIR").map(std::path::PathBuf::from).filter(|p| p.is_dir()) {
+        return Ok(dir.join("snapoleon.sock"));
+    }
+    // SAFETY: geteuid takes no arguments and cannot fail.
+    let uid = unsafe { geteuid() };
+    let dir = std::env::temp_dir().join(format!("snapoleon-{uid}"));
+    match std::fs::DirBuilder::new().mode(0o700).create(&dir) {
+        Ok(()) => {}
+        Err(e) if e.kind() == std::io::ErrorKind::AlreadyExists => {}
+        Err(e) => return Err(e),
+    }
+    let meta = std::fs::symlink_metadata(&dir)?;
+    if !meta.is_dir() || meta.uid() != uid || meta.mode() & 0o077 != 0 {
+        return Err(std::io::Error::new(
+            std::io::ErrorKind::PermissionDenied,
+            format!("{} is not a private directory owned by this user", dir.display()),
+        ));
+    }
+    Ok(dir.join("snapoleon.sock"))
 }

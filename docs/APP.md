@@ -182,6 +182,8 @@ vocabulary; the "view must send back" column is what the receiving view owes the
   `snap_core::ipc::Request`; `ipc.rs` maps each variant. A request that already carries what the
   overlay would ask (a region, a window title, a monitor) runs without UI; the CLI gets the file
   path, link or text back when the job finishes.
+  A `snapoleon://` URL becomes `Request::Link { action }`, which carries nothing but the action: it runs as
+  the interactive form (overlay, picker), never with a target, pipeline or path from the URL.
 - `actions::start_action` is the single table from `Action` to flow:
   CaptureRegion/Window/Element/Scrolling -> overlay; CaptureMonitor/AllMonitors/LastRegion ->
   immediate job; CaptureDelayed -> the count-down tile (`views::countdown`), then the region overlay; RecordRegion/Gif

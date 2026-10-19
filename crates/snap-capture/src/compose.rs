@@ -59,6 +59,9 @@ pub(crate) fn capture_area(monitors: &[MonitorInfo], area: Rect, kind: CaptureKi
     if parts.is_empty() {
         return Err(Error::invalid("capture area is outside every monitor"));
     }
+    // Only the part that lies on a monitor has pixels; a request for more (a huge region from a
+    // script or MCP client) must not allocate the whole rect.
+    let area = parts.iter().map(|(_, r)| *r).reduce(Rect::union).unwrap_or(area);
     let grabs = grab_parts(&parts, o)?;
     let tone_mapped = grabs.iter().any(|g| g.tone_mapped);
 

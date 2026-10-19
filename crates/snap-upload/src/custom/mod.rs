@@ -88,7 +88,7 @@ impl Uploader for Custom {
         let kind = self.body_kind();
         let total = req.data.len() as u64;
 
-        let mut call = Call::new(&method, self.request_url(&vars)?);
+        let mut call = Call::new(&method, self.request_url(&vars)?).same_origin_redirects();
         let mut user_content_type = None;
         for (k, v) in &self.cfg.headers {
             let value = ex(v);

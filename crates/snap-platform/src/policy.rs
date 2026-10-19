@@ -65,10 +65,17 @@ mod imp {
 
     pub fn read_pairs() -> Vec<(String, String)> {
         let base = PathBuf::from("/Library/Managed Preferences");
-        let user = std::env::var("USER").unwrap_or_default();
+        // Asked of the OS, not read from `$USER`: the user this policy restrains controls their environment.
+        let user = Command::new("/usr/bin/id")
+            .arg("-un")
+            .output()
+            .ok()
+            .and_then(|o| String::from_utf8(o.stdout).ok())
+            .map(|name| name.trim().to_owned())
+            .filter(|name| !name.is_empty());
         // Per-user managed prefs override machine-wide ones.
-        let files = [base.join(format!("{APP_ID}.plist")), base.join(&user).join(format!("{APP_ID}.plist"))];
-        files.iter().filter(|f| f.is_file()).flat_map(|f| read_plist(f)).collect()
+        let files = [Some(base.join(format!("{APP_ID}.plist"))), user.map(|user| base.join(user).join(format!("{APP_ID}.plist")))];
+        files.iter().flatten().filter(|f| f.is_file()).flat_map(|f| read_plist(f)).collect()
     }
 
     /// `plutil -convert json` turns any plist flavour into JSON on stdout.

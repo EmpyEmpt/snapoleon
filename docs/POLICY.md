@@ -11,7 +11,7 @@ Snapoleon starts. Where a setting is managed, the Settings window shows it as ma
 | `DisableRecording` | bool | Turns screen recording off. Screenshots are unaffected. |
 | `DisableAI` | bool | Turns off all AI features, so no image or text is sent to an AI endpoint. |
 | `DisableHistory` | bool | Turns off the capture library; nothing is recorded in it. |
-| `ForceRedactBeforeUpload` | bool | Always strips metadata and forces automatic redaction of detected sensitive data before upload. |
+| `ForceRedactBeforeUpload` | bool | Always strips metadata and covers every kind of detected sensitive data (solid fill) before any upload, whichever way it starts. Only PNG, JPEG and WebP files can be uploaded under it. |
 | `RetentionDays` | integer | History entries older than this many days are deleted. |
 | `Language` | string | Locale code such as `en` or `ru`. Overrides the user's choice. |
 | `DefaultDestination` | string | Id of the default destination (must match an id in `DestinationsToml`). |

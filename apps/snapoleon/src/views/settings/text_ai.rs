@@ -178,26 +178,29 @@ fn translate(ui: &mut Ui, rc: &mut Rows, st: &mut State, cx: &mut ViewCx, t: &mu
         targets.push((t.target_lang.clone(), t.target_lang.clone()));
     }
 
-    rc.section(ui, &s("text_ai.section.translate"), |ui, rc| {
-        let before = Provider::of(&t.provider);
-        let mut provider = before;
-        rc.choice(ui, "text_ai.provider", &mut provider, &providers);
-        if provider != before {
-            t.provider = provider.fresh();
-            st.translate_secret.reset();
-        }
-        rc.choice(ui, "text_ai.target_lang", &mut t.target_lang, &targets);
-        match &mut t.provider {
-            TranslateProvider::LibreTranslate { url } => {
-                rc.row(ui, "text_ai.libre_url", |ui| field_mono(ui, url, "https://libretranslate.example.com", 320.0));
-                st.translate_secret.row(ui, rc, "text_ai.translate_key", cx, &mut t.secret_ref, "translate:key");
+    let locked = rc.env.policy.disable_ai;
+    ui.add_enabled_ui(!locked, |ui| {
+        rc.section(ui, &s("text_ai.section.translate"), |ui, rc| {
+            let before = Provider::of(&t.provider);
+            let mut provider = before;
+            rc.choice(ui, "text_ai.provider", &mut provider, &providers);
+            if provider != before {
+                t.provider = provider.fresh();
+                st.translate_secret.reset();
             }
-            TranslateProvider::DeepL { free_api } => {
-                rc.toggle(ui, "text_ai.deepl_free", free_api);
-                st.translate_secret.row(ui, rc, "text_ai.translate_key", cx, &mut t.secret_ref, "translate:key");
+            rc.choice(ui, "text_ai.target_lang", &mut t.target_lang, &targets);
+            match &mut t.provider {
+                TranslateProvider::LibreTranslate { url } => {
+                    rc.row(ui, "text_ai.libre_url", |ui| field_mono(ui, url, "https://libretranslate.example.com", 320.0));
+                    st.translate_secret.row(ui, rc, "text_ai.translate_key", cx, &mut t.secret_ref, "translate:key");
+                }
+                TranslateProvider::DeepL { free_api } => {
+                    rc.toggle(ui, "text_ai.deepl_free", free_api);
+                    st.translate_secret.row(ui, rc, "text_ai.translate_key", cx, &mut t.secret_ref, "translate:key");
+                }
+                TranslateProvider::Ai | TranslateProvider::None => {}
             }
-            TranslateProvider::Ai | TranslateProvider::None => {}
-        }
+        });
     });
 }
 

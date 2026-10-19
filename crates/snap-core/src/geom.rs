@@ -115,7 +115,13 @@ impl Rect {
     pub fn parse(s: &str) -> Option<Rect> {
         let v: Vec<i64> = s.split([',', ' ', 'x']).filter(|p| !p.is_empty()).map(|p| p.trim().parse().ok()).collect::<Option<_>>()?;
         match v.as_slice() {
-            [x, y, w, h] if *w > 0 && *h > 0 => Some(Rect::new(*x as i32, *y as i32, *w as u32, *h as u32)),
+            [x, y, w, h] if *w > 0 && *h > 0 => {
+                let (x, y, w, h) = (i32::try_from(*x).ok()?, i32::try_from(*y).ok()?, i32::try_from(*w).ok()?, i32::try_from(*h).ok()?);
+                // The far edge must fit too, or `right()` / `bottom()` overflow.
+                x.checked_add(w)?;
+                y.checked_add(h)?;
+                Some(Rect::new(x, y, w as u32, h as u32))
+            }
             _ => None,
         }
     }

@@ -10,13 +10,13 @@ use snap_core::{
     naming::{self, NameContext},
     now_ms, paths,
     policy::Policy,
-    settings::{Destination, DestinationKind, ImageFormat, LinkFormat, Shortener},
+    settings::{Destination, DestinationKind, ImageFormat, LinkFormat, RedactStyle, Shortener},
     t, tf,
 };
 use snap_history::LinkRecord;
 use snap_upload::UploadRequest;
 
-use crate::{Document, Engine, Link, SaveOptions, meta, recording};
+use crate::{Document, Engine, Link, SaveOptions, meta, recording, redact};
 
 /// File names stop here; the OS limit is 255 bytes and we leave room for `" (99).webp"`.
 const MAX_NAME_CHARS: usize = 150;
@@ -80,12 +80,14 @@ fn unmanaged(edited: &Settings, policy: &Policy) -> Settings {
     }
     if policy.disable_ai {
         out.ai.enabled = disk.ai.enabled;
+        out.translate.provider = disk.translate.provider;
     }
     if policy.disable_history {
         out.history.enabled = disk.history.enabled;
     }
     if policy.force_redact_before_upload {
         out.privacy.strip_metadata = disk.privacy.strip_metadata;
+        out.privacy.redact_kinds = disk.privacy.redact_kinds;
     }
     if policy.retention_days.is_some() {
         out.history.retention_days = disk.history.retention_days;
@@ -110,10 +112,15 @@ pub(crate) fn save(engine: &Engine, img: &RgbaImage, cap: &Capture, opts: &SaveO
             let fmt = opts.format.unwrap_or(s.capture.format);
             let dir = opts.dir.clone().unwrap_or_else(|| paths::save_dir(&s.capture.save_dir));
             let template = opts.template.as_deref().unwrap_or(&s.capture.filename_template);
-            (unique_path(&dir, &file_stem(engine, template, cap), fmt), fmt)
+            (reserve_path(&dir, &file_stem(engine, template, cap), fmt)?, fmt)
         }
     };
-    snap_image::encode::save(img, &path, fmt, quality(&s, fmt), s.capture.optimize_png)?;
+    let saved = snap_image::encode::save(img, &path, fmt, quality(&s, fmt), s.capture.optimize_png);
+    if saved.is_err() && opts.path.is_none() {
+        // Do not leave the empty file that reserved the name.
+        let _ = std::fs::remove_file(&path);
+    }
+    saved?;
     Ok(path)
 }
 
@@ -133,13 +140,20 @@ fn file_stem(engine: &Engine, template: &str, cap: &Capture) -> String {
     if name.is_empty() { snap_core::APP_NAME.to_string() } else { name.to_string() }
 }
 
-/// `dir/stem.ext`, or `dir/stem (2).ext` and so on when that exists already.
-fn unique_path(dir: &Path, stem: &str, fmt: ImageFormat) -> PathBuf {
-    let first = dir.join(format!("{stem}.{}", fmt.ext()));
-    if !first.exists() {
-        return first;
+/// Claim `dir/stem.ext`, or `dir/stem (2).ext` and so on when that exists already. The name is taken by creating the
+/// file, so two saves in the same second (threads, or the CLI beside the app) can never choose the same one.
+fn reserve_path(dir: &Path, stem: &str, fmt: ImageFormat) -> Result<PathBuf> {
+    std::fs::create_dir_all(dir)?;
+    for n in 1.. {
+        let name = if n == 1 { format!("{stem}.{}", fmt.ext()) } else { format!("{stem} ({n}).{}", fmt.ext()) };
+        let path = dir.join(name);
+        match std::fs::OpenOptions::new().write(true).create_new(true).open(&path) {
+            Ok(_) => return Ok(path),
+            Err(e) if e.kind() == std::io::ErrorKind::AlreadyExists => {}
+            Err(e) => return Err(e.into()),
+        }
     }
-    (2..).map(|n| dir.join(format!("{stem} ({n}).{}", fmt.ext()))).find(|p| !p.exists()).expect("an unused name exists")
+    unreachable!("an unused name exists")
 }
 
 fn quality(s: &Settings, fmt: ImageFormat) -> u8 {
@@ -166,6 +180,10 @@ pub(crate) fn save_project(engine: &Engine, doc: &Document, id: &CaptureId) -> R
 
 // --- uploading --------------------------------------------------------------------------------------------------
 
+// Every upload (pipeline step, Library, editor, video export, CLI, MCP) enters through `upload_file` or `upload_image`,
+// and both prepare the data the same way before `finish_upload` sends it: forced redaction under policy, then
+// metadata stripping. Nothing else may hand bytes to an uploader.
+
 pub(crate) fn upload_file(
     engine: &Engine,
     path: &Path,
@@ -174,12 +192,13 @@ pub(crate) fn upload_file(
     progress: &dyn Fn(u64, u64),
     shorten: bool,
 ) -> Result<Link> {
+    check_uploads_allowed(engine)?;
     let bytes = std::fs::read(path).map_err(|e| match e.kind() {
         std::io::ErrorKind::NotFound => Error::NotFound(path.display().to_string()),
         _ => Error::Io(e),
     })?;
     let ext = path.extension().map(|e| e.to_string_lossy().into_owned()).unwrap_or_default();
-    let bytes = if engine.settings().privacy.strip_metadata { meta::strip(&ext, bytes) } else { bytes };
+    let bytes = prepare_file(engine, bytes)?;
     let name = path.file_name().map_or_else(|| "file".to_string(), |n| n.to_string_lossy().into_owned());
     finish_upload(engine, &bytes, &name, mime_for(&ext), None, dest, id, progress, shorten)
 }
@@ -192,11 +211,40 @@ pub(crate) fn upload_image(
     progress: &dyn Fn(u64, u64),
     shorten: bool,
 ) -> Result<Link> {
+    check_uploads_allowed(engine)?;
     let s = engine.settings();
+    let forced = engine.policy().force_redact_before_upload;
     let fmt = s.capture.format;
-    let bytes = snap_image::encode::encode(img, fmt, quality(&s, fmt), s.capture.optimize_png)?;
+    let bytes = if forced {
+        let mut covered = img.clone();
+        redact::auto_redact(engine, &mut covered, &[], Some(RedactStyle::Solid))?;
+        snap_image::encode::encode(&covered, fmt, quality(&s, fmt), s.capture.optimize_png)?
+    } else {
+        snap_image::encode::encode(img, fmt, quality(&s, fmt), s.capture.optimize_png)?
+    };
     let name = format!("{}.{}", file_stem(engine, &s.capture.filename_template, cap), fmt.ext());
-    finish_upload(engine, &bytes, &name, fmt.mime(), cap.context.window_title.as_deref(), dest, Some(&cap.id), progress, shorten)
+    // The window title is text the redaction never saw, and context the user may have turned off.
+    let title = cap.context.window_title.as_deref().filter(|_| s.privacy.record_context && !forced);
+    finish_upload(engine, &bytes, &name, fmt.mime(), title, dest, Some(&cap.id), progress, shorten)
+}
+
+fn check_uploads_allowed(engine: &Engine) -> Result<()> {
+    if engine.uploads_allowed() { Ok(()) } else { Err(Error::Policy(t("engine.error.uploads_disabled").into_owned())) }
+}
+
+/// The bytes of a file as they may leave the machine. Under `ForceRedactBeforeUpload` only raster images qualify: they
+/// are decoded, covered and re-encoded; anything else cannot be redacted and is refused. Then metadata is stripped.
+fn prepare_file(engine: &Engine, bytes: Vec<u8>) -> Result<Vec<u8>> {
+    let s = engine.settings();
+    let bytes = if engine.policy().force_redact_before_upload {
+        let format = meta::image_format(&bytes).ok_or_else(|| Error::Policy(t("engine.error.redact_unsupported").into_owned()))?;
+        let mut img = snap_image::encode::decode(&bytes)?;
+        redact::auto_redact(engine, &mut img, &[], Some(RedactStyle::Solid))?;
+        snap_image::encode::encode(&img, format, quality(&s, format), s.capture.optimize_png)?
+    } else {
+        bytes
+    };
+    if s.privacy.strip_metadata { meta::strip(bytes) } else { Ok(bytes) }
 }
 
 #[allow(clippy::too_many_arguments)]
@@ -234,9 +282,7 @@ fn finish_upload(
 
 /// The destination to use: the named one, the default, or the only one configured.
 fn resolve_destination(engine: &Engine, id: Option<&str>) -> Result<Destination> {
-    if !engine.uploads_allowed() {
-        return Err(Error::Policy(t("engine.error.uploads_disabled").into_owned()));
-    }
+    check_uploads_allowed(engine)?;
     let s = engine.settings();
     let found = match id.or(s.default_destination.as_deref()) {
         Some(id) => Some(s.destination(id).ok_or_else(|| Error::NotFound(tf("engine.error.unknown_destination", &[("id", id)])))?),

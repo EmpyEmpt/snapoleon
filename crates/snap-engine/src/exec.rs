@@ -81,8 +81,6 @@ struct Run<'a> {
     text: Option<String>,
     codes: Vec<Code>,
     alt_text: Option<String>,
-    /// `Some(n)` once auto-redaction ran (n = items covered).
-    redacted: Option<usize>,
     thumb: Option<PathBuf>,
     /// Scratch copy written for RunCommand when nothing was saved.
     scratch: Option<PathBuf>,
@@ -112,7 +110,6 @@ impl<'a> Run<'a> {
             text: None,
             codes: Vec::new(),
             alt_text: None,
-            redacted: None,
             thumb: None,
             scratch: None,
             save_defaults: SaveOptions::default(),
@@ -235,7 +232,6 @@ impl<'a> Run<'a> {
             self.touch();
             self.done.push(Done::Redacted(hits.len()));
         }
-        self.redacted = Some(hits.len());
         Ok(())
     }
 
@@ -322,13 +318,7 @@ impl<'a> Run<'a> {
     }
 
     fn upload(&mut self, destination: Option<&str>) -> Result<()> {
-        if !self.engine.uploads_allowed() {
-            return Err(Error::Policy(t("engine.error.uploads_disabled").into_owned()));
-        }
-        // Policy: nothing leaves the machine unredacted. A pipeline that already ran AutoRedact is trusted.
-        if !self.file_only && self.engine.policy().force_redact_before_upload && self.redacted.is_none() {
-            self.redact(&[], None)?;
-        }
+        // `share` enforces the redaction and metadata policy on every upload, whoever calls it.
         let label = t("engine.progress.uploading");
         let ui = self.ui;
         let progress =

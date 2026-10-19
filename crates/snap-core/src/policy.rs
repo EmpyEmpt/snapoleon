@@ -9,7 +9,7 @@ use std::path::PathBuf;
 
 use serde::{Deserialize, Serialize};
 
-use crate::settings::{Destination, Settings};
+use crate::settings::{Destination, RedactKind, Settings, TranslateProvider};
 
 #[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
 #[serde(default)]
@@ -100,12 +100,16 @@ impl Policy {
         }
         if self.disable_ai {
             s.ai.enabled = false;
+            // Translation sends screen text to DeepL / LibreTranslate too, which the policy promises off.
+            s.translate.provider = TranslateProvider::None;
         }
         if self.disable_history {
             s.history.enabled = false;
         }
         if self.force_redact_before_upload {
             s.privacy.strip_metadata = true;
+            // Never the user's own list: a single ticked kind would otherwise count as "redacted".
+            s.privacy.redact_kinds = RedactKind::ALL.to_vec();
         }
         if let Some(r) = self.retention_days {
             s.history.retention_days = r;
@@ -123,11 +127,46 @@ impl Policy {
 /// Set once at startup by the platform layer with registry / plist values.
 pub static PLATFORM_POLICY: std::sync::OnceLock<Policy> = std::sync::OnceLock::new();
 
+/// `%ProgramData%` as the OS reports it. The environment variable is the user's to change, and
+/// the policy file exists to restrain that user.
+#[cfg(windows)]
+fn program_data() -> PathBuf {
+    use std::{ffi::c_void, os::windows::ffi::OsStringExt};
+
+    #[repr(C)]
+    struct Guid(u32, u16, u16, [u8; 8]);
+    #[link(name = "shell32")]
+    unsafe extern "system" {
+        fn SHGetKnownFolderPath(id: *const Guid, flags: u32, token: *mut c_void, path: *mut *mut u16) -> i32;
+    }
+    #[link(name = "ole32")]
+    unsafe extern "system" {
+        fn CoTaskMemFree(ptr: *mut c_void);
+    }
+    // FOLDERID_ProgramData
+    let id = Guid(0x62AB_5D82, 0xFDC1, 0x4DC3, [0xA9, 0xDD, 0x07, 0x0D, 0x1D, 0x49, 0x5D, 0x97]);
+    let mut raw: *mut u16 = std::ptr::null_mut();
+    // SAFETY: `id` outlives the call; on success `raw` is a NUL-terminated string that is copied and then freed.
+    unsafe {
+        let hr = SHGetKnownFolderPath(&id, 0, std::ptr::null_mut(), &mut raw);
+        let path = (hr >= 0 && !raw.is_null()).then(|| {
+            let len = (0..).take_while(|&i| *raw.add(i) != 0).count();
+            PathBuf::from(std::ffi::OsString::from_wide(std::slice::from_raw_parts(raw, len)))
+        });
+        CoTaskMemFree(raw.cast());
+        path.unwrap_or_else(|| PathBuf::from(r"C:\ProgramData"))
+    }
+}
+
+#[cfg(not(windows))]
+fn program_data() -> PathBuf {
+    PathBuf::new()
+}
+
 fn policy_file_paths() -> Vec<PathBuf> {
     let mut v = Vec::new();
     if cfg!(windows) {
-        let pd = std::env::var("ProgramData").unwrap_or_else(|_| r"C:\ProgramData".into());
-        v.push(PathBuf::from(pd).join("Snapoleon").join("policy.toml"));
+        v.push(program_data().join("Snapoleon").join("policy.toml"));
     } else if cfg!(target_os = "macos") {
         v.push(PathBuf::from("/Library/Application Support/Snapoleon/policy.toml"));
     } else {

@@ -52,3 +52,4 @@ none = "No text found"
 
 [app.ipc]
 no_answer = "Snapoleon did not answer in time"
+link_refused = "A link cannot start this action. Start it from Snapoleon or the command line."

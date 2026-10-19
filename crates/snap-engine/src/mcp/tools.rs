@@ -202,10 +202,8 @@ impl Tools {
                     args.get(key).and_then(Value::as_i64).ok_or_else(|| Error::invalid(tf("mcp.error.missing_argument", &[("name", key)])))
                 };
                 let (x, y, w, h) = (get("x")?, get("y")?, get("w")?, get("h")?);
-                if w < 1 || h < 1 {
-                    return Err(Error::invalid(t("mcp.error.empty_region")));
-                }
-                self.capture(&CaptureRequest::Rect(Rect::new(x as i32, y as i32, w as u32, h as u32)))
+                let rect = Rect::parse(&format!("{x},{y},{w},{h}")).ok_or_else(|| Error::invalid(t("mcp.error.empty_region")))?;
+                self.capture(&CaptureRequest::Rect(rect))
             }
             "ocr_image" => self.ocr_image(args),
             "decode_codes" => self.decode_codes(args),

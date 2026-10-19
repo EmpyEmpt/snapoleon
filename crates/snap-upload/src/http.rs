@@ -157,13 +157,27 @@ fn xml_tag(text: &str, tag: &str) -> Option<String> {
     Some(text[start..start + end].to_string())
 }
 
+/// What a call does with a 3xx answer.
+#[derive(Clone, Copy, PartialEq)]
+enum Redirects {
+    /// Follow them (ureq drops `Authorization` and cookies when the host changes, other headers travel on).
+    Follow,
+    /// Follow them only to the same scheme, host and port.
+    SameOrigin,
+    /// Hand the 3xx response back.
+    Never,
+}
+
+/// Redirect hops a same-origin call follows.
+const MAX_HOPS: usize = 5;
+
 pub(crate) struct Call<'a> {
     method: String,
     url: String,
     headers: Vec<(String, String)>,
     body: Vec<Cow<'a, [u8]>>,
     progress: Option<Progress<'a>>,
-    follow_redirects: bool,
+    redirects: Redirects,
 }
 
 impl<'a> Call<'a> {
@@ -174,7 +188,7 @@ impl<'a> Call<'a> {
             headers: Vec::new(),
             body: Vec::new(),
             progress: None,
-            follow_redirects: true,
+            redirects: Redirects::Follow,
         }
     }
 
@@ -240,23 +254,55 @@ impl<'a> Call<'a> {
 
     /// Return 3xx responses instead of following them.
     pub fn manual_redirects(mut self) -> Self {
-        self.follow_redirects = false;
+        self.redirects = Redirects::Never;
+        self
+    }
+
+    /// Follow redirects only within the origin the call was made to. For requests whose headers carry a secret
+    /// the caller chose (custom uploaders): another host must not receive them.
+    pub fn same_origin_redirects(mut self) -> Self {
+        self.redirects = Redirects::SameOrigin;
         self
     }
 
     pub fn send(self) -> Result<Response> {
+        if self.redirects != Redirects::SameOrigin {
+            return self.exchange(&self.method, &self.url, true);
+        }
+        let origin = |u: &url::Url| u.origin();
+        let first = url::Url::parse(&self.url).map_err(|e| Error::invalid(format!("{}: {e}", self.url)))?;
+        let (mut method, mut current, mut with_body) = (self.method.clone(), first.clone(), true);
+        for _ in 0..MAX_HOPS {
+            let response = self.exchange(&method, current.as_str(), with_body)?;
+            let next = matches!(response.status, 301 | 302 | 303 | 307 | 308)
+                .then(|| response.headers.iter().find(|(k, _)| k.eq_ignore_ascii_case("location")))
+                .flatten()
+                .and_then(|(_, location)| current.join(location).ok())
+                .filter(|next| origin(next) == origin(&first));
+            let Some(next) = next else { return Ok(response) };
+            // As browsers do: 301/302/303 turn a POST into a GET without a body. 307/308 keep method and body.
+            if matches!(response.status, 301..=303) && method != "GET" && method != "HEAD" {
+                method = "GET".into();
+                with_body = false;
+            }
+            current = next;
+        }
+        Err(Error::Network(format!("{}: too many redirects", host_of(&self.url))))
+    }
+
+    fn exchange(&self, method: &str, url: &str, with_body: bool) -> Result<Response> {
         let len: u64 = self.body.iter().map(|c| c.len() as u64).sum();
-        let mut builder = http::Request::builder().method(self.method.as_str()).uri(self.url.as_str());
+        let mut builder = http::Request::builder().method(method).uri(url);
         for (k, v) in &self.headers {
             builder = builder.header(k, v);
         }
-        let has_body = !self.body.is_empty() || matches!(self.method.as_str(), "POST" | "PUT" | "PATCH");
+        let has_body = with_body && (!self.body.is_empty() || matches!(method, "POST" | "PUT" | "PATCH"));
         if has_body {
             builder = builder.header("Content-Length", len.to_string());
         }
         let mut reader = ChunkReader { chunks: &self.body, idx: 0, off: 0, sent: 0, progress: self.progress };
-        let (parts, ()) = builder.body(()).map_err(|e| Error::invalid(format!("{}: {e}", self.url)))?.into_parts();
-        let agent = agent(self.follow_redirects);
+        let (parts, ()) = builder.body(()).map_err(|e| Error::invalid(format!("{url}: {e}")))?.into_parts();
+        let agent = agent(self.redirects == Redirects::Follow);
         let result = if has_body {
             agent.run(http::Request::from_parts(parts, SendBody::from_reader(&mut reader)))
         } else {

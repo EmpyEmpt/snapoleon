@@ -55,7 +55,8 @@ pub fn fill(img: &mut RgbaImage, r: Rect, rgba: [u8; 4]) {
 /// Irreversible redaction. The result is always fully opaque.
 ///
 /// * `Pixelate`: blocks of at least `max(12, h / 2)` px, so a text line collapses to a couple of
-///   cells, plus per-pixel noise so the cell means cannot be matched against rendered glyphs.
+///   cells, each shifted by its own large random offset. (Noise added per pixel would average
+///   out over a cell and leave the exact mean, which can be matched against rendered glyphs.)
 /// * `Blur`: a blur wider than the text height, plus noise.
 /// * `Solid`: opaque black.
 pub fn redact(img: &mut RgbaImage, r: Rect, style: RedactStyle) {
@@ -67,7 +68,12 @@ pub fn redact(img: &mut RgbaImage, r: Rect, style: RedactStyle) {
             fill(img, region, [0, 0, 0, 255]);
             return;
         }
-        RedactStyle::Pixelate => pixelate(img, region, 12.max(height / 2)),
+        RedactStyle::Pixelate => {
+            let cell = 12.max(height / 2);
+            pixelate(img, region, cell);
+            scramble_cells(img, region, cell);
+            return;
+        }
         RedactStyle::Blur => blur(img, region, 16.0f32.max(height as f32)),
     }
     let mut noise = Noise::new();
@@ -80,6 +86,28 @@ pub fn redact(img: &mut RgbaImage, r: Rect, style: RedactStyle) {
                 p.0[c] = (p.0[c] as i32 + delta).clamp(0, 255) as u8;
             }
             p.0[3] = 255;
+        }
+    }
+}
+
+/// Shift every `cell` x `cell` block of `region` by one random colour offset of up to +-64 per channel and make it opaque.
+fn scramble_cells(img: &mut RgbaImage, region: Rect, cell: u32) {
+    let (x0, y0) = (region.x as u32, region.y as u32);
+    let (x1, y1) = (x0 + region.w, y0 + region.h);
+    let mut noise = Noise::new();
+    for cy in (y0..y1).step_by(cell as usize) {
+        for cx in (x0..x1).step_by(cell as usize) {
+            let n = noise.next();
+            let delta: [i32; 3] = std::array::from_fn(|c| ((n >> (c * 8)) & 0x7F) as i32 - 64);
+            for y in cy..(cy + cell).min(y1) {
+                for x in cx..(cx + cell).min(x1) {
+                    let p = img.get_pixel_mut(x, y);
+                    for (channel, shift) in p.0.iter_mut().zip(delta) {
+                        *channel = (*channel as i32 + shift).clamp(0, 255) as u8;
+                    }
+                    p.0[3] = 255;
+                }
+            }
         }
     }
 }

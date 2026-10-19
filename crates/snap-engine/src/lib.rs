@@ -358,6 +358,9 @@ impl Engine {
 
     /// `target = None` = settings.translate.target_lang.
     pub fn translate(&self, text: &str, target: Option<&str>) -> Result<String> {
+        if self.policy().disable_ai {
+            return Err(snap_core::Error::Policy(snap_core::t("engine.error.ai_disabled").into_owned()));
+        }
         let s = self.settings();
         snap_ai::translate(text, target.unwrap_or_default(), &s.translate, &s.ai, &*self.inner.secrets)
     }
