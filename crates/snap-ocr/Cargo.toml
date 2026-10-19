@@ -1,0 +1,9 @@
+[package]
+name = "snap-ocr"
+description = "OCR (native + fallback) and QR/barcode decoding"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[dependencies]
+snap-core.workspace = true

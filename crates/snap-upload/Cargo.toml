@@ -1,0 +1,9 @@
+[package]
+name = "snap-upload"
+description = "Upload destinations, link shortening and link formatting"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[dependencies]
+snap-core.workspace = true

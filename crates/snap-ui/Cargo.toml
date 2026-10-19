@@ -1,0 +1,9 @@
+[package]
+name = "snap-ui"
+description = "Snapoleon design system for egui: theme, icons, widgets"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[dependencies]
+snap-core.workspace = true

@@ -1,0 +1,75 @@
+[workspace]
+resolver = "3"
+members = [
+    "crates/snap-core",
+    "crates/snap-capture",
+    "crates/snap-image",
+    "crates/snap-annotate",
+    "crates/snap-ocr",
+    "crates/snap-redact",
+    "crates/snap-upload",
+    "crates/snap-history",
+    "crates/snap-platform",
+    "crates/snap-record",
+    "crates/snap-ai",
+    "crates/snap-ui",
+    "crates/snap-shell",
+    "crates/snap-engine",
+    "apps/snapoleon",
+    "server/snapoleon-server",
+]
+default-members = ["apps/snapoleon"]
+
+[workspace.package]
+version = "0.1.0"
+edition = "2024"
+license = "MIT OR Apache-2.0"
+repository = "https://github.com/snapoleon/snapoleon"
+rust-version = "1.90"
+
+[workspace.dependencies]
+snap-core = { path = "crates/snap-core" }
+snap-capture = { path = "crates/snap-capture" }
+snap-image = { path = "crates/snap-image" }
+snap-annotate = { path = "crates/snap-annotate" }
+snap-ocr = { path = "crates/snap-ocr" }
+snap-redact = { path = "crates/snap-redact" }
+snap-upload = { path = "crates/snap-upload" }
+snap-history = { path = "crates/snap-history" }
+snap-platform = { path = "crates/snap-platform" }
+snap-record = { path = "crates/snap-record" }
+snap-ai = { path = "crates/snap-ai" }
+snap-ui = { path = "crates/snap-ui" }
+snap-shell = { path = "crates/snap-shell" }
+snap-engine = { path = "crates/snap-engine" }
+
+anyhow = "1"
+thiserror = "2"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+toml = "1"
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+crossbeam-channel = "0.5"
+parking_lot = "0.12"
+chrono = { version = "0.4", default-features = false, features = ["clock", "std", "serde"] }
+image = { version = "0.25", default-features = false, features = ["png", "jpeg", "webp", "gif", "bmp", "ico"] }
+egui = "0.37"
+ureq = { version = "3", default-features = false, features = ["rustls", "json", "gzip"] }
+regex = "1"
+directories = "6"
+base64 = "0.22"
+rand = "0.9"
+
+[profile.release]
+opt-level = 3
+lto = "fat"
+codegen-units = 1
+strip = true
+panic = "abort"
+
+[profile.dev.package."*"]
+opt-level = 2
+
+[profile.dev]
+opt-level = 1

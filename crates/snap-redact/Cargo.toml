@@ -1,0 +1,9 @@
+[package]
+name = "snap-redact"
+description = "PII and secret detection for auto-redaction"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[dependencies]
+snap-core.workspace = true

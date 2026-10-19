@@ -1,0 +1,9 @@
+[package]
+name = "snap-engine"
+description = "Headless orchestration: pipelines, capture flows, CLI and MCP backends"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[dependencies]
+snap-core.workspace = true

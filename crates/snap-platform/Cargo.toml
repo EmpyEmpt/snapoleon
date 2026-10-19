@@ -1,0 +1,9 @@
+[package]
+name = "snap-platform"
+description = "OS integration: hotkeys, tray, clipboard, notifications, IPC, autostart, secrets, policy"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[dependencies]
+snap-core.workspace = true

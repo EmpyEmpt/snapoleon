@@ -1,0 +1,19 @@
+[package]
+name = "snap-core"
+description = "Shared types, settings, i18n and contracts for Snapoleon"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[dependencies]
+anyhow.workspace = true
+thiserror.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+toml.workspace = true
+tracing.workspace = true
+chrono.workspace = true
+image.workspace = true
+directories.workspace = true
+parking_lot.workspace = true
+rand.workspace = true

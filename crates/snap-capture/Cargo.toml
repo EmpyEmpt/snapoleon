@@ -1,0 +1,9 @@
+[package]
+name = "snap-capture"
+description = "Screen, window, element and scrolling capture"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[dependencies]
+snap-core.workspace = true

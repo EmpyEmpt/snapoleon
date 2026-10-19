@@ -1,0 +1,9 @@
+[package]
+name = "snap-image"
+description = "Pure-Rust image operations: readable downscale, redaction, beautify, stitching, encoding"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[dependencies]
+snap-core.workspace = true

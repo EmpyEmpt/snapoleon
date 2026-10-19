@@ -1,0 +1,9 @@
+[package]
+name = "snap-annotate"
+description = "Non-destructive annotation document model and rasterizer"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[dependencies]
+snap-core.workspace = true

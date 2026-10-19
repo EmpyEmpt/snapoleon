@@ -1,0 +1,9 @@
+[package]
+name = "snapoleon-server"
+description = "Self-hosted Snapoleon team server: uploads, short links, workspaces"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[dependencies]
+snap-core.workspace = true

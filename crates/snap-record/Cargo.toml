@@ -1,0 +1,9 @@
+[package]
+name = "snap-record"
+description = "Screen recording to MP4/GIF/WebP with audio and input overlays"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[dependencies]
+snap-core.workspace = true

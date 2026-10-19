@@ -1,0 +1,9 @@
+[package]
+name = "snap-ai"
+description = "Optional AI: alt text, how-to generation, translation via OpenAI-compatible endpoints"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[dependencies]
+snap-core.workspace = true

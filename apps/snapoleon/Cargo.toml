@@ -1,0 +1,9 @@
+[package]
+name = "snapoleon"
+description = "Snapoleon: screenshots, recording, OCR and sharing"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[dependencies]
+snap-core.workspace = true

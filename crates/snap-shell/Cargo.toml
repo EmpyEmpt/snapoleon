@@ -1,0 +1,9 @@
+[package]
+name = "snap-shell"
+description = "Multi-window winit + egui-wgpu runtime for tray apps"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[dependencies]
+snap-core.workspace = true

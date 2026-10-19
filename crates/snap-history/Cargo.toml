@@ -1,0 +1,9 @@
+[package]
+name = "snap-history"
+description = "Capture library: SQLite + FTS5 search and thumbnails"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[dependencies]
+snap-core.workspace = true
