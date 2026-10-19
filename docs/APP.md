@@ -28,6 +28,7 @@ apps/snapoleon/
   src/logging.rs      stderr + %APPDATA%/.../logs/snapoleon.log
   src/dev.rs          dev harness (SNAPOLEON_DEV=...)
   src/views/mod.rs    View, ViewCx, OpenCx, ViewHandle, Chrome, window_spec
+  src/views/countdown.rs  the count-down tile (delayed capture; the recorder's 3-2-1 draws the same one)
   src/views/<view>/   one directory per view, each starts as a stub with its final entry point
 ```
 
@@ -86,6 +87,11 @@ cx.open(window_spec(t("editor.title"), TAG, (1100.0, 760.0), (720.0, 480.0)), My
   (custom title bar), rounded, resizable, app icon. Sizes are logical pixels. Build other kinds
   (pins, HUDs, overlays) from `WindowSpec` directly; see the stubs for `pin`, `recorder`,
   `scroll`, `overlay`.
+- `WindowSpec::activate` (default `true`): the window asks for the foreground when it appears, so a window opened by
+  a hotkey or the tray does not come up behind the app the user is in. Windows that sit over the user's work and
+  must not take the keyboard from it (pins, the recorder and scroll HUDs, count-down tiles) set it to `false`.
+- A panic inside a view is caught by the app: that window is closed (its `closed` runs), the user gets a notice and
+  the app lives on. The same goes for a panic in a job thread (the job ends with an error).
 - `cx.open(spec, view)` returns the `WindowKey`. A window whose `spec` is not a plain app window
   (cover, tool window, always-on-top, skip-taskbar) is not used for toasts or the progress pill.
 - **Singletons** (library, settings, about, onboarding, colors, steps): start `open` with
@@ -172,13 +178,13 @@ vocabulary; the "view must send back" column is what the receiving view owes the
 
 - **Hotkeys** (`settings.hotkeys`) and the **tray** (menu, left click = `settings.general.tray_click`)
   become `Command::StartCapture { action, pipeline }`.
-- **IPC** (`snapoleon capture ...`, `snapoleon://...`, a second launch) arrives as
+- **IPC** (`snapoleon capture ...`, `snapoleon://...`, `snapoleon quit`, a second launch) arrives as
   `snap_core::ipc::Request`; `ipc.rs` maps each variant. A request that already carries what the
   overlay would ask (a region, a window title, a monitor) runs without UI; the CLI gets the file
   path, link or text back when the job finishes.
 - `actions::start_action` is the single table from `Action` to flow:
   CaptureRegion/Window/Element/Scrolling -> overlay; CaptureMonitor/AllMonitors/LastRegion ->
-  immediate job; CaptureDelayed -> countdown (progress pill) then the region overlay; RecordRegion/Gif
+  immediate job; CaptureDelayed -> the count-down tile (`views::countdown`), then the region overlay; RecordRegion/Gif
   -> overlay in record mode; RecordScreen -> `StartRecording` on the monitor under the cursor;
   Ocr/DecodeCodes/Translate/PinRegion/ColorPicker/Measure -> overlay modes; PinClipboard,
   OpenEditorFromClipboard -> clipboard image or a notice; StepCaptureToggle, OpenLibrary,
