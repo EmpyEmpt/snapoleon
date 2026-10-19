@@ -22,6 +22,7 @@ impl Frame {
     }
 
     /// Copy `rows` of `src` (with `src_stride` bytes per row, `width` pixels used) to `(dx, dy)`, clipped.
+    #[cfg(any(windows, target_os = "macos"))]
     pub fn blit(&mut self, src: &[u8], src_stride: usize, width: u32, rows: u32, dx: i32, dy: i32) {
         let x0 = dx.max(0) as u32;
         let y0 = dy.max(0) as u32;

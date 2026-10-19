@@ -209,7 +209,8 @@ jobs:
           sudo apt-get install -y --no-install-recommends \
             libxcb1-dev libxcb-randr0-dev libxcb-shm0-dev libxkbcommon-dev \
             libpipewire-0.3-dev libspa-0.2-dev libdbus-1-dev libegl1-mesa-dev \
-            libwayland-dev libasound2-dev clang pkg-config nasm \
+            libwayland-dev libasound2-dev libx11-dev libxi-dev libxtst-dev libgbm-dev \
+            clang pkg-config nasm \
             libfuse2t64 file squashfs-tools desktop-file-utils xz-utils
       - uses: Swatinem/rust-cache@v2
         with:

@@ -123,7 +123,7 @@ Linux build dependencies (Ubuntu 24.04 package names; PipeWire 1.0 or newer is r
 ```sh
 sudo apt install libxcb1-dev libxcb-randr0-dev libxcb-shm0-dev libxkbcommon-dev \
   libpipewire-0.3-dev libspa-0.2-dev libdbus-1-dev libegl1-mesa-dev libwayland-dev \
-  libasound2-dev clang pkg-config nasm
+  libasound2-dev libx11-dev libxi-dev libxtst-dev libgbm-dev clang pkg-config nasm
 ```
 
 Windows needs the MSVC build tools and `nasm` on PATH. macOS needs the Xcode command line tools and `nasm`

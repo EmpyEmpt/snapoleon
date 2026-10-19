@@ -18,6 +18,13 @@ fn xerr(e: xcap::XCapError) -> Error {
     Error::Other(anyhow::anyhow!("{e}"))
 }
 
+/// Run xcap calls so a panic inside its Wayland layer (libwayshot panics on compositors without wlr-screencopy and
+/// xdg-output) surfaces as an error instead of taking the whole app down.
+fn guarded<T>(f: impl FnOnce() -> Result<T>) -> Result<T> {
+    std::panic::catch_unwind(std::panic::AssertUnwindSafe(f))
+        .unwrap_or_else(|_| Err(Error::unsupported(snap_core::t("capture.error.backend_crashed"))))
+}
+
 /// Points-to-pixels multiplier for geometry reported by xcap.
 fn unit_scale(display_scale: f32) -> f64 {
     if cfg!(target_os = "macos") { display_scale.max(1.0) as f64 } else { 1.0 }
@@ -32,6 +39,10 @@ struct Display {
 }
 
 fn displays() -> Result<Vec<Display>> {
+    guarded(displays_unguarded)
+}
+
+fn displays_unguarded() -> Result<Vec<Display>> {
     let mut out = Vec::new();
     for m in Monitor::all().map_err(xerr)? {
         let scale = m.scale_factor().unwrap_or(1.0);
@@ -150,7 +161,8 @@ fn describe(w: &Window, ds: &[Display], own_pid: u32) -> Option<(i32, WindowInfo
 pub(crate) fn windows() -> Result<Vec<WindowInfo>> {
     let ds = displays()?;
     let own_pid = std::process::id();
-    let mut list: Vec<(i32, WindowInfo)> = Window::all().map_err(xerr)?.iter().filter_map(|w| describe(w, &ds, own_pid)).collect();
+    let all = guarded(|| Window::all().map_err(xerr))?;
+    let mut list: Vec<(i32, WindowInfo)> = all.iter().filter_map(|w| describe(w, &ds, own_pid)).collect();
     // xcap's z grows towards the viewer; ours is 0 = front-most.
     list.sort_by_key(|(z, _)| std::cmp::Reverse(*z));
     Ok(list
@@ -164,7 +176,7 @@ pub(crate) fn windows() -> Result<Vec<WindowInfo>> {
 }
 
 pub(crate) fn foreground_window() -> Option<WindowInfo> {
-    let focused = Window::all().ok()?.into_iter().find(|w| w.is_focused().unwrap_or(false))?.id().ok()? as u64;
+    let focused = guarded(|| Window::all().map_err(xerr)).ok()?.into_iter().find(|w| w.is_focused().unwrap_or(false))?.id().ok()? as u64;
     windows().ok()?.into_iter().find(|w| w.id == focused)
 }
 
@@ -174,12 +186,14 @@ pub(crate) fn cursor_position() -> Point {
 
 pub(crate) fn grab_monitor(m: &MonitorInfo, region: Rect, _o: &CaptureOptions) -> Result<Grab> {
     os::check_capture_access()?;
-    let mon = Monitor::all()
-        .map_err(xerr)?
-        .into_iter()
-        .find(|x| x.id().ok() == Some(m.id))
-        .ok_or_else(|| Error::NotFound(format!("monitor {}", m.id)))?;
-    let full = mon.capture_image().map_err(xerr)?;
+    let full = guarded(|| {
+        let mon = Monitor::all()
+            .map_err(xerr)?
+            .into_iter()
+            .find(|x| x.id().ok() == Some(m.id))
+            .ok_or_else(|| Error::NotFound(format!("monitor {}", m.id)))?;
+        mon.capture_image().map_err(xerr)
+    })?;
     if region == m.rect && full.width() == m.rect.w && full.height() == m.rect.h {
         return Ok(Grab { image: full, tone_mapped: false });
     }
@@ -190,6 +204,17 @@ pub(crate) fn grab_monitor(m: &MonitorInfo, region: Rect, _o: &CaptureOptions) -
 
 pub(crate) fn grab_window(id: u64, _o: &CaptureOptions) -> Result<WindowGrab> {
     os::check_capture_access()?;
+    let listed = guarded(|| grab_listed_window(id));
+    // Bare X servers (no EWMH window manager, as in WSLg) cannot list windows, but a known id can still be read.
+    #[cfg(target_os = "linux")]
+    let listed = listed.or_else(|e| match e {
+        Error::NotFound(_) | Error::Invalid(_) => Err(e),
+        _ => os::window_by_id(id).map(|(image, screen_rect)| WindowGrab { image, screen_rect, tone_mapped: false }).map_err(|_| e),
+    });
+    listed
+}
+
+fn grab_listed_window(id: u64) -> Result<WindowGrab> {
     let w = Window::all()
         .map_err(xerr)?
         .into_iter()
@@ -198,7 +223,7 @@ pub(crate) fn grab_window(id: u64, _o: &CaptureOptions) -> Result<WindowGrab> {
     if w.is_minimized().unwrap_or(false) {
         return Err(Error::invalid("window is minimized"));
     }
-    let ds = displays()?;
+    let ds = displays_unguarded()?;
     let (x, y, wd, ht) =
         (w.x().map_err(xerr)? as f64, w.y().map_err(xerr)? as f64, w.width().map_err(xerr)? as f64, w.height().map_err(xerr)? as f64);
     let screen_rect = rect_to_physical(&ds, x, y, wd, ht);

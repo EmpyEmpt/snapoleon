@@ -95,7 +95,7 @@ any distribution with PipeWire 1.0 or newer.
 | Format | How |
 |---|---|
 | AppImage | `chmod +x Snapoleon-*.AppImage && ./Snapoleon-*.AppImage`. Needs FUSE 2 (`libfuse2t64` on Ubuntu 24.04) or run with `--appimage-extract-and-run`. |
-| .deb | `sudo apt install ./Snapoleon-*-linux-x86_64.deb`. Depends on libxcb, PipeWire (>= 1.0), D-Bus. Recommends `tesseract-ocr` and `ffmpeg`. |
+| .deb | `sudo apt install ./Snapoleon-*-linux-x86_64.deb`. Depends on libxcb, libx11, libxkbcommon (and its X11 part), libegl1, libgbm, ALSA, PipeWire (>= 1.0), D-Bus. Recommends `tesseract-ocr` and `ffmpeg`. |
 | Arch (AUR) | `snapoleon-bin` |
 | Flatpak | Build from `packaging/linux/flatpak/app.snapoleon.Snapoleon.yml` with `flatpak-builder`. Not yet on Flathub. |
 | Tarball | `Snapoleon-<ver>-linux-<arch>.tar.gz` holds the binary, desktop file, icons and licenses. |
@@ -111,14 +111,47 @@ sudo apt install tesseract-ocr tesseract-ocr-eng ffmpeg      # Debian / Ubuntu
 sudo pacman -S tesseract tesseract-data-eng ffmpeg           # Arch
 ```
 
+### Building on Linux
+
+Tested on Ubuntu 24.04 (x86_64). Ubuntu 22.04 is too old: its PipeWire is 0.3.48 and the capture backend (`xcap`)
+needs 1.0 or newer. Install Rust 1.90+ (`rustup`) and these packages:
+
+```sh
+sudo apt install build-essential pkg-config clang nasm \
+  libxcb1-dev libxcb-randr0-dev libxcb-shm0-dev libxkbcommon-dev \
+  libpipewire-0.3-dev libspa-0.2-dev libdbus-1-dev libegl1-mesa-dev libwayland-dev \
+  libasound2-dev libx11-dev libxi-dev libxtst-dev libgbm-dev
+cargo build --release -p snapoleon
+```
+
+What each group is for:
+
+| Packages | Used by |
+|---|---|
+| `clang`, `libpipewire-0.3-dev`, `libspa-0.2-dev` | PipeWire bindings (bindgen needs libclang) |
+| `libxcb*-dev`, `libx11-dev`, `libxi-dev`, `libxtst-dev` | screen and window capture, global hotkeys, input hooks |
+| `libxkbcommon-dev`, `libwayland-dev`, `libegl1-mesa-dev`, `libgbm-dev` | window system and GPU rendering |
+| `libasound2-dev` | microphone and system-audio capture |
+| `libdbus-1-dev` | notifications, tray, secrets, desktop portals |
+| `nasm` | assembly in the crypto and codec dependencies |
+
+At run time the app also loads `libxkbcommon-x11-0`, `libxcursor1`, `libxi6`, `libxtst6` and `libegl1` (all pulled in
+by the `.deb`). Without `libxkbcommon-x11-0` it aborts on start-up under X11.
+
+**WSL 2 with WSLg.** The GUI runs, and `SNAPOLEON_DEV=<view>` renders every window, but WSLg cannot be captured:
+its XWayland server refuses to read the root window and its compositor has no screenshot protocol or portal. For a
+real capture test use a virtual X server: `Xvfb :99 -screen 0 1600x900x24 & openbox & DISPLAY=:99 snapoleon capture --monitor 0`
+(with `unset WAYLAND_DISPLAY`). The tray needs a StatusNotifierItem host, which WSLg lacks.
+
 ### Wayland
 
 Wayland does not let applications capture the screen or register global shortcuts on their own. Snapoleon uses
 the XDG desktop portals:
 
-- Screen capture goes through the ScreenCast and Screenshot portals. The compositor may show its own picker or a
-  permission dialog the first time. Install the portal backend for your desktop: `xdg-desktop-portal-gnome`,
-  `xdg-desktop-portal-kde`, `xdg-desktop-portal-wlr` (Sway, Hyprland uses `xdg-desktop-portal-hyprland`).
+- Screen capture asks the GNOME Shell screenshot service, then the Screenshot portal, then the wlroots
+  screencopy protocol (Sway, Hyprland). The compositor may show its own picker or a permission dialog the first time.
+  A compositor that offers none of them (such as WSLg's Weston) gets a clear error instead of a capture.
+  Install the portal backend for your desktop: `xdg-desktop-portal-gnome`, `xdg-desktop-portal-kde`, `xdg-desktop-portal-wlr` (Sway, Hyprland uses `xdg-desktop-portal-hyprland`).
 - Global hotkeys use the GlobalShortcuts portal. GNOME 48 and KDE Plasma 6 support it; older compositors and some
   wlroots-based ones do not. Where it is missing, bind a key in your compositor to `snapoleon capture region`
   (the command forwards to the running instance).

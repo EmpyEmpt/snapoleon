@@ -39,7 +39,8 @@ jobs:
           sudo apt-get install -y --no-install-recommends \
             libxcb1-dev libxcb-randr0-dev libxcb-shm0-dev libxkbcommon-dev \
             libpipewire-0.3-dev libspa-0.2-dev libdbus-1-dev libegl1-mesa-dev \
-            libwayland-dev libasound2-dev clang pkg-config nasm
+            libwayland-dev libasound2-dev libx11-dev libxi-dev libxtst-dev libgbm-dev \
+            clang pkg-config nasm
       - uses: Swatinem/rust-cache@v2
       # Plain clippy: warnings are reported but do not block the build.
       - run: cargo clippy --workspace --all-targets
@@ -89,7 +90,8 @@ jobs:
           sudo apt-get install -y --no-install-recommends \
             libxcb1-dev libxcb-randr0-dev libxcb-shm0-dev libxkbcommon-dev \
             libpipewire-0.3-dev libspa-0.2-dev libdbus-1-dev libegl1-mesa-dev \
-            libwayland-dev libasound2-dev clang pkg-config nasm
+            libwayland-dev libasound2-dev libx11-dev libxi-dev libxtst-dev libgbm-dev \
+            clang pkg-config nasm
 
       - name: Install nasm (Windows)
         if: runner.os == 'Windows'

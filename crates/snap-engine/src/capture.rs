@@ -55,9 +55,7 @@ fn on_desktop(settings: &Settings, grab: impl FnOnce() -> Result<Capture>) -> Re
     if icons.is_some() {
         std::thread::sleep(ICONS_SETTLE);
     }
-    let cap = grab();
-    drop(icons);
-    cap
+    grab()
 }
 
 /// Index of the monitor containing the cursor, or the primary one.

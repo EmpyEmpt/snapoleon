@@ -57,7 +57,8 @@ pub(crate) fn sleep_until(deadline: Instant) {
 /// PulseAudio / PipeWire source names (microphones only), via `pactl`.
 pub(crate) fn mic_devices() -> Option<Vec<String>> {
     let out = command_output("pactl", &["list", "short", "sources"])?;
-    let mut names: Vec<String> = out.lines().filter_map(|l| l.split('\t').nth(1)).filter(|n| !n.ends_with(".monitor")).map(str::to_string).collect();
+    let mut names: Vec<String> =
+        out.lines().filter_map(|l| l.split('\t').nth(1)).filter(|n| !n.ends_with(".monitor")).map(str::to_string).collect();
     if let Some(default) = command_output("pactl", &["get-default-source"]).map(|s| s.trim().to_string())
         && let Some(i) = names.iter().position(|n| *n == default)
     {
@@ -112,11 +113,17 @@ fn monitors() -> Vec<Monitor> {
 fn window_rect(id: u64) -> Option<Rect> {
     let text = command_output("xwininfo", &["-id", &id.to_string()])?;
     let field = |name: &str| -> Option<i64> { text.lines().find_map(|l| l.trim().strip_prefix(name)?.trim().parse().ok()) };
-    Some(Rect::new(field("Absolute upper-left X:")? as i32, field("Absolute upper-left Y:")? as i32, field("Width:")? as u32, field("Height:")? as u32))
+    Some(Rect::new(
+        field("Absolute upper-left X:")? as i32,
+        field("Absolute upper-left Y:")? as i32,
+        field("Width:")? as u32,
+        field("Height:")? as u32,
+    ))
 }
 
 fn is_wayland() -> bool {
-    std::env::var("XDG_SESSION_TYPE").is_ok_and(|v| v.eq_ignore_ascii_case("wayland")) || (std::env::var_os("WAYLAND_DISPLAY").is_some() && std::env::var_os("DISPLAY").is_none())
+    std::env::var("XDG_SESSION_TYPE").is_ok_and(|v| v.eq_ignore_ascii_case("wayland"))
+        || (std::env::var_os("WAYLAND_DISPLAY").is_some() && std::env::var_os("DISPLAY").is_none())
 }
 
 fn has_pipewire_grab(ffmpeg: &Path) -> bool {
@@ -171,10 +178,14 @@ pub(crate) fn open_source(spec: &SourceSpec, slot: Arc<FrameSlot>) -> Result<Box
 
     let mons = monitors();
     let (area, window_id) = match spec.target {
-        RecordTarget::Monitor(i) => (mons.get(*i).ok_or_else(|| Error::NotFound(tf("record.error.monitor_not_found", &[("index", &i.to_string())])))?.rect, None),
+        RecordTarget::Monitor(i) => {
+            (mons.get(*i).ok_or_else(|| Error::NotFound(tf("record.error.monitor_not_found", &[("index", &i.to_string())])))?.rect, None)
+        }
         RecordTarget::Region(r) if r.is_empty() => return Err(Error::invalid(t("record.error.region_empty"))),
         RecordTarget::Region(r) => (*r, None),
-        RecordTarget::Window(id) => (window_rect(*id).ok_or_else(|| Error::NotFound(t("record.error.window_not_found").into_owned()))?, Some(*id)),
+        RecordTarget::Window(id) => {
+            (window_rect(*id).ok_or_else(|| Error::NotFound(t("record.error.window_not_found").into_owned()))?, Some(*id))
+        }
     };
     let (w, h) = (even(area.w), even(area.h));
     let display = std::env::var("DISPLAY").unwrap_or_else(|_| ":0".into());
@@ -268,7 +279,7 @@ fn pulse_source(ffmpeg: &Path, kind: Kind, device: Option<&str>, stop: Arc<Atomi
                 }
                 carry.extend_from_slice(&buf[..n]);
                 let whole = carry.len() / 4 * 4;
-                let samples: Vec<f32> = carry[..whole].chunks_exact(4).map(|b| f32::from_le_bytes([b[0], b[1], b[2], b[3]])).collect();
+                let samples: Vec<f32> = carry[..whole].as_chunks::<4>().0.iter().map(|b| f32::from_le_bytes(*b)).collect();
                 feed.push(&samples);
                 carry.drain(..whole);
             }

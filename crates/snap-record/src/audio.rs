@@ -37,6 +37,7 @@ const MAX_BACKLOG_FRAMES: usize = RATE as usize / 4;
 const RING_MAX_FRAMES: usize = RATE as usize * 2;
 
 pub(crate) struct AudioChunk {
+    #[cfg_attr(target_os = "linux", expect(dead_code, reason = "only the native media-foundation and AVFoundation sinks timestamp audio"))]
     pub pts: Hns,
     /// Interleaved stereo f32.
     pub samples: Vec<f32>,
@@ -327,7 +328,9 @@ fn spawn_cpal(kind: Kind, device_name: Option<String>, stop: Arc<AtomicBool>) ->
 
 fn map_cpal(e: cpal::Error, what: &'static str) -> Error {
     match e.kind() {
-        cpal::ErrorKind::PermissionDenied => Error::permission(t(if what == "microphone" { "record.error.microphone_permission" } else { "record.error.input_permission" })),
+        cpal::ErrorKind::PermissionDenied => {
+            Error::permission(t(if what == "microphone" { "record.error.microphone_permission" } else { "record.error.input_permission" }))
+        }
         cpal::ErrorKind::DeviceNotAvailable => Error::NotFound(format!("{what}: {e}")),
         _ => Error::Other(anyhow::anyhow!("{what}: {e}")),
     }
@@ -351,7 +354,9 @@ fn open_stream(kind: Kind, wanted: Option<&str>, ring: Ring) -> Result<cpal::Str
             };
             (device, "microphone")
         }
-        Kind::System => (host.default_output_device().ok_or_else(|| Error::NotFound(t("record.error.no_output_device").into_owned()))?, "system audio"),
+        Kind::System => {
+            (host.default_output_device().ok_or_else(|| Error::NotFound(t("record.error.no_output_device").into_owned()))?, "system audio")
+        }
     };
 
     // On WASAPI an output device opened as input is a loopback capture.
