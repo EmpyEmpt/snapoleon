@@ -1,0 +1,41 @@
+[overlay]
+title = "Capture"
+copied = "Copied {value}"
+
+[overlay.action]
+copy = "Copy"
+save = "Save"
+edit = "Edit"
+pin = "Pin to screen"
+upload = "Upload"
+text = "Recognize text"
+qr = "Scan QR code"
+redact = "Redact sensitive data"
+record = "Record"
+scroll = "Scrolling capture"
+close = "Cancel"
+
+[overlay.record]
+microphone = "Microphone"
+system_audio = "System audio"
+start = "Record"
+
+[overlay.scroll]
+start = "Start scrolling"
+
+[overlay.picker]
+recent = "Recent"
+
+[overlay.hint]
+cancel = "to cancel"
+region = "Drag to select an area, or click a window. Hold Ctrl to pick a UI element."
+window = "Click a window to capture it."
+element = "Click a UI element. Scroll to move to its parent or child."
+ocr = "Select the text to copy."
+codes = "Select a QR code or barcode."
+translate = "Select the text to translate."
+pin = "Select an area to pin to the screen."
+record = "Select an area to record."
+scroll = "Select the area to scroll through."
+color = "Click to copy a color. Shift switches the format."
+measure = "Drag to measure, or click two elements. Hold Ctrl for distances to edges."
