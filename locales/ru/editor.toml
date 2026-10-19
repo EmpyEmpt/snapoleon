@@ -1,0 +1,194 @@
+[editor]
+title = "Редактор"
+undo = "Отменить"
+redo = "Повторить"
+copy_tip = "Копировать изображение"
+done_tip = "Готово, продолжить"
+save_tip = "Сохранить"
+save_as_tip = "Сохранить как"
+upload_tip = "Загрузить"
+pin_tip = "Закрепить на экране"
+saved = "Сохранено"
+project_saved = "Проект сохранён"
+uploaded = "Загружено"
+zoom_in = "Увеличить"
+zoom_out = "Уменьшить"
+zoom_actual = "Реальный размер"
+zoom_fit = "Вписать в окно"
+panel_show = "Показать панель"
+panel_hide = "Скрыть панель"
+
+[editor.status]
+export = "Экспорт"
+
+[editor.paste]
+no_image = "В буфере обмена нет изображения"
+
+[editor.clipboard]
+shapes = "Аннотации Snapoleon: {n}"
+
+[editor.tool]
+select = "Выбор"
+crop = "Кадрирование"
+arrow = "Стрелка"
+line = "Линия"
+rect = "Прямоугольник"
+ellipse = "Эллипс"
+pen = "Карандаш"
+highlighter = "Маркер"
+text = "Текст"
+callout = "Выноска"
+step = "Нумерация"
+redact = "Скрытие"
+spotlight = "Подсветка"
+magnifier = "Лупа"
+stamp = "Штамп"
+measure = "Линейка"
+image = "Вставить изображение"
+
+[editor.options]
+hint = "Выберите инструмент или фигуру, чтобы изменить стиль"
+image = "У вставленных изображений нет настроек стиля"
+step_hint = "Номера растут сами"
+
+[editor.option]
+bold = "Жирный"
+curved = "Изгиб"
+dashed = "Пунктир"
+double = "Два конца"
+fill = "Заливка"
+rounded = "Скругление"
+shadow = "Тень"
+size = "Размер"
+
+[editor.arrow]
+solid = "Полная"
+open = "Открытая"
+none = "Без"
+
+[editor.text]
+plain = "Без фона"
+box = "Плашка"
+bubble = "Облачко"
+
+[editor.redact]
+pixelate = "Пиксели"
+solid = "Закраска"
+blur = "Размытие"
+auto = "Автоскрытие"
+searching = "Ищу личные данные"
+auto_tip = "Найти адреса почты, телефоны, карты, ключи и другие личные данные и закрыть их"
+found = "Найдено: {n}. Проверьте каждое и нажмите Delete, чтобы убрать лишнее"
+none = "Личных данных не найдено"
+
+[editor.spotlight]
+rect = "Прямоугольник"
+ellipse = "Эллипс"
+
+[editor.crop]
+free = "Свободно"
+original = "Исходное"
+apply = "Применить"
+cancel = "Отмена"
+reset = "Сбросить кадр"
+
+[editor.panel]
+beautify = "Стиль"
+text = "Текст"
+export = "Экспорт"
+
+[editor.beautify]
+title = "Оформление"
+off_hint = "Включите, чтобы поместить скриншот на фон с рамкой и тенью"
+presets = "Пресеты"
+background = "Фон"
+gradient = "Градиент"
+solid = "Цвет"
+blurred = "Размытие"
+none = "Нет"
+image = "Картинка"
+from = "От"
+to = "До"
+color = "Цвет"
+angle = "Угол"
+layout = "Поля и форма"
+padding = "Отступ"
+corners = "Скругление углов"
+shadow = "Тень"
+aspect = "Пропорции"
+auto = "Авто"
+frame = "Рамка окна"
+save_title = "Свой пресет"
+preset_name = "Название пресета"
+save = "Сохранить"
+delete = "Удалить пресет"
+
+[editor.frame]
+none = "Без рамки"
+mac_light = "Окно macOS"
+mac_dark = "Окно macOS, тёмное"
+browser_light = "Браузер"
+browser_dark = "Браузер, тёмный"
+phone = "Телефон"
+
+[editor.ocr]
+empty_title = "Прочитать текст"
+empty_body = "Распознаем текст на картинке, а вы сможете скопировать или перевести его"
+run = "Распознать текст"
+running = "Читаю текст…"
+again = "Распознать заново"
+none_title = "Текст не найден"
+none_body = "Попробуйте другую область или увеличьте масштаб"
+lines = "Строк: {n}"
+stale = "Картинка изменилась после распознавания"
+copy = "Копировать текст"
+copy_table = "Копировать как таблицу"
+copy_table_tip = "Таблица в формате Markdown"
+copy_translation = "Копировать перевод"
+translate = "Перевод"
+translate_to = "Перевести на {lang}"
+translating = "Перевожу…"
+
+[editor.export]
+format = "Формат"
+optimize = "Оптимизировать PNG"
+quality = "Качество"
+size = "Размер"
+original = "Исходный размер"
+max_width = "Максимальная ширина"
+readable = "Сохранять читаемость при уменьшении"
+readable_hint = "Тонкие линии и мелкий текст станут чуть жирнее, чтобы не потеряться"
+result_size = "Результат"
+file_size = "Размер файла"
+updating = "Обновляю оценку"
+alt_title = "Описание для скринридеров"
+alt_hint = "ИИ опишет скриншот одним-двумя предложениями"
+alt_off = "Включите ИИ в настройках, чтобы получать описания"
+alt_make = "Описать"
+alt_settings = "Открыть настройки ИИ"
+alt_running = "Составляю описание…"
+
+[editor.menu]
+duplicate = "Дублировать"
+copy = "Копировать"
+cut = "Вырезать"
+paste = "Вставить"
+front = "На передний план"
+forward = "Вперёд"
+backward = "Назад"
+back = "На задний план"
+delete = "Удалить"
+
+[editor.close]
+title = "Закрыть без сохранения?"
+body = "Изменения будут потеряны."
+body_pipeline = "Закрытие отменит этот снимок, а изменения будут потеряны."
+keep = "Продолжить"
+discard = "Не сохранять"
+
+[editor.dialog]
+title = "Сохранить как"
+project = "Проект Snapoleon"
+png = "Изображение PNG"
+jpg = "Изображение JPEG"
+webp = "Изображение WebP"

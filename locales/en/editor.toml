@@ -1,0 +1,194 @@
+[editor]
+title = "Editor"
+undo = "Undo"
+redo = "Redo"
+copy_tip = "Copy image"
+done_tip = "Finish and continue"
+save_tip = "Save"
+save_as_tip = "Save as"
+upload_tip = "Upload"
+pin_tip = "Pin to screen"
+saved = "Saved"
+project_saved = "Project saved"
+uploaded = "Uploaded"
+zoom_in = "Zoom in"
+zoom_out = "Zoom out"
+zoom_actual = "Actual size"
+zoom_fit = "Fit to window"
+panel_show = "Show panel"
+panel_hide = "Hide panel"
+
+[editor.status]
+export = "Export"
+
+[editor.paste]
+no_image = "The clipboard has no image"
+
+[editor.clipboard]
+shapes = "Snapoleon annotations: {n}"
+
+[editor.tool]
+select = "Select"
+crop = "Crop"
+arrow = "Arrow"
+line = "Line"
+rect = "Rectangle"
+ellipse = "Ellipse"
+pen = "Pen"
+highlighter = "Highlighter"
+text = "Text"
+callout = "Callout"
+step = "Step number"
+redact = "Redact"
+spotlight = "Spotlight"
+magnifier = "Magnifier"
+stamp = "Stamp"
+measure = "Measure"
+image = "Paste image"
+
+[editor.options]
+hint = "Pick a tool, or select a shape to change its style"
+image = "Pasted images have no style options"
+step_hint = "Numbers count up on their own"
+
+[editor.option]
+bold = "Bold"
+curved = "Curve"
+dashed = "Dashed"
+double = "Both ends"
+fill = "Fill"
+rounded = "Rounded"
+shadow = "Shadow"
+size = "Size"
+
+[editor.arrow]
+solid = "Solid"
+open = "Open"
+none = "None"
+
+[editor.text]
+plain = "No box"
+box = "Box"
+bubble = "Bubble"
+
+[editor.redact]
+pixelate = "Pixelate"
+solid = "Solid"
+blur = "Blur"
+auto = "Auto-redact"
+searching = "Looking for personal data"
+auto_tip = "Find email addresses, phone numbers, cards, keys and other personal data, and cover them"
+found = "Found {n} to cover. Review them and press Delete to remove any"
+none = "No personal data found"
+
+[editor.spotlight]
+rect = "Rectangle"
+ellipse = "Ellipse"
+
+[editor.crop]
+free = "Free"
+original = "Original"
+apply = "Apply"
+cancel = "Cancel"
+reset = "Reset crop"
+
+[editor.panel]
+beautify = "Beautify"
+text = "Text"
+export = "Export"
+
+[editor.beautify]
+title = "Beautify"
+off_hint = "Turn on to put the screenshot on a background with a frame and a shadow"
+presets = "Presets"
+background = "Background"
+gradient = "Gradient"
+solid = "Color"
+blurred = "Blurred"
+none = "None"
+image = "Image"
+from = "From"
+to = "To"
+color = "Color"
+angle = "Angle"
+layout = "Padding and shape"
+padding = "Padding"
+corners = "Corner radius"
+shadow = "Shadow"
+aspect = "Aspect ratio"
+auto = "Auto"
+frame = "Window frame"
+save_title = "Your own preset"
+preset_name = "Preset name"
+save = "Save"
+delete = "Delete preset"
+
+[editor.frame]
+none = "No frame"
+mac_light = "macOS window"
+mac_dark = "macOS window, dark"
+browser_light = "Browser"
+browser_dark = "Browser, dark"
+phone = "Phone"
+
+[editor.ocr]
+empty_title = "Read the text"
+empty_body = "Recognise the text in the picture, then copy or translate it"
+run = "Recognize text"
+running = "Reading the text…"
+again = "Recognize again"
+none_title = "No text found"
+none_body = "Try another area or a larger zoom level"
+lines = "{n} lines"
+stale = "The picture changed after the text was read"
+copy = "Copy text"
+copy_table = "Copy as table"
+copy_table_tip = "A Markdown table"
+copy_translation = "Copy translation"
+translate = "Translation"
+translate_to = "Translate to {lang}"
+translating = "Translating…"
+
+[editor.export]
+format = "Format"
+optimize = "Optimize PNG"
+quality = "Quality"
+size = "Size"
+original = "Original size"
+max_width = "Maximum width"
+readable = "Keep it readable when shrunk"
+readable_hint = "Thin lines and small text get slightly bolder so they survive scaling down"
+result_size = "Result"
+file_size = "File size"
+updating = "Updating the estimate"
+alt_title = "Alt text"
+alt_hint = "AI describes the screenshot in a sentence or two for screen readers"
+alt_off = "Turn on AI in settings to get descriptions"
+alt_make = "Describe"
+alt_settings = "Open AI settings"
+alt_running = "Writing a description…"
+
+[editor.menu]
+duplicate = "Duplicate"
+copy = "Copy"
+cut = "Cut"
+paste = "Paste"
+front = "Bring to front"
+forward = "Bring forward"
+backward = "Send backward"
+back = "Send to back"
+delete = "Delete"
+
+[editor.close]
+title = "Close without saving?"
+body = "Your changes will be lost."
+body_pipeline = "Closing cancels this capture, and your changes will be lost."
+keep = "Keep editing"
+discard = "Discard"
+
+[editor.dialog]
+title = "Save as"
+project = "Snapoleon project"
+png = "PNG image"
+jpg = "JPEG image"
+webp = "WebP image"
