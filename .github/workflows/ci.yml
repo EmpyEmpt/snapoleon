@@ -108,17 +108,17 @@ jobs:
 
       - name: Build
         if: matrix.target != 'universal'
-        run: cargo build --release -p snapoleon --target ${{ matrix.target }}
+        run: cargo build --locked --profile ci -p snapoleon --target ${{ matrix.target }}
 
       - name: Build (macOS universal)
         if: matrix.target == 'universal'
         run: |
-          cargo build --release -p snapoleon --target aarch64-apple-darwin
-          cargo build --release -p snapoleon --target x86_64-apple-darwin
+          cargo build --locked --profile ci -p snapoleon --target aarch64-apple-darwin
+          cargo build --locked --profile ci -p snapoleon --target x86_64-apple-darwin
           mkdir -p target/universal
           lipo -create -output target/universal/snapoleon \
-            target/aarch64-apple-darwin/release/snapoleon \
-            target/x86_64-apple-darwin/release/snapoleon
+            target/aarch64-apple-darwin/ci/snapoleon \
+            target/x86_64-apple-darwin/ci/snapoleon
           lipo -info target/universal/snapoleon
 
       - name: Check server crate

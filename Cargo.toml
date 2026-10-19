@@ -123,6 +123,13 @@ opt-level = "s"
 [profile.release.package.epaint]
 opt-level = "s"
 
+# CI proves every target compiles and links; release-grade optimisation is the release workflow's job.
+[profile.ci]
+inherits = "release"
+opt-level = 1
+lto = false
+codegen-units = 16
+
 [profile.dev.package."*"]
 opt-level = 2
 
