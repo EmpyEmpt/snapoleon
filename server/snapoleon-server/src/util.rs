@@ -1,6 +1,6 @@
 //! Small helpers: ids, codes, hashing, MIME sniffing and formatting.
 
-use std::fmt::Write as _;
+use std::{fmt::Write as _, net::IpAddr};
 
 use hmac::{Hmac, KeyInit, Mac};
 use rand::Rng;
@@ -157,5 +157,86 @@ pub fn sniff_ext(mime: &str) -> &'static str {
         "video/mp4" => "mp4",
         "video/webm" => "webm",
         _ => "bin",
+    }
+}
+
+/// Whether `ip` may be contacted on behalf of a user-supplied URL: public unicast
+/// addresses only (no loopback, private, link-local, CGNAT, metadata, ULA or mapped forms).
+pub fn is_public_ip(ip: IpAddr) -> bool {
+    match ip.to_canonical() {
+        IpAddr::V4(v4) => {
+            let o = v4.octets();
+            !(v4.is_unspecified()
+                || v4.is_loopback()
+                || v4.is_private()
+                || v4.is_link_local()
+                || v4.is_broadcast()
+                || v4.is_multicast()
+                || v4.is_documentation()
+                || o[0] == 0
+                || o[0] >= 240
+                || (o[0] == 100 && (64..128).contains(&o[1]))
+                || (o[0] == 192 && o[1] == 0 && o[2] == 0)
+                || (o[0] == 198 && (o[1] == 18 || o[1] == 19)))
+        }
+        IpAddr::V6(v6) => {
+            let s = v6.segments();
+            // 64:ff9b::/96 (NAT64) embeds an IPv4 address in the last 32 bits.
+            if s[..6] == [0x64, 0xff9b, 0, 0, 0, 0] {
+                let [a, b] = [s[6].to_be_bytes(), s[7].to_be_bytes()];
+                return is_public_ip(IpAddr::V4(std::net::Ipv4Addr::new(a[0], a[1], b[0], b[1])));
+            }
+            !(v6.is_unspecified()
+                || v6.is_loopback()
+                || v6.is_multicast()
+                || (s[0] & 0xfe00) == 0xfc00
+                || (s[0] & 0xffc0) == 0xfe80
+                || (s[0] == 0x2001 && s[1] == 0x0db8))
+        }
+    }
+}
+
+/// An IP network such as `10.0.0.0/8`; a bare address means a single host.
+#[derive(Debug, Clone, Copy)]
+pub struct Cidr {
+    net: IpAddr,
+    prefix: u8,
+}
+
+impl Cidr {
+    pub fn contains(&self, ip: IpAddr) -> bool {
+        fn bits(ip: IpAddr) -> (u128, u8) {
+            match ip.to_canonical() {
+                IpAddr::V4(v) => (u128::from(u32::from(v)), 32),
+                IpAddr::V6(v) => (u128::from(v), 128),
+            }
+        }
+        let ((net, width), (ip, ip_width)) = (bits(self.net), bits(ip));
+        if width != ip_width {
+            return false;
+        }
+        let shift = u32::from(width - self.prefix);
+        shift >= 128 || net >> shift == ip >> shift
+    }
+}
+
+impl std::str::FromStr for Cidr {
+    type Err = String;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        let (addr, prefix) = s.trim().split_once('/').map_or((s.trim(), None), |(a, p)| (a, Some(p)));
+        let net: IpAddr = addr.parse().map_err(|_| format!("invalid network: {s}"))?;
+        let max = if net.to_canonical().is_ipv4() { 32 } else { 128 };
+        let prefix = match prefix {
+            Some(p) => p.parse::<u8>().ok().filter(|p| *p <= max).ok_or_else(|| format!("invalid network: {s}"))?,
+            None => max,
+        };
+        Ok(Self { net, prefix })
+    }
+}
+
+impl<'de> serde::Deserialize<'de> for Cidr {
+    fn deserialize<D: serde::Deserializer<'de>>(d: D) -> Result<Self, D::Error> {
+        String::deserialize(d)?.parse().map_err(serde::de::Error::custom)
     }
 }

@@ -8,7 +8,9 @@ services:
     image: snapoleon-server:latest
     restart: unless-stopped
     ports:
-      - "8787:8787"
+      # Loopback only: put a reverse proxy (Caddy, nginx) in front. Publishing this port to the
+      # network would let clients talk to the server directly.
+      - "127.0.0.1:8787:8787"
     volumes:
       - snapoleon-data:/data
     environment:
@@ -16,8 +18,11 @@ services:
       SNAPOLEON_PUBLIC_URL: "https://snap.example.com"
       SNAPOLEON_MAX_UPLOAD_MB: "200"
       SNAPOLEON_REGISTRATION: "closed"
-      # Behind a reverse proxy (Caddy, nginx, Cloudflare): read client IPs from its headers.
-      SNAPOLEON_TRUST_PROXY: "true"
+      # Client IPs are read from the proxy's X-Forwarded-For only when the connection comes from one of
+      # these networks (the host's loopback and Docker's bridge). Set SNAPOLEON_PROXY_HEADER for
+      # proxies that use another header (CF-Connecting-IP, X-Real-IP) and widen the list if the proxy
+      # lives elsewhere.
+      SNAPOLEON_TRUSTED_PROXIES: "127.0.0.1,::1,172.16.0.0/12"
       # Uncomment to store files in an S3-compatible bucket instead of the volume.
       # SNAPOLEON_STORAGE: "s3"
       # SNAPOLEON_S3_ENDPOINT: "https://<account>.r2.cloudflarestorage.com"

@@ -25,12 +25,14 @@ use crate::{
 pub const PUBLIC_CACHE: &str = "public, max-age=3600";
 pub const SHORT_CACHE: &str = "public, max-age=300";
 
-pub fn blob_key(id: &str, code: &str, protected: bool) -> String {
-    if protected { format!("private/{id}") } else { format!("raw/{code}") }
+/// `secret` is a random per-item name that appears nowhere else (not in URLs, ETags or the row id),
+/// so a publicly readable bucket still cannot be used to reach protected files.
+pub fn blob_key(secret: &str, code: &str, protected: bool) -> String {
+    if protected { format!("private/{secret}") } else { format!("raw/{code}") }
 }
 
-pub fn thumb_key(id: &str, code: &str, protected: bool) -> String {
-    if protected { format!("private/{id}.thumb") } else { format!("thumb/{code}.jpg") }
+pub fn thumb_key(secret: &str, code: &str, protected: bool) -> String {
+    if protected { format!("private/{secret}.thumb") } else { format!("thumb/{code}.jpg") }
 }
 
 pub fn og_key(item: &Item) -> String {
@@ -148,9 +150,33 @@ impl Blobs {
         }
     }
 
-    pub async fn rename(&self, from: &str, to: &str) -> Result<(), AppError> {
-        self.store.rename(&Path::from(from), &Path::from(to)).await?;
-        Ok(())
+    /// Move a finished upload into place. A remote rename keeps the old object's attributes,
+    /// so objects that need new ones (expiry) are re-written under `meta` instead.
+    pub async fn promote(&self, from: &str, to: &str, meta: PutMeta<'_>) -> Result<(), AppError> {
+        if !(self.remote && meta.expires_ms.is_some()) {
+            self.store.rename(&Path::from(from), &Path::from(to)).await?;
+            return Ok(());
+        }
+        const CHUNK: u64 = 8 * 1024 * 1024;
+        let len = self.size(from).await?;
+        let mut upload = self.begin(to, meta).await?;
+        let mut offset = 0;
+        while offset < len {
+            let end = (offset + CHUNK).min(len);
+            let pushed = match self.get(from, Some(offset..end)).await {
+                Ok(part) => match part.bytes().await {
+                    Ok(bytes) => upload.push(&bytes).await,
+                    Err(e) => Err(e.into()),
+                },
+                Err(e) => Err(e),
+            };
+            if let Err(e) = pushed {
+                upload.abort().await;
+                return Err(e);
+            }
+            offset = end;
+        }
+        upload.finish().await
     }
 
     pub async fn exists(&self, key: &str) -> bool {
@@ -158,16 +184,29 @@ impl Blobs {
     }
 
     /// Delete an object; a missing object is not an error.
-    pub async fn delete(&self, key: &str) {
+    async fn try_delete(&self, key: &str) -> Result<(), AppError> {
         match self.store.delete(&Path::from(key)).await {
-            Ok(()) | Err(object_store::Error::NotFound { .. }) => {}
-            Err(e) => tracing::warn!("deleting {key} failed: {e}"),
+            Ok(()) | Err(object_store::Error::NotFound { .. }) => Ok(()),
+            Err(e) => Err(e.into()),
         }
     }
 
-    pub async fn delete_item(&self, item: &Item) {
-        for key in item.blob_keys() {
-            self.delete(&key).await;
+    /// Best-effort delete of scratch or rolled-back objects.
+    pub async fn delete(&self, key: &str) {
+        if let Err(e) = self.try_delete(key).await {
+            tracing::warn!("deleting {key} failed: {}", e.message());
         }
+    }
+
+    /// Delete every object of an item; fails (after trying them all) so the caller can keep the row and retry.
+    pub async fn delete_item(&self, item: &Item) -> Result<(), AppError> {
+        let mut first = Ok(());
+        for key in item.blob_keys() {
+            if let Err(e) = self.try_delete(&key).await {
+                tracing::warn!("deleting {key} failed: {}", e.message());
+                first = first.and(Err(e));
+            }
+        }
+        first
     }
 }

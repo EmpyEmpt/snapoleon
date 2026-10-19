@@ -1,7 +1,7 @@
 # snapoleon-server.toml: every key is optional; defaults are shown.
 # Each setting can also be set with an environment variable (SNAPOLEON_BIND,
 # SNAPOLEON_PUBLIC_URL, SNAPOLEON_DATA_DIR, SNAPOLEON_MAX_UPLOAD_MB,
-# SNAPOLEON_REGISTRATION, SNAPOLEON_TRUST_PROXY, SNAPOLEON_LANGUAGE,
+# SNAPOLEON_REGISTRATION, SNAPOLEON_TRUSTED_PROXIES, SNAPOLEON_PROXY_HEADER, SNAPOLEON_LANGUAGE,
 # SNAPOLEON_STORAGE, SNAPOLEON_S3_*, SNAPOLEON_OIDC_*); environment wins.
 
 # Address to listen on.
@@ -23,9 +23,13 @@ registration = "closed"
 # Language of the pages and console output the server renders: "en" or "ru".
 language = "en"
 
-# Trust CF-Connecting-IP / X-Real-IP / X-Forwarded-For (last entry) from a reverse proxy.
-# Enable only when the server is not reachable except through that proxy.
-trust_proxy = false
+# Reverse proxies (addresses or CIDR networks) allowed to tell the server the client address.
+# Connections from anywhere else are never believed, whatever headers they send. Empty = no proxy.
+trusted_proxies = []
+
+# Header those proxies set: "x-forwarded-for" (rightmost address that is not a trusted proxy),
+# or a single-address header such as "cf-connecting-ip" or "x-real-ip".
+proxy_header = "x-forwarded-for"
 
 [storage]
 # "fs" stores files under data_dir/blobs; "s3" uses any S3-compatible bucket.

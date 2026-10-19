@@ -114,8 +114,17 @@ async fn main() -> Result<()> {
         .timeout(Duration::from_secs(20))
         .redirect(reqwest::redirect::Policy::limited(3))
         .build()?;
-    let state: state::AppState =
-        Arc::new(Shared { cfg, db, blobs, secret, limiter: RateLimiter::default(), http, oidc: Default::default() });
+    let state: state::AppState = Arc::new(Shared {
+        cfg,
+        db,
+        blobs,
+        secret,
+        limiter: RateLimiter::default(),
+        image_slots: Arc::new(tokio::sync::Semaphore::new(api::IMAGE_SLOTS)),
+        http,
+        hook_http: webhooks::client()?,
+        oidc: Default::default(),
+    });
 
     bootstrap(&state).await?;
     sweeper::spawn(state.clone());

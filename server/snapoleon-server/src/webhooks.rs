@@ -1,7 +1,7 @@
 //! Item events (views, comments): stored for the events API and pushed to
 //! workspace webhooks (generic JSON, Slack-compatible, Telegram bot).
 
-use std::time::Duration;
+use std::{net::IpAddr, time::Duration};
 
 use crate::i18n::{t, tf};
 use serde_json::json;
@@ -10,7 +10,7 @@ use snap_core::now_ms;
 use crate::{
     db::{Event, Item, Webhook, WebhookKind},
     state::AppState,
-    util::{hmac_hex, truncate},
+    util::{hmac_hex, is_public_ip, truncate},
 };
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -30,9 +30,58 @@ impl EventKind {
 
 const TELEGRAM_API: &str = "https://api.telegram.org";
 const ATTEMPTS: u32 = 3;
+/// At most one view notification per item in this window; views keep being counted.
+const VIEW_NOTIFY_EVERY: Duration = Duration::from_secs(600);
+
+/// DNS resolver that drops every non-public address. The connection is made to exactly
+/// the addresses returned here, so a name cannot be re-resolved to an internal host later.
+struct PublicOnly;
+
+impl reqwest::dns::Resolve for PublicOnly {
+    fn resolve(&self, name: reqwest::dns::Name) -> reqwest::dns::Resolving {
+        Box::pin(async move {
+            let addrs: Vec<_> = tokio::net::lookup_host((name.as_str(), 0)).await?.filter(|a| is_public_ip(a.ip())).collect();
+            if addrs.is_empty() {
+                return Err(BLOCKED.into());
+            }
+            Ok(Box::new(addrs.into_iter()) as reqwest::dns::Addrs)
+        })
+    }
+}
+
+const BLOCKED: &str = "address not allowed";
+
+/// HTTP client for user-supplied webhook targets: public addresses only, no redirects, no proxies.
+pub fn client() -> reqwest::Result<reqwest::Client> {
+    reqwest::Client::builder()
+        .user_agent(format!("snapoleon-server/{}", snap_core::VERSION))
+        .timeout(Duration::from_secs(10))
+        .redirect(reqwest::redirect::Policy::none())
+        .no_proxy()
+        .dns_resolver(PublicOnly)
+        .build()
+}
+
+/// Whether a webhook target is an acceptable http(s) URL that does not name an internal address.
+/// Host names are checked again at connection time by [`PublicOnly`].
+pub fn target_allowed(target: &str) -> bool {
+    let Ok(url) = reqwest::Url::parse(target) else { return false };
+    if !matches!(url.scheme(), "http" | "https") {
+        return false;
+    }
+    let Some(host) = url.host_str() else { return false };
+    match host.trim_matches(['[', ']']).parse::<IpAddr>() {
+        Ok(ip) => is_public_ip(ip),
+        Err(_) => !host.eq_ignore_ascii_case("localhost") && !host.to_ascii_lowercase().ends_with(".localhost"),
+    }
+}
 
 /// Record an event for the item's owner and notify the workspace's webhooks.
+/// Views are debounced per item so anonymous traffic cannot flood the events table or the chat channels.
 pub async fn emit(state: &AppState, item: &Item, kind: EventKind, actor: &str, text: &str) {
+    if kind == EventKind::View && !state.limiter.allow(&format!("view-notify:{}", item.id), 1, VIEW_NOTIFY_EVERY) {
+        return;
+    }
     let event = Event {
         id: 0,
         owner_id: item.user_id.clone(),
@@ -108,16 +157,22 @@ impl Payload {
         })
     }
 
-    /// Human-readable message used by Slack and Telegram.
-    fn message(&self) -> String {
-        let actor = if self.event.actor.is_empty() { "?" } else { &self.event.actor };
+    /// Human-readable message used by Slack and Telegram. `escape` neutralises user text for the target's markup.
+    fn message(&self, escape: fn(&str) -> String) -> String {
+        let actor = if self.event.actor.is_empty() { "?".to_string() } else { escape(&self.event.actor) };
+        let title = escape(&self.event.title);
         let head = if self.event.kind == EventKind::Comment.as_str() {
-            tf("server.hook.comment", &[("actor", actor), ("title", &self.event.title), ("text", &self.event.text)])
+            tf("server.hook.comment", &[("actor", &actor), ("title", &title), ("text", &escape(&self.event.text))])
         } else {
-            tf("server.hook.view", &[("title", &self.event.title)])
+            tf("server.hook.view", &[("title", &title)])
         };
         format!("{head}\n{}", self.url)
     }
+}
+
+/// Slack parses `<...>` and `&` in message text (mentions, links); escape them so user text stays literal.
+fn escape_slack(s: &str) -> String {
+    s.replace('&', "&amp;").replace('<', "&lt;").replace('>', "&gt;")
 }
 
 /// A fake comment used by the admin "send test" button.
@@ -153,21 +208,27 @@ async fn deliver_with_retry(state: &AppState, hook: &Webhook, payload: &Payload)
 
 /// One delivery attempt; the error string is safe to show to admins.
 pub async fn deliver(state: &AppState, hook: &Webhook, payload: &Payload) -> Result<(), String> {
+    if hook.kind != WebhookKind::Telegram && !target_allowed(&hook.target) {
+        return Err(BLOCKED.to_string());
+    }
     let req = match hook.kind {
         WebhookKind::Generic => {
             let body = payload.json().to_string();
-            let mut req =
-                state.http.post(&hook.target).header("content-type", "application/json").header("x-snapoleon-event", &payload.event.kind);
+            let mut req = state
+                .hook_http
+                .post(&hook.target)
+                .header("content-type", "application/json")
+                .header("x-snapoleon-event", &payload.event.kind);
             if !hook.secret.is_empty() {
                 req = req.header("x-snapoleon-signature", format!("sha256={}", hmac_hex(hook.secret.as_bytes(), body.as_bytes())));
             }
             req.body(body)
         }
-        WebhookKind::Slack => state.http.post(&hook.target).json(&json!({ "text": payload.message() })),
+        WebhookKind::Slack => state.hook_http.post(&hook.target).json(&json!({ "text": payload.message(escape_slack) })),
         WebhookKind::Telegram => state
-            .http
+            .hook_http
             .post(format!("{TELEGRAM_API}/bot{}/sendMessage", hook.secret))
-            .json(&json!({ "chat_id": hook.target, "text": payload.message(), "disable_web_page_preview": false })),
+            .json(&json!({ "chat_id": hook.target, "text": payload.message(str::to_string), "disable_web_page_preview": false })),
     };
     let resp = req.timeout(Duration::from_secs(10)).send().await.map_err(|e| e.without_url().to_string())?;
     let status = resp.status();

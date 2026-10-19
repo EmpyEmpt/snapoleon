@@ -22,6 +22,16 @@ pub struct NewItem {
     pub password_hash: Option<String>,
     pub delete_secret: String,
     pub expires_ms: Option<i64>,
+    /// Workspace quota in bytes (0 = unlimited), enforced in the same transaction as the insert.
+    pub quota_bytes: i64,
+}
+
+/// Outcome of [`Db::insert_item`].
+pub enum Inserted {
+    Item(Box<Item>),
+    /// The short code (or id) is already taken.
+    CodeTaken,
+    OverQuota,
 }
 
 /// Which items a caller may see: everything, their own, or whole workspaces.
@@ -65,19 +75,29 @@ fn event_from_row(r: &rusqlite::Row) -> rusqlite::Result<Event> {
 const EVENT_COLS: &str = "id, owner_id, workspace_id, item_id, code, title, kind, actor, text, created_ms";
 
 impl Db {
-    /// Insert an item; `None` when the short code is already taken.
-    pub async fn insert_item(&self, n: NewItem) -> Result<Option<Item>, AppError> {
+    /// Insert an item unless its code is taken or it would push the workspace over quota.
+    pub async fn insert_item(&self, n: NewItem) -> Result<Inserted, AppError> {
         self.run(move |c| {
-            let res = c.execute(
+            let tx = c.transaction()?;
+            if n.quota_bytes > 0 {
+                let used: i64 =
+                    tx.query_row("SELECT COALESCE(SUM(bytes), 0) FROM items WHERE workspace_id = ?1", [&n.workspace_id], |r| r.get(0))?;
+                if used + n.bytes > n.quota_bytes {
+                    return Ok(Inserted::OverQuota);
+                }
+            }
+            let res = tx.execute(
                 "INSERT INTO items(id, code, workspace_id, user_id, title, file_name, mime, bytes, width, height, blob_key, thumb_key, password_hash, delete_secret, created_ms, expires_ms) \
                  VALUES(?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15, ?16)",
                 params![n.id, n.code, n.workspace_id, n.user_id, n.title, n.file_name, n.mime, n.bytes, n.width, n.height, n.blob_key, n.thumb_key, n.password_hash, n.delete_secret, now_ms(), n.expires_ms],
             );
             match res {
-                Err(e) if is_conflict(&e) => return Ok(None),
+                Err(e) if is_conflict(&e) => return Ok(Inserted::CodeTaken),
                 other => other?,
             };
-            c.query_row(&format!("SELECT {} FROM {} WHERE i.id = ?1", Item::COLS, Item::FROM), [&n.id], Item::from_row).optional()
+            let item = tx.query_row(&format!("SELECT {} FROM {} WHERE i.id = ?1", Item::COLS, Item::FROM), [&n.id], Item::from_row)?;
+            tx.commit()?;
+            Ok(Inserted::Item(Box::new(item)))
         })
         .await
     }

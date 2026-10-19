@@ -47,12 +47,27 @@ fn valid_code(code: &str) -> bool {
     (4..=24).contains(&code.len()) && code.bytes().all(|b| b.is_ascii_alphanumeric())
 }
 
-async fn load(state: &AppState, code: &str) -> Result<Item, AppError> {
-    if !valid_code(code) {
-        return Err(AppError::NotFound);
-    }
-    let item = state.db.item_by_code(code.to_string()).await?.ok_or(AppError::NotFound)?;
+const MISSES_PER_MINUTE: usize = 30;
+
+/// Look a code up, refusing clients that keep guessing codes that do not exist.
+async fn load(state: &AppState, client: &Client, code: &str) -> Result<Item, AppError> {
+    let found = if guess_allowed(state, client)? && valid_code(code) { state.db.item_by_code(code.to_string()).await? } else { None };
+    let item = found.ok_or_else(|| missed(state, client))?;
     if item.is_expired(now_ms()) { Err(AppError::Gone) } else { Ok(item) }
+}
+
+/// Lookups of nonexistent codes are counted per client; past the budget they are refused outright.
+fn guess_allowed(state: &AppState, client: &Client) -> Result<bool, AppError> {
+    if state.limiter.exceeded(&format!("miss:{}", client.ip), MISSES_PER_MINUTE, Duration::from_secs(60)) {
+        return Err(AppError::TooManyRequests);
+    }
+    Ok(true)
+}
+
+/// Record a failed lookup and produce the error to return.
+fn missed(state: &AppState, client: &Client) -> AppError {
+    state.limiter.allow(&format!("miss:{}", client.ip), MISSES_PER_MINUTE, Duration::from_secs(60));
+    AppError::NotFound
 }
 
 fn unlock_cookie_name(code: &str) -> String {
@@ -116,9 +131,10 @@ async fn view(
     headers: HeaderMap,
     axum::extract::Query(q): axum::extract::Query<ViewQuery>,
 ) -> PageResult<Response> {
-    let item = load(&state, &code).await?;
+    let item = load(&state, &client, &code).await?;
     let unlocked = can_access(&state, &headers, &item).await;
-    if unlocked && !client.is_bot() {
+    // Rotating the user agent must not mint unlimited "new" visitors from one address.
+    if unlocked && !client.is_bot() && state.limiter.allow(&format!("view:{}:{}", client.ip, item.id), 6, Duration::from_secs(3600)) {
         let visitor = client.visitor(&state);
         let bucket = now_ms() / HOUR_MS;
         if state.db.register_view(item.id.clone(), visitor, bucket).await? {
@@ -143,11 +159,13 @@ async fn unlock(
     headers: HeaderMap,
     Form(form): Form<UnlockForm>,
 ) -> PageResult<Response> {
-    let item = load(&state, &code).await?;
+    let item = load(&state, &client, &code).await?;
     let Some(hash) = item.password_hash.clone() else {
         return Ok(Redirect::to(&format!("/{code}")).into_response());
     };
     state.limiter.check(&format!("unlock:{}:{}", client.ip, item.id), 8, Duration::from_secs(600))?;
+    // Guesses are also capped per item, so spreading them over many addresses does not help.
+    state.limiter.check(&format!("unlock-item:{}", item.id), 100, Duration::from_secs(3600))?;
     if !auth::verify_password(hash, form.password).await {
         let flash = Flash { wrong_password: true, comment_error: None, comment_sent: false };
         return render(&state, &headers, &item, flash, StatusCode::FORBIDDEN).await;
@@ -185,7 +203,7 @@ async fn comment(
     headers: HeaderMap,
     Form(form): Form<CommentForm>,
 ) -> PageResult<Response> {
-    let item = load(&state, &code).await?;
+    let item = load(&state, &client, &code).await?;
     if !can_access(&state, &headers, &item).await {
         return Err(AppError::Forbidden.into());
     }
@@ -193,8 +211,7 @@ async fn comment(
     if !form.website.is_empty() {
         return Ok(Redirect::to(&format!("/{code}?sent=1#comments")).into_response());
     }
-    let visitor = client.visitor(&state);
-    let limited = !state.limiter.allow(&format!("comment:{visitor}"), 4, Duration::from_secs(60))
+    let limited = !state.limiter.allow(&format!("comment:{}", client.ip), 4, Duration::from_secs(60))
         || !state.limiter.allow(&format!("comment-item:{}", item.id), 40, Duration::from_secs(3600));
     if limited {
         let flash = Flash { wrong_password: false, comment_error: Some(AppError::TooManyRequests.message()), comment_sent: false };
@@ -325,10 +342,11 @@ struct RawQuery {
 async fn raw(
     State(state): State<AppState>,
     Path(code): Path<String>,
+    client: Client,
     headers: HeaderMap,
     axum::extract::Query(q): axum::extract::Query<RawQuery>,
 ) -> PageResult<Response> {
-    let item = load(&state, &code).await?;
+    let item = load(&state, &client, &code).await?;
     if !can_access(&state, &headers, &item).await {
         return Err(AppError::Forbidden.into());
     }
@@ -348,8 +366,8 @@ async fn raw(
     Ok(resp)
 }
 
-async fn thumb(State(state): State<AppState>, Path(code): Path<String>, headers: HeaderMap) -> PageResult<Response> {
-    let item = load(&state, &code).await?;
+async fn thumb(State(state): State<AppState>, Path(code): Path<String>, client: Client, headers: HeaderMap) -> PageResult<Response> {
+    let item = load(&state, &client, &code).await?;
     if !can_access(&state, &headers, &item).await {
         return Err(AppError::Forbidden.into());
     }
@@ -426,13 +444,18 @@ pub async fn ensure_preview(state: &AppState, item: &Item) -> Result<Bytes, AppE
     .map_err(AppError::Internal)?;
     let png = Bytes::from(png);
     state.blobs.put(&key, png.clone(), PutMeta { mime: "image/png", cache_control: SHORT_CACHE, expires_ms: item.expires_ms }).await?;
+    // The item may have been deleted while the card rendered; never leave its card behind.
+    if state.db.item_by_id(item.id.clone()).await?.is_none() {
+        state.blobs.delete(&key).await;
+    }
     Ok(png)
 }
 
-async fn preview(State(state): State<AppState>, Path(code): Path<String>, headers: HeaderMap) -> PageResult<Response> {
-    let item = load(&state, &code).await?;
+async fn preview(State(state): State<AppState>, Path(code): Path<String>, client: Client, headers: HeaderMap) -> PageResult<Response> {
+    let item = load(&state, &client, &code).await?;
     let png = if item.is_protected() { locked_card().await? } else { ensure_preview(&state, &item).await? };
-    let etag = format!("\"{}-og{}\"", item.id, png.len());
+    // Derived from the image only: this endpoint is public even for protected items.
+    let etag = format!("\"og-{}\"", &util::sha256_hex(&png)[..16]);
     if headers.get(header::IF_NONE_MATCH).and_then(|v| v.to_str().ok()) == Some(etag.as_str()) {
         return Ok(StatusCode::NOT_MODIFIED.into_response());
     }
@@ -464,18 +487,20 @@ async fn delete_now(State(state): State<AppState>, Path((code, secret)): Path<(S
 }
 
 /// Delete an item's row and every stored object that belongs to it.
+///
+/// Objects go first: if one cannot be deleted the row stays and the deletion can be retried (the
+/// sweeper does). The preview card is removed again after the row, so a render that raced the
+/// deletion (see `ensure_preview`) cannot leave it behind.
 pub async fn remove_item(state: &AppState, item: &Item) -> Result<(), AppError> {
-    if let Some(row) = state.db.delete_item(item.id.clone()).await? {
-        state.blobs.delete_item(&row).await;
-    }
+    state.blobs.delete_item(item).await?;
+    state.db.delete_item(item.id.clone()).await?;
+    state.blobs.delete(&storage::og_key(item)).await;
     Ok(())
 }
 
-async fn short_link(State(state): State<AppState>, Path(code): Path<String>) -> Result<Response, PageError> {
-    if !valid_code(&code) {
-        return Err(AppError::NotFound.into());
-    }
-    let url = state.db.follow_link(code).await?.ok_or(AppError::NotFound)?;
+async fn short_link(State(state): State<AppState>, Path(code): Path<String>, client: Client) -> Result<Response, PageError> {
+    let found = if guess_allowed(&state, &client)? && valid_code(&code) { state.db.follow_link(code).await? } else { None };
+    let url = found.ok_or_else(|| missed(&state, &client))?;
     Ok(([(header::CACHE_CONTROL, "private, max-age=0"), (header::REFERRER_POLICY, "no-referrer")], Redirect::temporary(&url))
         .into_response())
 }

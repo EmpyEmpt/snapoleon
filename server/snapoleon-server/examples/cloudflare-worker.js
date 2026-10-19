@@ -20,8 +20,14 @@
  *   S3_PUBLIC_URL  "https://bucket.s3.eu-west-1.amazonaws.com"   or any public bucket URL
  *                  (only when BUCKET is not bound; the bucket must allow public reads)
  *
- * Set the server's `public_url` to this worker's domain and `trust_proxy = true` so
- * generated links point here and client IPs are read from CF-Connecting-IP.
+ * Set the server's `public_url` to this worker's domain so generated links point here. To log
+ * real client IPs, set `proxy_header = "cf-connecting-ip"` and list in `trusted_proxies` only the
+ * networks the worker reaches the origin from (Cloudflare's published ranges, or 127.0.0.1 behind
+ * a cloudflared tunnel); the origin should not accept other traffic.
+ *
+ * Deleted and expiring files stay visible at the edge only for their short Cache-Control
+ * (an hour at most, five minutes for expiring items, never past the expiry). Protected items live
+ * under random private/ names, so a public bucket does not expose them.
  *
  *   name = "snapoleon-cdn"
  *   main = "cloudflare-worker.js"
@@ -39,7 +45,6 @@ const CODE = "[2-9a-hj-km-np-z]{8,10}";
 const ROUTE = new RegExp(`^/(${CODE})(?:/(raw|thumb\\.jpg|og\\.png)|\\.(?:png|jpe?g|gif|webp|mp4|webm))?$`);
 
 const PUBLIC = "public, max-age=3600";
-const SHORT = "public, max-age=300";
 
 /** Map a request path to a bucket key, or null when the origin should handle it. */
 export function keyFor(pathname) {
@@ -63,6 +68,15 @@ function expired(expiresMs) {
   return Number.isFinite(n) && n > 0 && n <= Date.now();
 }
 
+/** Cache-Control for an object: the stored one, shortened so it never outlives the expiry. */
+function cacheControl(stored, expiresMs) {
+  const exp = Number(expiresMs);
+  if (!Number.isFinite(exp) || exp <= 0) return stored || PUBLIC;
+  const left = Math.max(0, Math.floor((exp - Date.now()) / 1000));
+  const stale = Number(/max-age=(\d+)/.exec(stored || "")?.[1] ?? 300);
+  return `public, max-age=${Math.min(stale, 300, left)}`;
+}
+
 function secure(headers) {
   headers.set("X-Content-Type-Options", "nosniff");
   headers.set("Content-Security-Policy", "default-src 'none'; sandbox");
@@ -83,8 +97,7 @@ async function fromR2(request, env, key) {
   const headers = secure(new Headers());
   obj.writeHttpMetadata(headers);
   headers.set("ETag", obj.httpEtag);
-  const expiring = Boolean(obj.customMetadata?.["expires-ms"]);
-  if (!headers.has("Cache-Control")) headers.set("Cache-Control", expiring ? SHORT : PUBLIC);
+  headers.set("Cache-Control", cacheControl(headers.get("Cache-Control"), obj.customMetadata?.["expires-ms"]));
 
   // R2 omits the body when a conditional header matched.
   if (!("body" in obj)) return new Response(null, { status: 304, headers });
@@ -109,7 +122,8 @@ async function fromS3(request, env, key) {
     method: request.method,
     headers: pick(request.headers, ["Range", "If-None-Match", "If-Modified-Since"]),
   });
-  const resp = await fetch(upstream, { cf: { cacheEverything: true, cacheTtl: 86400 } });
+  // No cf.cacheTtl override: the edge honours the object's own Cache-Control, so deletions propagate quickly.
+  const resp = await fetch(upstream);
   if (resp.status === 404 || resp.status === 403) return null;
   if (expired(resp.headers.get("x-amz-meta-expires-ms"))) return goneResponse();
 
@@ -118,8 +132,7 @@ async function fromS3(request, env, key) {
     const v = resp.headers.get(name);
     if (v) headers.set(name, v);
   }
-  const expiring = Boolean(resp.headers.get("x-amz-meta-expires-ms"));
-  headers.set("Cache-Control", resp.headers.get("Cache-Control") || (expiring ? SHORT : PUBLIC));
+  headers.set("Cache-Control", cacheControl(resp.headers.get("Cache-Control"), resp.headers.get("x-amz-meta-expires-ms")));
   return new Response(resp.body, { status: resp.status, headers });
 }
 

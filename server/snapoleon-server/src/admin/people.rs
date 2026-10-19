@@ -138,7 +138,8 @@ async fn change_password(State(state): State<AppState>, me: Me, Form(form): Form
     }
     let new_hash = auth::hash_password(form.password).await?;
     state.db.set_user_password(me.user.id.clone(), new_hash).await?;
-    Ok(redirect_with("/admin/account", "saved"))
+    // Every session was revoked; keep this browser signed in with a fresh one.
+    super::start_session(&state, me.user.id.clone(), "/admin/account?n=saved").await
 }
 
 // User management (instance admins only)

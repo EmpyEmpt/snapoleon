@@ -348,7 +348,7 @@ async fn add_webhook(State(state): State<AppState>, me: Me, Path(id): Path<Strin
     let secret = f.secret.trim().to_string();
     let valid = match kind {
         WebhookKind::Telegram => !target.is_empty() && !secret.is_empty(),
-        _ => target.starts_with("https://") || target.starts_with("http://"),
+        _ => webhooks::target_allowed(&target),
     };
     if !valid {
         return Err(AppError::bad_request(t("server.error.bad_webhook").into_owned()).into());
