@@ -6,10 +6,9 @@ use windows_sys::Win32::{
     Graphics::Dwm::{DWMNCRP_DISABLED, DWMWA_NCRENDERING_POLICY, DwmSetWindowAttribute},
     System::Threading::{AttachThreadInput, GetCurrentThreadId},
     UI::WindowsAndMessaging::{
-        BringWindowToTop, GWL_EXSTYLE, GetForegroundWindow, GetWindowLongW, GetWindowThreadProcessId, HWND_TOPMOST,
-        SWP_FRAMECHANGED, SWP_NOACTIVATE, SWP_NOMOVE, SWP_NOSIZE, SWP_NOZORDER, SetForegroundWindow,
-        SetWindowDisplayAffinity, SetWindowLongW, SetWindowPos, WDA_EXCLUDEFROMCAPTURE, WDA_NONE, WS_EX_APPWINDOW,
-        WS_EX_TOOLWINDOW,
+        BringWindowToTop, GWL_EXSTYLE, GetForegroundWindow, GetWindowLongW, GetWindowThreadProcessId, HWND_TOPMOST, SWP_FRAMECHANGED,
+        SWP_NOACTIVATE, SWP_NOMOVE, SWP_NOSIZE, SWP_NOZORDER, SetForegroundWindow, SetWindowDisplayAffinity, SetWindowLongW, SetWindowPos,
+        WDA_EXCLUDEFROMCAPTURE, WDA_NONE, WS_EX_APPWINDOW, WS_EX_TOOLWINDOW,
     },
 };
 use winit::{
@@ -31,12 +30,7 @@ fn hwnd(window: &Window) -> Option<HWND> {
     }
 }
 
-pub(crate) fn window_attributes(
-    _el: &ActiveEventLoop,
-    attrs: WindowAttributes,
-    spec: &WindowSpec,
-    _app_id: &str,
-) -> WindowAttributes {
+pub(crate) fn window_attributes(_el: &ActiveEventLoop, attrs: WindowAttributes, spec: &WindowSpec, _app_id: &str) -> WindowAttributes {
     let corners = if spec.cover.is_some() {
         CornerPreference::DoNotRound
     } else if spec.rounded {
@@ -61,9 +55,7 @@ pub(crate) fn configure_window(window: &Window, spec: &WindowSpec) {
     if spec.cover.is_some() {
         let policy = DWMNCRP_DISABLED;
         // SAFETY: `policy` outlives the call and the size matches DWMNCRENDERINGPOLICY (i32).
-        unsafe {
-            DwmSetWindowAttribute(h, DWMWA_NCRENDERING_POLICY as u32, (&raw const policy).cast(), size_of::<i32>() as u32)
-        };
+        unsafe { DwmSetWindowAttribute(h, DWMWA_NCRENDERING_POLICY as u32, (&raw const policy).cast(), size_of::<i32>() as u32) };
     }
 }
 
@@ -83,15 +75,7 @@ fn set_tool_style(h: HWND) {
         let want = (ex | WS_EX_TOOLWINDOW) & !WS_EX_APPWINDOW;
         if want != ex {
             SetWindowLongW(h, GWL_EXSTYLE, want as i32);
-            SetWindowPos(
-                h,
-                std::ptr::null_mut(),
-                0,
-                0,
-                0,
-                0,
-                SWP_NOMOVE | SWP_NOSIZE | SWP_NOZORDER | SWP_NOACTIVATE | SWP_FRAMECHANGED,
-            );
+            SetWindowPos(h, std::ptr::null_mut(), 0, 0, 0, 0, SWP_NOMOVE | SWP_NOSIZE | SWP_NOZORDER | SWP_NOACTIVATE | SWP_FRAMECHANGED);
         }
     }
 }
@@ -117,9 +101,7 @@ pub(crate) fn place_cover(window: &Window, r: Rect, _monitors: &[(Rect, f32)]) {
 pub(crate) fn set_outer_rect(window: &Window, r: Rect) {
     if let Some(h) = hwnd(window) {
         // SAFETY: plain Win32 call on a window owned by this process.
-        unsafe {
-            SetWindowPos(h, std::ptr::null_mut(), r.x, r.y, r.w as i32, r.h as i32, SWP_NOZORDER | SWP_NOACTIVATE)
-        };
+        unsafe { SetWindowPos(h, std::ptr::null_mut(), r.x, r.y, r.w as i32, r.h as i32, SWP_NOZORDER | SWP_NOACTIVATE) };
     }
 }
 
