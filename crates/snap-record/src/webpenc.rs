@@ -45,7 +45,8 @@ impl WebpEncoder {
         pic.use_argb = 1;
         pic.width = width as _;
         pic.height = height as _;
-        let mut config = w::WebPConfig::new_with_preset(w::WebPPreset::WEBP_PRESET_DRAWING, quality).map_err(|()| err("cannot initialise config"))?;
+        let mut config =
+            w::WebPConfig::new_with_preset(w::WebPPreset::WEBP_PRESET_DRAWING, quality).map_err(|()| err("cannot initialise config"))?;
         config.method = 2;
         config.thread_level = 1;
         // SAFETY: config was initialised above.

@@ -4,7 +4,7 @@ use serde_json::Value;
 use snap_core::{Error, Result, t, tf};
 
 use crate::{
-    Uploader, UploadRequest, UploadResult,
+    UploadRequest, UploadResult, Uploader,
     http::{Call, Progress},
     multipart::Multipart,
     util::{human_size, is_image, is_video, mime_or_octet},
@@ -103,7 +103,10 @@ impl Telegram {
 impl Uploader for Telegram {
     fn upload(&self, req: &UploadRequest, progress: &dyn Fn(u64, u64)) -> Result<UploadResult> {
         if req.data.len() > FILE_LIMIT {
-            return Err(Error::invalid(tf("upload.error.file_too_large", &[("provider", PROVIDER), ("limit", &human_size(FILE_LIMIT as u64))])));
+            return Err(Error::invalid(tf(
+                "upload.error.file_too_large",
+                &[("provider", PROVIDER), ("limit", &human_size(FILE_LIMIT as u64))],
+            )));
         }
         let method = Self::pick_method(req);
         let mut resp = self.send(&method, req, progress)?;

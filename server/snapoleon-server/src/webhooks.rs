@@ -3,8 +3,8 @@
 
 use std::time::Duration;
 
-use serde_json::json;
 use crate::i18n::{t, tf};
+use serde_json::json;
 use snap_core::now_ms;
 
 use crate::{
@@ -55,14 +55,7 @@ pub async fn emit(state: &AppState, item: &Item, kind: EventKind, actor: &str, t
             return;
         }
     };
-    for hook in hooks.into_iter().filter(|h| {
-        h.enabled
-            && if kind == EventKind::View {
-                h.on_view
-            } else {
-                h.on_comment
-            }
-    }) {
+    for hook in hooks.into_iter().filter(|h| h.enabled && if kind == EventKind::View { h.on_view } else { h.on_comment }) {
         let state = state.clone();
         let payload = Payload::new(&state, item, &event);
         tokio::spawn(async move {
@@ -117,20 +110,9 @@ impl Payload {
 
     /// Human-readable message used by Slack and Telegram.
     fn message(&self) -> String {
-        let actor = if self.event.actor.is_empty() {
-            "?"
-        } else {
-            &self.event.actor
-        };
+        let actor = if self.event.actor.is_empty() { "?" } else { &self.event.actor };
         let head = if self.event.kind == EventKind::Comment.as_str() {
-            tf(
-                "server.hook.comment",
-                &[
-                    ("actor", actor),
-                    ("title", &self.event.title),
-                    ("text", &self.event.text),
-                ],
-            )
+            tf("server.hook.comment", &[("actor", actor), ("title", &self.event.title), ("text", &self.event.text)])
         } else {
             tf("server.hook.view", &[("title", &self.event.title)])
         };
@@ -152,21 +134,10 @@ pub fn sample_payload(state: &AppState, workspace_id: &str) -> Payload {
         text: t("server.hook.sample_text").into_owned(),
         created_ms: now_ms(),
     };
-    Payload {
-        url: state.url("/sample"),
-        raw_url: state.url("/sample/raw"),
-        mime: "image/png".into(),
-        views: 0,
-        comments: 1,
-        event,
-    }
+    Payload { url: state.url("/sample"), raw_url: state.url("/sample/raw"), mime: "image/png".into(), views: 0, comments: 1, event }
 }
 
-async fn deliver_with_retry(
-    state: &AppState,
-    hook: &Webhook,
-    payload: &Payload,
-) -> Result<(), String> {
+async fn deliver_with_retry(state: &AppState, hook: &Webhook, payload: &Payload) -> Result<(), String> {
     let mut last = String::new();
     for attempt in 0..ATTEMPTS {
         if attempt > 0 {
@@ -185,7 +156,8 @@ pub async fn deliver(state: &AppState, hook: &Webhook, payload: &Payload) -> Res
     let req = match hook.kind {
         WebhookKind::Generic => {
             let body = payload.json().to_string();
-            let mut req = state.http.post(&hook.target).header("content-type", "application/json").header("x-snapoleon-event", &payload.event.kind);
+            let mut req =
+                state.http.post(&hook.target).header("content-type", "application/json").header("x-snapoleon-event", &payload.event.kind);
             if !hook.secret.is_empty() {
                 req = req.header("x-snapoleon-signature", format!("sha256={}", hmac_hex(hook.secret.as_bytes(), body.as_bytes())));
             }
@@ -197,15 +169,7 @@ pub async fn deliver(state: &AppState, hook: &Webhook, payload: &Payload) -> Res
             .post(format!("{TELEGRAM_API}/bot{}/sendMessage", hook.secret))
             .json(&json!({ "chat_id": hook.target, "text": payload.message(), "disable_web_page_preview": false })),
     };
-    let resp = req
-        .timeout(Duration::from_secs(10))
-        .send()
-        .await
-        .map_err(|e| e.without_url().to_string())?;
+    let resp = req.timeout(Duration::from_secs(10)).send().await.map_err(|e| e.without_url().to_string())?;
     let status = resp.status();
-    if status.is_success() {
-        Ok(())
-    } else {
-        Err(format!("HTTP {}", status.as_u16()))
-    }
+    if status.is_success() { Ok(()) } else { Err(format!("HTTP {}", status.as_u16())) }
 }

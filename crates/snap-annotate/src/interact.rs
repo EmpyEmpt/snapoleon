@@ -120,9 +120,10 @@ fn hits(shape: &Shape, p: PointF, tol: f32) -> bool {
         ShapeKind::Callout { rect, tail, text, size } => {
             let tb = callout_box(norm_rect(*rect), *tail, text, *size, sc);
             inflate(tb.outer, tol).contains(p)
-                || tb.tip.and_then(|t| geometry::tail_triangle(tb.outer, tb.radius, t, tb.base_w)).is_some_and(|t| {
-                    point_in_polygon(&t, pv) || ring_distance(&t, pv) <= tol
-                })
+                || tb
+                    .tip
+                    .and_then(|t| geometry::tail_triangle(tb.outer, tb.radius, t, tb.base_w))
+                    .is_some_and(|t| point_in_polygon(&t, pv) || ring_distance(&t, pv) <= tol)
         }
         ShapeKind::Step { center, radius, .. } => center.dist(p) <= *radius + tol,
         ShapeKind::Stamp { center, size, .. } => center.dist(p) <= size / 2.0 + tol,

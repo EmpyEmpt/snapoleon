@@ -5,7 +5,7 @@ use serde_json::{Value, json};
 use snap_core::{Error, Result, t};
 
 use crate::{
-    Uploader, UploadRequest, UploadResult,
+    UploadRequest, UploadResult, Uploader,
     http::{Call, Progress, Response},
     multipart::Multipart,
     session::Session,
@@ -86,12 +86,21 @@ impl Uploader for GoogleDrive {
     fn upload(&self, req: &UploadRequest, progress: &dyn Fn(u64, u64)) -> Result<UploadResult> {
         let name = base_name(&safe_relative_path(req.file_name)).to_string();
         let meta = self.metadata(&name);
-        let resp = if req.data.len() <= MULTIPART_LIMIT { self.upload_multipart(&meta, req, progress)? } else { self.upload_resumable(&meta, req, progress)? };
+        let resp = if req.data.len() <= MULTIPART_LIMIT {
+            self.upload_multipart(&meta, req, progress)?
+        } else {
+            self.upload_resumable(&meta, req, progress)?
+        };
         let file = resp.check(PROVIDER)?.json()?;
         let id = file["id"].as_str().ok_or_else(|| Error::Network(t("upload.error.no_link").into_owned()))?.to_string();
 
         self.session
-            .send(|tok| Call::post(format!("{FILES}/{id}/permissions?supportsAllDrives=true")).bearer(tok).json(&json!({ "role": "reader", "type": "anyone" })).send())?
+            .send(|tok| {
+                Call::post(format!("{FILES}/{id}/permissions?supportsAllDrives=true"))
+                    .bearer(tok)
+                    .json(&json!({ "role": "reader", "type": "anyone" }))
+                    .send()
+            })?
             .check(PROVIDER)?;
 
         let total = req.data.len() as u64;
@@ -102,6 +111,9 @@ impl Uploader for GoogleDrive {
     }
 
     fn test(&self) -> Result<()> {
-        self.session.send(|tok| Call::get("https://www.googleapis.com/drive/v3/about?fields=user").bearer(tok).send())?.check(PROVIDER).map(|_| ())
+        self.session
+            .send(|tok| Call::get("https://www.googleapis.com/drive/v3/about?fields=user").bearer(tok).send())?
+            .check(PROVIDER)
+            .map(|_| ())
     }
 }

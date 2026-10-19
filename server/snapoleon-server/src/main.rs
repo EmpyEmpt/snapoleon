@@ -20,8 +20,8 @@ mod webhooks;
 
 use std::{net::SocketAddr, path::PathBuf, sync::Arc, time::Duration};
 
-use anyhow::{Context, Result, bail};
 use crate::i18n::{t, tf};
+use anyhow::{Context, Result, bail};
 use tracing_subscriber::EnvFilter;
 
 use crate::{
@@ -50,18 +50,12 @@ fn parse_args() -> Result<Args> {
     let mut it = std::env::args().skip(1);
     while let Some(arg) = it.next() {
         match arg.as_str() {
-            "-c" | "--config" => {
-                config = Some(PathBuf::from(it.next().context("--config needs a path")?))
-            }
+            "-c" | "--config" => config = Some(PathBuf::from(it.next().context("--config needs a path")?)),
             "-h" | "--help" => command = Command::Help,
             "-V" | "--version" => command = Command::Version,
             "serve" => command = Command::Serve,
             "healthcheck" => command = Command::Healthcheck,
-            "token" => {
-                command = Command::Token {
-                    username: it.next().context("token needs a username")?,
-                }
-            }
+            "token" => command = Command::Token { username: it.next().context("token needs a username")? },
             other => bail!("unknown argument: {other}"),
         }
     }
@@ -91,9 +85,7 @@ async fn main() -> Result<()> {
     }
 
     tracing_subscriber::fmt()
-        .with_env_filter(
-            EnvFilter::try_from_default_env().unwrap_or_else(|_| EnvFilter::new("info")),
-        )
+        .with_env_filter(EnvFilter::try_from_default_env().unwrap_or_else(|_| EnvFilter::new("info")))
         .with_ansi(std::io::IsTerminal::is_terminal(&std::io::stdout()))
         .init();
     let cfg = Config::load(args.config.as_deref())?;
@@ -101,8 +93,7 @@ async fn main() -> Result<()> {
         return healthcheck(&cfg).await;
     }
     snap_core::i18n::set_language(&cfg.language);
-    std::fs::create_dir_all(&cfg.data_dir)
-        .with_context(|| format!("creating {}", cfg.data_dir.display()))?;
+    std::fs::create_dir_all(&cfg.data_dir).with_context(|| format!("creating {}", cfg.data_dir.display()))?;
     let db = Db::open(&cfg.data_dir.join("snapoleon.sqlite"))?;
 
     if let Command::Token { username } = args.command {
@@ -111,10 +102,7 @@ async fn main() -> Result<()> {
             .await
             .map_err(|e| anyhow::anyhow!(e.message()))?
             .with_context(|| format!("no such user: {username}"))?;
-        let token = db
-            .create_token(user.id, "cli".into())
-            .await
-            .map_err(|e| anyhow::anyhow!(e.message()))?;
+        let token = db.create_token(user.id, "cli".into()).await.map_err(|e| anyhow::anyhow!(e.message()))?;
         println!("{token}");
         return Ok(());
     }
@@ -126,81 +114,37 @@ async fn main() -> Result<()> {
         .timeout(Duration::from_secs(20))
         .redirect(reqwest::redirect::Policy::limited(3))
         .build()?;
-    let state: state::AppState = Arc::new(Shared {
-        cfg,
-        db,
-        blobs,
-        secret,
-        limiter: RateLimiter::default(),
-        http,
-        oidc: Default::default(),
-    });
+    let state: state::AppState =
+        Arc::new(Shared { cfg, db, blobs, secret, limiter: RateLimiter::default(), http, oidc: Default::default() });
 
     bootstrap(&state).await?;
     sweeper::spawn(state.clone());
 
-    let addr: SocketAddr = state
-        .cfg
-        .bind
-        .parse()
-        .with_context(|| format!("invalid bind address {}", state.cfg.bind))?;
-    let listener = tokio::net::TcpListener::bind(addr)
-        .await
-        .with_context(|| format!("binding {addr}"))?;
-    tracing::info!(
-        "{}",
-        tf(
-            "server.log.listening",
-            &[("addr", &addr.to_string()), ("url", &state.cfg.public_url)]
-        )
-    );
-    axum::serve(
-        listener,
-        app::router(state).into_make_service_with_connect_info::<SocketAddr>(),
-    )
-    .with_graceful_shutdown(shutdown_signal())
-    .await?;
+    let addr: SocketAddr = state.cfg.bind.parse().with_context(|| format!("invalid bind address {}", state.cfg.bind))?;
+    let listener = tokio::net::TcpListener::bind(addr).await.with_context(|| format!("binding {addr}"))?;
+    tracing::info!("{}", tf("server.log.listening", &[("addr", &addr.to_string()), ("url", &state.cfg.public_url)]));
+    axum::serve(listener, app::router(state).into_make_service_with_connect_info::<SocketAddr>())
+        .with_graceful_shutdown(shutdown_signal())
+        .await?;
     Ok(())
 }
 
 /// Probe the local `/healthz`; used as a container health check (distroless images have no curl).
 async fn healthcheck(cfg: &Config) -> Result<()> {
-    let addr: SocketAddr = cfg
-        .bind
-        .parse()
-        .with_context(|| format!("invalid bind address {}", cfg.bind))?;
-    let host = if addr.ip().is_unspecified() {
-        "127.0.0.1".to_string()
-    } else {
-        addr.ip().to_string()
-    };
+    let addr: SocketAddr = cfg.bind.parse().with_context(|| format!("invalid bind address {}", cfg.bind))?;
+    let host = if addr.ip().is_unspecified() { "127.0.0.1".to_string() } else { addr.ip().to_string() };
     let url = format!("http://{host}:{}/healthz", addr.port());
-    let resp = reqwest::Client::builder()
-        .timeout(Duration::from_secs(5))
-        .build()?
-        .get(&url)
-        .send()
-        .await?;
-    if resp.status().is_success() {
-        Ok(())
-    } else {
-        bail!("{url} answered HTTP {}", resp.status().as_u16())
-    }
+    let resp = reqwest::Client::builder().timeout(Duration::from_secs(5)).build()?.get(&url).send().await?;
+    if resp.status().is_success() { Ok(()) } else { bail!("{url} answered HTTP {}", resp.status().as_u16()) }
 }
 
 /// Per-installation secret for signing cookies and hashing visitors; created on first run.
 async fn installation_secret(db: &Db) -> Result<Vec<u8>> {
-    if let Some(s) = db
-        .meta_get("secret")
-        .await
-        .map_err(|e| anyhow::anyhow!(e.message()))?
-    {
+    if let Some(s) = db.meta_get("secret").await.map_err(|e| anyhow::anyhow!(e.message()))? {
         return Ok(s.into_bytes());
     }
     let secret = util::new_secret(64);
-    db.meta_set("secret", secret.clone())
-        .await
-        .map_err(|e| anyhow::anyhow!(e.message()))?;
+    db.meta_set("secret", secret.clone()).await.map_err(|e| anyhow::anyhow!(e.message()))?;
     Ok(secret.into_bytes())
 }
 
@@ -209,9 +153,7 @@ async fn bootstrap(state: &state::AppState) -> Result<()> {
     let db = &state.db;
     let err = |e: error::AppError| anyhow::anyhow!(e.message());
     if db.list_workspaces().await.map_err(err)?.is_empty() {
-        db.create_workspace(t("server.bootstrap.workspace").into_owned(), None)
-            .await
-            .map_err(err)?;
+        db.create_workspace(t("server.bootstrap.workspace").into_owned(), None).await.map_err(err)?;
     }
     if db.count_users().await.map_err(err)? > 0 {
         return Ok(());
@@ -231,32 +173,15 @@ async fn bootstrap(state: &state::AppState) -> Result<()> {
         .await
         .map_err(err)?
         .context("creating the bootstrap admin")?;
-    db.set_member(workspace.id, admin.id.clone(), Role::Owner)
-        .await
-        .map_err(err)?;
-    let token = db
-        .create_token(admin.id, "bootstrap".into())
-        .await
-        .map_err(err)?;
+    db.set_member(workspace.id, admin.id.clone(), Role::Owner).await.map_err(err)?;
+    let token = db.create_token(admin.id, "bootstrap".into()).await.map_err(err)?;
 
     let rule = "=".repeat(64);
     println!("{rule}");
     println!("{}", t("server.bootstrap.title"));
-    println!(
-        "{}",
-        tf(
-            "server.bootstrap.admin_url",
-            &[("url", &state.url("/admin"))]
-        )
-    );
-    println!(
-        "{}",
-        tf("server.bootstrap.username", &[("username", "admin")])
-    );
-    println!(
-        "{}",
-        tf("server.bootstrap.password", &[("password", &password)])
-    );
+    println!("{}", tf("server.bootstrap.admin_url", &[("url", &state.url("/admin"))]));
+    println!("{}", tf("server.bootstrap.username", &[("username", "admin")]));
+    println!("{}", tf("server.bootstrap.password", &[("password", &password)]));
     println!("{}", tf("server.bootstrap.token", &[("token", &token)]));
     println!("{}", t("server.bootstrap.once"));
     println!("{rule}");

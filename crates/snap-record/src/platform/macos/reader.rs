@@ -6,11 +6,14 @@ use anyhow::anyhow;
 use objc2::rc::Retained;
 use objc2::runtime::AnyObject;
 use objc2_av_foundation::{AVAssetReader, AVAssetReaderTrackOutput, AVAssetTrack, AVMediaTypeAudio, AVMediaTypeVideo, AVURLAsset};
-use objc2_avf_audio::{AVFormatIDKey, AVLinearPCMBitDepthKey, AVLinearPCMIsBigEndianKey, AVLinearPCMIsFloatKey, AVLinearPCMIsNonInterleaved, AVNumberOfChannelsKey, AVSampleRateKey};
+use objc2_avf_audio::{
+    AVFormatIDKey, AVLinearPCMBitDepthKey, AVLinearPCMIsBigEndianKey, AVLinearPCMIsFloatKey, AVLinearPCMIsNonInterleaved,
+    AVNumberOfChannelsKey, AVSampleRateKey,
+};
 use objc2_core_media::{CMSampleBuffer, CMTime, CMTimeRange};
 use objc2_core_video::{
-    CVPixelBufferGetBaseAddress, CVPixelBufferGetBytesPerRow, CVPixelBufferGetHeight, CVPixelBufferGetWidth, CVPixelBufferLockBaseAddress, CVPixelBufferLockFlags, CVPixelBufferUnlockBaseAddress,
-    kCVPixelFormatType_32BGRA,
+    CVPixelBufferGetBaseAddress, CVPixelBufferGetBytesPerRow, CVPixelBufferGetHeight, CVPixelBufferGetWidth, CVPixelBufferLockBaseAddress,
+    CVPixelBufferLockFlags, CVPixelBufferUnlockBaseAddress, kCVPixelFormatType_32BGRA,
 };
 use objc2_foundation::{NSDictionary, NSNumber, NSString, NSURL};
 use snap_core::{Error, Result};
@@ -88,10 +91,14 @@ impl AvDecoder {
         unsafe {
             let reader = AVAssetReader::assetReaderWithAsset_error(&self.asset).map_err(|e| av("open reader", e.localizedDescription()))?;
             let remaining = (self.info.duration_ms.saturating_sub(self.start_ms)).max(1);
-            reader.setTimeRange(CMTimeRange { start: CMTime::new(self.start_ms as i64, 1000), duration: CMTime::new(remaining as i64, 1000) });
+            reader.setTimeRange(CMTimeRange {
+                start: CMTime::new(self.start_ms as i64, 1000),
+                duration: CMTime::new(remaining as i64, 1000),
+            });
 
             let pixel_key = NSString::from_str("PixelFormatType");
-            let video_settings = NSDictionary::<NSString, AnyObject>::from_slices(&[&*pixel_key], &[any(&*NSNumber::new_u32(kCVPixelFormatType_32BGRA))]);
+            let video_settings =
+                NSDictionary::<NSString, AnyObject>::from_slices(&[&*pixel_key], &[any(&*NSNumber::new_u32(kCVPixelFormatType_32BGRA))]);
             let video = AVAssetReaderTrackOutput::assetReaderTrackOutputWithTrack_outputSettings(&self.video_track, Some(&video_settings));
             video.setAlwaysCopiesSampleData(false);
             reader.addOutput(&video);
@@ -122,7 +129,8 @@ impl AvDecoder {
             if !reader.startReading() {
                 return Err(av("start reading", reader.error().map(|e| e.localizedDescription().to_string()).unwrap_or_default()));
             }
-            self.session = Some(Session { reader, video, audio_done: audio.is_none(), audio, next_video: None, next_audio: None, video_done: false });
+            self.session =
+                Some(Session { reader, video, audio_done: audio.is_none(), audio, next_video: None, next_audio: None, video_done: false });
         }
         Ok(())
     }

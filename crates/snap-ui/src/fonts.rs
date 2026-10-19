@@ -27,9 +27,7 @@ pub fn definitions() -> FontDefinitions {
         ("JetBrainsMono", JETBRAINS_MONO),
         ("Phosphor", PHOSPHOR),
     ] {
-        fonts
-            .font_data
-            .insert(name.into(), FontData::from_static(bytes).into());
+        fonts.font_data.insert(name.into(), FontData::from_static(bytes).into());
     }
 
     // egui's stock Latin fonts are replaced; its icon/emoji fonts stay as last-resort fallbacks.
@@ -41,26 +39,11 @@ pub fn definitions() -> FontDefinitions {
         .filter(|n| !matches!(n.as_str(), "Ubuntu-Light" | "Hack"))
         .cloned()
         .collect();
-    let chain = |primary: &[&str]| -> Vec<String> {
-        primary
-            .iter()
-            .map(|s| s.to_string())
-            .chain(fallbacks.iter().cloned())
-            .collect()
-    };
-    fonts
-        .families
-        .insert(FontFamily::Proportional, chain(&["Inter", "Phosphor"]));
-    fonts.families.insert(
-        FontFamily::Monospace,
-        chain(&["JetBrainsMono", "Inter", "Phosphor"]),
-    );
-    fonts
-        .families
-        .insert(semibold(), chain(&["Inter-SemiBold", "Phosphor"]));
-    fonts
-        .families
-        .insert(bold(), chain(&["Inter-Bold", "Phosphor"]));
+    let chain = |primary: &[&str]| -> Vec<String> { primary.iter().map(|s| s.to_string()).chain(fallbacks.iter().cloned()).collect() };
+    fonts.families.insert(FontFamily::Proportional, chain(&["Inter", "Phosphor"]));
+    fonts.families.insert(FontFamily::Monospace, chain(&["JetBrainsMono", "Inter", "Phosphor"]));
+    fonts.families.insert(semibold(), chain(&["Inter-SemiBold", "Phosphor"]));
+    fonts.families.insert(bold(), chain(&["Inter-Bold", "Phosphor"]));
     fonts
 }
 

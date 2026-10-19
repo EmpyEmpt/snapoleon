@@ -1,6 +1,9 @@
 //! QR / barcode decoding (rxing) and QR generation (qrcode).
 
-use image::{GrayImage, Luma, Rgba, RgbaImage, imageops::{self, FilterType}};
+use image::{
+    GrayImage, Luma, Rgba, RgbaImage,
+    imageops::{self, FilterType},
+};
 use qrcode::{Color, EcLevel, QrCode};
 use rxing::{DecodeHints, helpers::detect_multiple_in_luma_with_hints};
 use serde::{Deserialize, Serialize};

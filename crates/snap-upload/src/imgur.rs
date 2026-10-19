@@ -3,7 +3,7 @@
 use snap_core::{Error, Result, t};
 
 use crate::{
-    Uploader, UploadRequest, UploadResult,
+    UploadRequest, UploadResult, Uploader,
     http::{Call, Progress},
     multipart::Multipart,
     util::{is_video, mime_or_octet},

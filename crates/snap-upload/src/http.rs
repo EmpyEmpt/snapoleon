@@ -136,11 +136,12 @@ fn error_detail(body: &[u8]) -> Option<String> {
         return None;
     }
     if let Ok(v) = serde_json::from_str::<Value>(text) {
-        let found = ["message", "error_description", "error_summary", "description", "error", "errors"].iter().find_map(|k| match v.get(*k)? {
-            Value::String(s) => Some(s.clone()),
-            Value::Object(o) => ["message", "description", "error"].iter().find_map(|k| o.get(*k)?.as_str().map(String::from)),
-            _ => None,
-        });
+        let found =
+            ["message", "error_description", "error_summary", "description", "error", "errors"].iter().find_map(|k| match v.get(*k)? {
+                Value::String(s) => Some(s.clone()),
+                Value::Object(o) => ["message", "description", "error"].iter().find_map(|k| o.get(*k)?.as_str().map(String::from)),
+                _ => None,
+            });
         return found.map(|m| m.chars().take(300).collect());
     }
     if text.starts_with('<') {
@@ -167,7 +168,14 @@ pub(crate) struct Call<'a> {
 
 impl<'a> Call<'a> {
     pub fn new(method: &str, url: impl Into<String>) -> Self {
-        Self { method: method.to_ascii_uppercase(), url: url.into(), headers: Vec::new(), body: Vec::new(), progress: None, follow_redirects: true }
+        Self {
+            method: method.to_ascii_uppercase(),
+            url: url.into(),
+            headers: Vec::new(),
+            body: Vec::new(),
+            progress: None,
+            follow_redirects: true,
+        }
     }
 
     pub fn get(url: impl Into<String>) -> Self {
@@ -257,11 +265,8 @@ impl<'a> Call<'a> {
         let mut response = result.map_err(|e| Error::Network(format!("{}: {e}", host_of(&self.url))))?;
         let status = response.status().as_u16();
         let url = response.get_uri().to_string();
-        let headers = response
-            .headers()
-            .iter()
-            .map(|(k, v)| (k.as_str().to_string(), String::from_utf8_lossy(v.as_bytes()).into_owned()))
-            .collect();
+        let headers =
+            response.headers().iter().map(|(k, v)| (k.as_str().to_string(), String::from_utf8_lossy(v.as_bytes()).into_owned())).collect();
         let body = response
             .body_mut()
             .with_config()

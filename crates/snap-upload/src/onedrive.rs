@@ -5,7 +5,7 @@ use serde_json::{Value, json};
 use snap_core::{Error, Result, t};
 
 use crate::{
-    Uploader, UploadRequest, UploadResult,
+    UploadRequest, UploadResult, Uploader,
     http::{Call, Progress, Response},
     session::Session,
     util::{pct_path, safe_relative_path},
@@ -73,9 +73,12 @@ impl OneDrive {
     fn create_link(&self, item_id: &str) -> Result<Option<String>> {
         // Organisation tenants often forbid anonymous links; fall back to org-wide.
         for scope in ["anonymous", "organization"] {
-            let resp = self
-                .session
-                .send(|tok| Call::post(format!("{GRAPH}/me/drive/items/{item_id}/createLink")).bearer(tok).json(&json!({ "type": "view", "scope": scope })).send())?;
+            let resp = self.session.send(|tok| {
+                Call::post(format!("{GRAPH}/me/drive/items/{item_id}/createLink"))
+                    .bearer(tok)
+                    .json(&json!({ "type": "view", "scope": scope }))
+                    .send()
+            })?;
             if resp.is_success() {
                 return Ok(resp.json()?["link"]["webUrl"].as_str().map(String::from));
             }
@@ -87,7 +90,8 @@ impl OneDrive {
 impl Uploader for OneDrive {
     fn upload(&self, req: &UploadRequest, progress: &dyn Fn(u64, u64)) -> Result<UploadResult> {
         let path = self.item_path(&safe_relative_path(req.file_name));
-        let resp = if req.data.len() <= SIMPLE_LIMIT { self.put_simple(&path, req, progress)? } else { self.put_session(&path, req, progress)? };
+        let resp =
+            if req.data.len() <= SIMPLE_LIMIT { self.put_simple(&path, req, progress)? } else { self.put_session(&path, req, progress)? };
         let item: Value = resp.check(PROVIDER)?.json()?;
         let id = item["id"].as_str().ok_or_else(|| Error::Network(t("upload.error.no_link").into_owned()))?;
 

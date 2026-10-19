@@ -37,7 +37,8 @@ impl Demo {
             return;
         }
         for (i, (rect, _)) in sh.monitors().into_iter().enumerate() {
-            let key = sh.open(WindowSpec { title: t("shell.demo.overlay_title").into_owned(), tag: "overlay".into(), ..WindowSpec::cover(rect) });
+            let key =
+                sh.open(WindowSpec { title: t("shell.demo.overlay_title").into_owned(), tag: "overlay".into(), ..WindowSpec::cover(rect) });
             self.opened.push((format!("overlay{i}"), key));
         }
         self.open_tool(sh);
@@ -142,7 +143,12 @@ impl ShellApp<Ev> for Demo {
                     ui.painter().text(c, Align2::CENTER_CENTER, t("shell.demo.esc_to_close"), FontId::proportional(40.0), Color32::WHITE);
                     let info = format!("{win}: {rect:?}  x{:.2}", ui.ctx().pixels_per_point());
                     ui.painter().text(c + egui::vec2(0.0, 48.0), Align2::CENTER_CENTER, info, FontId::monospace(14.0), Color32::GRAY);
-                    ui.painter().rect_stroke(ui.max_rect(), 0.0, egui::Stroke::new(2.0, Color32::from_rgb(255, 80, 80)), egui::StrokeKind::Inside);
+                    ui.painter().rect_stroke(
+                        ui.max_rect(),
+                        0.0,
+                        egui::Stroke::new(2.0, Color32::from_rgb(255, 80, 80)),
+                        egui::StrokeKind::Inside,
+                    );
                 });
                 if ui.ctx().input(|i| i.key_pressed(Key::Escape)) {
                     Self::close_overlays(sh);
@@ -159,7 +165,8 @@ impl ShellApp<Ev> for Demo {
                     ui.heading(t("shell.demo.intro"));
                     ui.add_space(8.0);
                     ui.label(t("shell.demo.text_label"));
-                    let edit = ui.add(egui::TextEdit::singleline(&mut self.text).hint_text(t("shell.demo.text_hint")).desired_width(f32::INFINITY));
+                    let edit = ui
+                        .add(egui::TextEdit::singleline(&mut self.text).hint_text(t("shell.demo.text_hint")).desired_width(f32::INFINITY));
                     if std::mem::take(&mut self.focus_text) {
                         edit.request_focus();
                     }
@@ -220,7 +227,10 @@ fn send_keys(keys: &str) {
 }
 
 fn cpu_ms() -> f64 {
-    powershell(&format!("(Get-Process -Id {}).TotalProcessorTime.TotalMilliseconds", std::process::id())).replace(',', ".").parse().unwrap_or(f64::NAN)
+    powershell(&format!("(Get-Process -Id {}).TotalProcessorTime.TotalMilliseconds", std::process::id()))
+        .replace(',', ".")
+        .parse()
+        .unwrap_or(f64::NAN)
 }
 
 /// Scripted run for non-interactive verification (Windows only).
@@ -262,8 +272,12 @@ fn main() -> snap_core::Result<()> {
     let mut cfg = ShellConfig::new(snap_core::APP_ID);
     cfg.theme_init = Box::new(|ctx| {
         let mut fonts = egui::FontDefinitions::empty();
-        fonts.font_data.insert("inter".into(), egui::FontData::from_static(include_bytes!("../../../assets/fonts/Inter-Regular.ttf")).into());
-        fonts.font_data.insert("mono".into(), egui::FontData::from_static(include_bytes!("../../../assets/fonts/JetBrainsMono-Medium.ttf")).into());
+        fonts
+            .font_data
+            .insert("inter".into(), egui::FontData::from_static(include_bytes!("../../../assets/fonts/Inter-Regular.ttf")).into());
+        fonts
+            .font_data
+            .insert("mono".into(), egui::FontData::from_static(include_bytes!("../../../assets/fonts/JetBrainsMono-Medium.ttf")).into());
         fonts.families.insert(egui::FontFamily::Proportional, vec!["inter".into()]);
         fonts.families.insert(egui::FontFamily::Monospace, vec!["mono".into()]);
         ctx.set_fonts(fonts);

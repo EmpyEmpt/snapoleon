@@ -12,11 +12,40 @@ use crate::{OcrLine, OcrResult, OcrWord};
 
 /// BCP-47 primary subtag to tesseract language pack.
 const LANG_CODES: &[(&str, &str)] = &[
-    ("ar", "ara"), ("bg", "bul"), ("cs", "ces"), ("da", "dan"), ("de", "deu"), ("el", "ell"), ("en", "eng"), ("es", "spa"),
-    ("fa", "fas"), ("fi", "fin"), ("fr", "fra"), ("he", "heb"), ("hi", "hin"), ("hr", "hrv"), ("hu", "hun"), ("id", "ind"),
-    ("it", "ita"), ("ja", "jpn"), ("ko", "kor"), ("nl", "nld"), ("no", "nor"), ("nb", "nor"), ("pl", "pol"), ("pt", "por"),
-    ("ro", "ron"), ("ru", "rus"), ("sk", "slk"), ("sr", "srp"), ("sv", "swe"), ("th", "tha"), ("tr", "tur"), ("uk", "ukr"),
-    ("vi", "vie"), ("zh", "chi_sim"),
+    ("ar", "ara"),
+    ("bg", "bul"),
+    ("cs", "ces"),
+    ("da", "dan"),
+    ("de", "deu"),
+    ("el", "ell"),
+    ("en", "eng"),
+    ("es", "spa"),
+    ("fa", "fas"),
+    ("fi", "fin"),
+    ("fr", "fra"),
+    ("he", "heb"),
+    ("hi", "hin"),
+    ("hr", "hrv"),
+    ("hu", "hun"),
+    ("id", "ind"),
+    ("it", "ita"),
+    ("ja", "jpn"),
+    ("ko", "kor"),
+    ("nl", "nld"),
+    ("no", "nor"),
+    ("nb", "nor"),
+    ("pl", "pol"),
+    ("pt", "por"),
+    ("ro", "ron"),
+    ("ru", "rus"),
+    ("sk", "slk"),
+    ("sr", "srp"),
+    ("sv", "swe"),
+    ("th", "tha"),
+    ("tr", "tur"),
+    ("uk", "ukr"),
+    ("vi", "vie"),
+    ("zh", "chi_sim"),
 ];
 
 /// Languages used when settings name none (and the packs are installed).
@@ -65,7 +94,13 @@ pub(crate) fn installed_languages(configured: &str) -> Vec<String> {
     let Ok(out) = command(&exe).arg("--list-langs").output() else { return Vec::new() };
     // Older builds print the list on stderr.
     let text = format!("{}\n{}", String::from_utf8_lossy(&out.stdout), String::from_utf8_lossy(&out.stderr));
-    text.lines().skip_while(|l| !l.starts_with("List of")).skip(1).map(str::trim).filter(|l| !l.is_empty() && *l != "osd").map(String::from).collect()
+    text.lines()
+        .skip_while(|l| !l.starts_with("List of"))
+        .skip(1)
+        .map(str::trim)
+        .filter(|l| !l.is_empty() && *l != "osd")
+        .map(String::from)
+        .collect()
 }
 
 pub(crate) fn status(configured: &str) -> (bool, String) {

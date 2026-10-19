@@ -168,7 +168,11 @@ pub(crate) fn merge(results: Vec<OcrResult>) -> OcrResult {
                 merged.lines.insert(at, line);
                 used = true;
             } else if let [i] = hits[..] {
-                let (keep, other) = if line_score(&line.text) > line_score(&merged.lines[i].text) { (line, merged.lines[i].clone()) } else { (merged.lines[i].clone(), line) };
+                let (keep, other) = if line_score(&line.text) > line_score(&merged.lines[i].text) {
+                    (line, merged.lines[i].clone())
+                } else {
+                    (merged.lines[i].clone(), line)
+                };
                 used |= keep.rect != merged.lines[i].rect || keep.text != merged.lines[i].text;
                 merged.lines[i] = patch_words(keep, &other);
             } else if hits.iter().all(|&i| line_score(&line.text) > line_score(&merged.lines[i].text)) {
@@ -179,7 +183,10 @@ pub(crate) fn merge(results: Vec<OcrResult>) -> OcrResult {
                 used = true;
             }
         }
-        if used && let Some(l) = other.language && !languages.contains(&l) {
+        if used
+            && let Some(l) = other.language
+            && !languages.contains(&l)
+        {
             languages.push(l);
         }
     }

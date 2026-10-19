@@ -22,13 +22,19 @@ pub fn shorten(url: &str, s: &Shortener, server: Option<&str>, secrets: &dyn Sec
     match s {
         Shortener::None => Ok(url.to_string()),
         Shortener::SnapServer => {
-            let base = server.filter(|u| !u.trim().is_empty()).ok_or_else(|| Error::invalid(t("upload.error.shorten_server").into_owned()))?;
+            let base =
+                server.filter(|u| !u.trim().is_empty()).ok_or_else(|| Error::invalid(t("upload.error.shorten_server").into_owned()))?;
             let token = secrets.get(&snap_server_secret_key(base)).unwrap_or_default();
             Client::new(base, &token).shorten(url)
         }
-        Shortener::Yourls { url: api, secret_ref } => yourls(url, api, secret_ref.as_deref().and_then(|k| secrets.get(k)).as_deref().unwrap_or_default()),
+        Shortener::Yourls { url: api, secret_ref } => {
+            yourls(url, api, secret_ref.as_deref().and_then(|k| secrets.get(k)).as_deref().unwrap_or_default())
+        }
         Shortener::Shlink { url: api, secret_ref } => {
-            let key = secret_ref.as_deref().and_then(|k| secrets.get(k)).ok_or_else(|| Error::permission(t("upload.error.shorten_key").into_owned()))?;
+            let key = secret_ref
+                .as_deref()
+                .and_then(|k| secrets.get(k))
+                .ok_or_else(|| Error::permission(t("upload.error.shorten_key").into_owned()))?;
             shlink(url, api, key.trim())
         }
         Shortener::IsGd => is_gd(url),
@@ -36,7 +42,11 @@ pub fn shorten(url: &str, s: &Shortener, server: Option<&str>, secrets: &dyn Sec
 }
 
 fn yourls(long_url: &str, api: &str, signature: &str) -> Result<String> {
-    let endpoint = if api.trim_end_matches('/').ends_with(".php") { api.trim().to_string() } else { format!("{}/yourls-api.php", api.trim().trim_end_matches('/')) };
+    let endpoint = if api.trim_end_matches('/').ends_with(".php") {
+        api.trim().to_string()
+    } else {
+        format!("{}/yourls-api.php", api.trim().trim_end_matches('/'))
+    };
     let mut form = vec![("action", "shorturl"), ("format", "json"), ("url", long_url)];
     if !signature.trim().is_empty() {
         form.push(("signature", signature.trim()));
@@ -53,7 +63,11 @@ fn yourls(long_url: &str, api: &str, signature: &str) -> Result<String> {
 
 fn shlink(long_url: &str, api: &str, key: &str) -> Result<String> {
     let endpoint = format!("{}/rest/v3/short-urls", api.trim().trim_end_matches('/'));
-    let resp = Call::post(endpoint).header("X-Api-Key", key).header("Accept", "application/json").json(&json!({ "longUrl": long_url, "findIfExists": true })).send()?;
+    let resp = Call::post(endpoint)
+        .header("X-Api-Key", key)
+        .header("Accept", "application/json")
+        .json(&json!({ "longUrl": long_url, "findIfExists": true }))
+        .send()?;
     if !resp.is_success() {
         let body: Value = resp.json().unwrap_or(Value::Null);
         let detail = body["detail"].as_str().or_else(|| body["title"].as_str());

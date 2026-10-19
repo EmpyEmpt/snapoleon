@@ -4,7 +4,7 @@
 use snap_core::{Error, Result, naming, t};
 
 use crate::{
-    Uploader, UploadRequest, UploadResult,
+    UploadRequest, UploadResult, Uploader,
     http::{Call, Progress, Response},
     session::Session,
     util::{pct, safe_relative_path, split_ext},
@@ -58,7 +58,10 @@ impl YandexDisk {
             let path = format!("{root}/{rel}");
             let resp = self.api("GET", "resources/upload", &path, "&overwrite=false")?;
             if resp.is_success() {
-                let href = resp.json()?["href"].as_str().map(String::from).ok_or_else(|| Error::Network(t("upload.error.no_link").into_owned()))?;
+                let href = resp.json()?["href"]
+                    .as_str()
+                    .map(String::from)
+                    .ok_or_else(|| Error::Network(t("upload.error.no_link").into_owned()))?;
                 return Ok((href, path));
             }
             let kind = resp.json().ok().and_then(|j| j["error"].as_str().map(String::from)).unwrap_or_default();
@@ -83,7 +86,11 @@ impl Uploader for YandexDisk {
     fn upload(&self, req: &UploadRequest, progress: &dyn Fn(u64, u64)) -> Result<UploadResult> {
         let (href, path) = self.upload_href(&safe_relative_path(req.file_name))?;
         let total = req.data.len() as u64;
-        Call::put(href).bytes(req.data, crate::util::mime_or_octet(req.mime)).progress(Progress::new(progress, total)).send()?.check(PROVIDER)?;
+        Call::put(href)
+            .bytes(req.data, crate::util::mime_or_octet(req.mime))
+            .progress(Progress::new(progress, total))
+            .send()?
+            .check(PROVIDER)?;
         progress(total, total);
 
         let url = if self.publish {

@@ -5,7 +5,7 @@ use serde_json::{Value, json};
 use snap_core::{Error, Result, t};
 
 use crate::{
-    Uploader, UploadRequest, UploadResult,
+    UploadRequest, UploadResult, Uploader,
     http::{Call, Progress},
     session::Session,
     util::safe_relative_path,
@@ -44,8 +44,18 @@ impl Dropbox {
         if folder.is_empty() { format!("/{rel}") } else { format!("/{folder}/{rel}") }
     }
 
-    fn content_call<'a>(&self, endpoint: &str, token: &str, arg: &Value, body: &'a [u8], progress: Option<Progress<'a>>) -> Result<crate::http::Response> {
-        let mut call = Call::post(format!("{CONTENT}/{endpoint}")).bearer(token).header("Dropbox-API-Arg", api_arg(arg)).bytes(body, "application/octet-stream");
+    fn content_call<'a>(
+        &self,
+        endpoint: &str,
+        token: &str,
+        arg: &Value,
+        body: &'a [u8],
+        progress: Option<Progress<'a>>,
+    ) -> Result<crate::http::Response> {
+        let mut call = Call::post(format!("{CONTENT}/{endpoint}"))
+            .bearer(token)
+            .header("Dropbox-API-Arg", api_arg(arg))
+            .bytes(body, "application/octet-stream");
         if let Some(p) = progress {
             call = call.progress(p);
         }
@@ -57,7 +67,11 @@ impl Dropbox {
         let total = data.len() as u64;
         let commit = json!({ "path": path, "mode": "add", "autorename": true, "mute": true });
         if data.len() <= SINGLE_LIMIT {
-            let meta = self.session.send(|tok| self.content_call("files/upload", tok, &commit, data, Some(Progress::new(progress, total))))?.check(PROVIDER)?.json()?;
+            let meta = self
+                .session
+                .send(|tok| self.content_call("files/upload", tok, &commit, data, Some(Progress::new(progress, total))))?
+                .check(PROVIDER)?
+                .json()?;
             return Ok(stored_path(&meta, path));
         }
 
@@ -65,7 +79,15 @@ impl Dropbox {
         let first = chunks.next().unwrap_or_default();
         let start = self
             .session
-            .send(|tok| self.content_call("files/upload_session/start", tok, &json!({ "close": false }), first, Some(Progress::new(progress, total))))?
+            .send(|tok| {
+                self.content_call(
+                    "files/upload_session/start",
+                    tok,
+                    &json!({ "close": false }),
+                    first,
+                    Some(Progress::new(progress, total)),
+                )
+            })?
             .check(PROVIDER)?
             .json()?;
         let session_id = start["session_id"].as_str().ok_or_else(|| Error::Network(t("upload.error.no_link").into_owned()))?.to_string();
@@ -76,10 +98,16 @@ impl Dropbox {
             let progress_here = Progress::new(progress, total).at(offset);
             if chunks.peek().is_some() {
                 let arg = json!({ "cursor": cursor, "close": false });
-                self.session.send(|tok| self.content_call("files/upload_session/append_v2", tok, &arg, chunk, Some(progress_here)))?.check(PROVIDER)?;
+                self.session
+                    .send(|tok| self.content_call("files/upload_session/append_v2", tok, &arg, chunk, Some(progress_here)))?
+                    .check(PROVIDER)?;
             } else {
                 let arg = json!({ "cursor": cursor, "commit": commit });
-                let meta = self.session.send(|tok| self.content_call("files/upload_session/finish", tok, &arg, chunk, Some(progress_here)))?.check(PROVIDER)?.json()?;
+                let meta = self
+                    .session
+                    .send(|tok| self.content_call("files/upload_session/finish", tok, &arg, chunk, Some(progress_here)))?
+                    .check(PROVIDER)?
+                    .json()?;
                 return Ok(stored_path(&meta, path));
             }
             offset += chunk.len() as u64;
@@ -100,7 +128,8 @@ impl Dropbox {
             return created.json()?["url"].as_str().map(String::from).ok_or_else(|| Error::Network(t("upload.error.no_link").into_owned()));
         }
         // 409 `shared_link_already_exists`: reuse the existing link.
-        let existing = self.api_json("sharing/list_shared_links", &json!({ "path": path, "direct_only": true }))?.check(PROVIDER)?.json()?;
+        let existing =
+            self.api_json("sharing/list_shared_links", &json!({ "path": path, "direct_only": true }))?.check(PROVIDER)?.json()?;
         existing["links"][0]["url"].as_str().map(String::from).ok_or_else(|| created.error(PROVIDER))
     }
 }

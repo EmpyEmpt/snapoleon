@@ -2,8 +2,8 @@
 //! frame, rounded corners and a soft layered shadow.
 
 use image::{Rgba, RgbaImage};
-use snap_core::settings::{Background, BeautifyPreset, parse_hex_color};
 use snap_core::CaptureContext;
+use snap_core::settings::{Background, BeautifyPreset, parse_hex_color};
 
 use crate::blur;
 use crate::color::{oklab_to_srgb_f, srgb_to_oklab};

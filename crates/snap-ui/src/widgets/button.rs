@@ -1,8 +1,6 @@
 //! Buttons: text buttons in four kinds, icon buttons and editor tool buttons.
 
-use egui::{
-    Color32, Pos2, Rect, Response, Role, Sense, Stroke, StrokeKind, Ui, Vec2, Widget, WidgetInfo,
-};
+use egui::{Color32, Pos2, Rect, Response, Role, Sense, Stroke, StrokeKind, Ui, Vec2, Widget, WidgetInfo};
 
 use super::{
     tooltip::tooltip,
@@ -36,12 +34,7 @@ pub struct Button<'a> {
 
 impl<'a> Button<'a> {
     pub fn new(label: &'a str) -> Self {
-        Self {
-            label,
-            icon: None,
-            kind: ButtonKind::Secondary,
-            min_width: 0.0,
-        }
+        Self { label, icon: None, kind: ButtonKind::Secondary, min_width: 0.0 }
     }
 
     pub fn kind(mut self, kind: ButtonKind) -> Self {
@@ -68,11 +61,7 @@ fn paint_background(ui: &Ui, rect: Rect, resp: &Response, kind: ButtonKind, roun
     let painter = ui.painter();
     match kind {
         ButtonKind::Primary | ButtonKind::Danger => {
-            let base = if kind == ButtonKind::Primary {
-                p.accent
-            } else {
-                p.danger
-            };
+            let base = if kind == ButtonKind::Primary { p.accent } else { p.danger };
             let hovered = lerp_color(base, p.on_accent, 0.14);
             let mut fill = lerp_color(base, hovered, hover);
             if pressed {
@@ -116,14 +105,8 @@ impl Widget for Button<'_> {
         let galley = util::layout(ui, self.label, &style, p.text);
         let icon_size = if height < 30.0 { 14.0 } else { 16.0 };
         let icon_w = self.icon.map_or(0.0, |_| icon_size + 6.0);
-        let pad = if self.kind == ButtonKind::Ghost {
-            10.0
-        } else {
-            14.0
-        };
-        let width = (galley.size().x + icon_w + pad * 2.0)
-            .max(self.min_width)
-            .max(height);
+        let pad = if self.kind == ButtonKind::Ghost { 10.0 } else { 14.0 };
+        let width = (galley.size().x + icon_w + pad * 2.0).max(self.min_width).max(height);
         let (rect, resp) = ui.allocate_exact_size(Vec2::new(width, height), Sense::click());
         resp.widget_info(|| WidgetInfo::labeled(Role::Button, ui.is_enabled(), self.label));
 
@@ -132,13 +115,7 @@ impl Widget for Button<'_> {
             let content_w = galley.size().x + icon_w;
             let mut x = rect.center().x - content_w / 2.0;
             if let Some(icon) = self.icon {
-                util::paint_icon(
-                    ui,
-                    Pos2::new(x + icon_size / 2.0, rect.center().y),
-                    icon,
-                    icon_size,
-                    fg,
-                );
+                util::paint_icon(ui, Pos2::new(x + icon_size / 2.0, rect.center().y), icon, icon_size, fg);
                 x += icon_w;
             }
             let galley = util::layout(ui, self.label, &style, fg);
@@ -173,26 +150,14 @@ pub fn icon_button(ui: &mut Ui, icon: &str, tip: &str, hotkey: Option<&str>) -> 
     resp.widget_info(|| WidgetInfo::labeled(Role::Button, ui.is_enabled(), tip));
     if ui.is_rect_visible(rect) {
         let fg = paint_background(ui, rect, &resp, ButtonKind::Ghost, radius::CONTROL);
-        util::paint_icon(
-            ui,
-            rect.center(),
-            icon,
-            if size < 30.0 { 15.0 } else { 17.0 },
-            fg,
-        );
+        util::paint_icon(ui, rect.center(), icon, if size < 30.0 { 15.0 } else { 17.0 }, fg);
         focus_ring(ui, &resp, rect, radius::CONTROL);
     }
     tooltip(resp, tip, hotkey)
 }
 
 /// Editor tool-rail button: 36 px square with an 18 px icon; the selected tool gets the soft accent wash.
-pub fn tool_button(
-    ui: &mut Ui,
-    icon: &str,
-    tip: &str,
-    hotkey: Option<&str>,
-    selected: bool,
-) -> Response {
+pub fn tool_button(ui: &mut Ui, icon: &str, tip: &str, hotkey: Option<&str>, selected: bool) -> Response {
     let p = Palette::of(ui);
     let (rect, resp) = ui.allocate_exact_size(Vec2::splat(36.0), Sense::click());
     resp.widget_info(|| WidgetInfo::selected(Role::Button, ui.is_enabled(), selected, tip));

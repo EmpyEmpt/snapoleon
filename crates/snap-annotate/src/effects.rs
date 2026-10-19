@@ -14,7 +14,8 @@ fn box_radii(sigma: f32) -> [usize; 3] {
         lower -= 1;
     }
     let lower = lower.max(1);
-    let m = ((12.0 * sigma * sigma - 3.0 * (lower * lower) as f32 - 12.0 * lower as f32 - 9.0) / (-4.0 * lower as f32 - 4.0)).round() as i32;
+    let m =
+        ((12.0 * sigma * sigma - 3.0 * (lower * lower) as f32 - 12.0 * lower as f32 - 9.0) / (-4.0 * lower as f32 - 4.0)).round() as i32;
     let size = |i: i32| if i < m { lower } else { lower + 2 };
     [0, 1, 2].map(|i| ((size(i) - 1) / 2) as usize)
 }

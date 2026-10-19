@@ -61,14 +61,7 @@ impl Default for ThemeSpec {
 impl ThemeSpec {
     /// The brand "Imperial blue" for the given mode.
     pub fn brand(dark: bool) -> Self {
-        Self {
-            dark,
-            accent: if dark {
-                BRAND_ACCENT_DARK
-            } else {
-                BRAND_ACCENT_LIGHT
-            },
-        }
+        Self { dark, accent: if dark { BRAND_ACCENT_DARK } else { BRAND_ACCENT_LIGHT } }
     }
 
     /// Resolves `Theme::System` through the OS (dark when the OS cannot tell) and parses the `#RRGGBB` accent.
@@ -83,10 +76,7 @@ impl ThemeSpec {
             ThemeSetting::Light => false,
             ThemeSetting::System => system_dark,
         };
-        Self {
-            dark,
-            accent: parse_hex(&g.accent).unwrap_or(Self::brand(dark).accent),
-        }
+        Self { dark, accent: parse_hex(&g.accent).unwrap_or(Self::brand(dark).accent) }
     }
 
     pub fn with_accent(mut self, accent: Color32) -> Self {
@@ -140,11 +130,7 @@ pub struct Palette {
 
 impl Palette {
     pub fn new(dark: bool, accent: Color32) -> Self {
-        let on_accent = if luminance(accent) > 0.62 {
-            hex(0x0E0F13)
-        } else {
-            Color32::WHITE
-        };
+        let on_accent = if luminance(accent) > 0.62 { hex(0x0E0F13) } else { Color32::WHITE };
         let scrim = with_alpha(hex(0x08090C), 0.55);
         if dark {
             Self {
@@ -195,10 +181,7 @@ impl Palette {
     }
 
     pub(crate) fn from_style(style: &Style) -> Self {
-        Self::new(
-            style.visuals.dark_mode,
-            style.visuals.selection.stroke.color,
-        )
+        Self::new(style.visuals.dark_mode, style.visuals.selection.stroke.color)
     }
 
     /// Translucent wash for hovered rows and ghost buttons.
@@ -242,22 +225,12 @@ impl Palette {
 
     /// Shadow for floating things: toolbars, menus, pins, toasts.
     pub fn shadow(&self) -> Shadow {
-        Shadow {
-            offset: [0, 8],
-            blur: 24,
-            spread: 0,
-            color: Color32::from_black_alpha(if self.dark { 89 } else { 36 }),
-        }
+        Shadow { offset: [0, 8], blur: 24, spread: 0, color: Color32::from_black_alpha(if self.dark { 89 } else { 36 }) }
     }
 
     /// A tighter shadow for small raised parts such as a selected segment.
     pub fn shadow_small(&self) -> Shadow {
-        Shadow {
-            offset: [0, 1],
-            blur: 3,
-            spread: 0,
-            color: Color32::from_black_alpha(if self.dark { 80 } else { 28 }),
-        }
+        Shadow { offset: [0, 1], blur: 3, spread: 0, color: Color32::from_black_alpha(if self.dark { 80 } else { 28 }) }
     }
 }
 
@@ -265,11 +238,7 @@ impl Palette {
 fn luminance(c: Color32) -> f32 {
     let lin = |v: u8| {
         let v = v as f32 / 255.0;
-        if v <= 0.04045 {
-            v / 12.92
-        } else {
-            ((v + 0.055) / 1.055).powf(2.4)
-        }
+        if v <= 0.04045 { v / 12.92 } else { ((v + 0.055) / 1.055).powf(2.4) }
     };
     0.2126 * lin(c.r()) + 0.7152 * lin(c.g()) + 0.0722 * lin(c.b())
 }
@@ -287,21 +256,14 @@ pub fn install(ctx: &Context, theme: &ThemeSpec) {
     let reduce_motion = platform::reduce_motion();
     ctx.set_style_of(Theme::Dark, style_for(true, theme.accent, reduce_motion));
     ctx.set_style_of(Theme::Light, style_for(false, theme.accent, reduce_motion));
-    ctx.set_theme(if theme.dark {
-        ThemePreference::Dark
-    } else {
-        ThemePreference::Light
-    });
+    ctx.set_theme(if theme.dark { ThemePreference::Dark } else { ThemePreference::Light });
 }
 
 /// The complete egui style for one theme. Apply it to a single `Ui` with `ui.set_style(...)` to render a
 /// differently themed region (the gallery does this).
 pub fn style_for(dark: bool, accent: Color32, reduce_motion: bool) -> Arc<Style> {
     let p = Palette::new(dark, accent);
-    let mut style = Style {
-        animation_time: if reduce_motion { 0.0 } else { 0.1 },
-        ..Style::default()
-    };
+    let mut style = Style { animation_time: if reduce_motion { 0.0 } else { 0.1 }, ..Style::default() };
     style.explanation_tooltips = false;
     style.url_in_tooltip = true;
     text::apply_text_styles(&mut style);
@@ -408,9 +370,5 @@ pub(crate) fn composite(base: Color32, top: Color32) -> Color32 {
     let a = top.a() as f32 / 255.0;
     // `top` is premultiplied, so its channels already carry the alpha.
     let mix = |b: u8, t: u8| (b as f32 * (1.0 - a) + t as f32).round().clamp(0.0, 255.0) as u8;
-    Color32::from_rgb(
-        mix(base.r(), top.r()),
-        mix(base.g(), top.g()),
-        mix(base.b(), top.b()),
-    )
+    Color32::from_rgb(mix(base.r(), top.r()), mix(base.g(), top.g()), mix(base.b(), top.b()))
 }

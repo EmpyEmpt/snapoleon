@@ -1,9 +1,6 @@
 //! Floating pill toolbar used by the capture overlay and the editor.
 
-use egui::{
-    Area, Context, Frame, Id, InnerResponse, Margin, Order, Pos2, Rect, Response, Sense, Stroke,
-    Ui, Vec2,
-};
+use egui::{Area, Context, Frame, Id, InnerResponse, Margin, Order, Pos2, Rect, Response, Sense, Stroke, Ui, Vec2};
 
 use crate::theme::{Palette, radius};
 
@@ -23,12 +20,7 @@ pub fn toolbar_pill<R>(ui: &mut Ui, add: impl FnOnce(&mut Ui) -> R) -> InnerResp
 }
 
 /// A pill toolbar floating above everything at `pos` (top-left, in screen points).
-pub fn floating_toolbar<R>(
-    ctx: &Context,
-    id: Id,
-    pos: Pos2,
-    add: impl FnOnce(&mut Ui) -> R,
-) -> InnerResponse<R> {
+pub fn floating_toolbar<R>(ctx: &Context, id: Id, pos: Pos2, add: impl FnOnce(&mut Ui) -> R) -> InnerResponse<R> {
     let out = Area::new(id)
         .order(Order::Foreground)
         .fixed_pos(pos)
@@ -41,34 +33,15 @@ pub fn floating_toolbar<R>(
 
 /// A pill toolbar placed relative to `anchor` (e.g. a capture selection): centered under it with a gap,
 /// flipped above when it would leave `bounds`, and clamped horizontally into `bounds`.
-pub fn floating_toolbar_anchored<R>(
-    ctx: &Context,
-    id: Id,
-    anchor: Rect,
-    bounds: Rect,
-    add: impl FnOnce(&mut Ui) -> R,
-) -> InnerResponse<R> {
+pub fn floating_toolbar_anchored<R>(ctx: &Context, id: Id, anchor: Rect, bounds: Rect, add: impl FnOnce(&mut Ui) -> R) -> InnerResponse<R> {
     const GAP: f32 = 10.0;
     // The size is only known after the first frame; guess until then.
-    let size = ctx
-        .data(|d| d.get_temp::<Vec2>(id.with("size")))
-        .unwrap_or(Vec2::new(420.0, 46.0));
+    let size = ctx.data(|d| d.get_temp::<Vec2>(id.with("size"))).unwrap_or(Vec2::new(420.0, 46.0));
     let below = anchor.bottom() + GAP;
-    let y = if below + size.y <= bounds.bottom() - 4.0 {
-        below
-    } else {
-        (anchor.top() - GAP - size.y).max(bounds.top() + 4.0)
-    };
+    let y = if below + size.y <= bounds.bottom() - 4.0 { below } else { (anchor.top() - GAP - size.y).max(bounds.top() + 4.0) };
     // Selection spanning the whole screen: tuck the toolbar inside it.
-    let y = if y + size.y > bounds.bottom() {
-        bounds.bottom() - size.y - GAP
-    } else {
-        y
-    };
-    let x = (anchor.center().x - size.x / 2.0).clamp(
-        bounds.left() + 4.0,
-        (bounds.right() - size.x - 4.0).max(bounds.left() + 4.0),
-    );
+    let y = if y + size.y > bounds.bottom() { bounds.bottom() - size.y - GAP } else { y };
+    let x = (anchor.center().x - size.x / 2.0).clamp(bounds.left() + 4.0, (bounds.right() - size.x - 4.0).max(bounds.left() + 4.0));
     floating_toolbar(ctx, id, Pos2::new(x, y), add)
 }
 
@@ -76,10 +49,6 @@ pub fn floating_toolbar_anchored<R>(
 pub fn toolbar_separator(ui: &mut Ui) -> Response {
     let p = Palette::of(ui);
     let (rect, resp) = ui.allocate_exact_size(Vec2::new(9.0, 20.0), Sense::hover());
-    ui.painter().vline(
-        rect.center().x.floor() + 0.5,
-        rect.y_range(),
-        Stroke::new(1.0, p.border),
-    );
+    ui.painter().vline(rect.center().x.floor() + 0.5, rect.y_range(), Stroke::new(1.0, p.border));
     resp
 }

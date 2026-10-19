@@ -103,11 +103,7 @@ pub fn logs_dir() -> PathBuf {
 
 /// Resolve the configured save dir (empty = default).
 pub fn save_dir(configured: &str) -> PathBuf {
-    if configured.trim().is_empty() {
-        default_save_dir()
-    } else {
-        PathBuf::from(shellexpand_home(configured))
-    }
+    if configured.trim().is_empty() { default_save_dir() } else { PathBuf::from(shellexpand_home(configured)) }
 }
 
 fn shellexpand_home(p: &str) -> String {

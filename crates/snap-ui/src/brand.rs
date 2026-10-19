@@ -5,10 +5,7 @@
 
 use egui::{Color32, Painter, Pos2, Rect, Shape, Stroke, Vec2};
 use snap_core::RgbaImage;
-use tiny_skia::{
-    BlendMode, Color, FillRule, GradientStop, LinearGradient, Paint, Path, PathBuilder, Pixmap,
-    Point, SpreadMode, Transform,
-};
+use tiny_skia::{BlendMode, Color, FillRule, GradientStop, LinearGradient, Paint, Path, PathBuilder, Pixmap, Point, SpreadMode, Transform};
 
 use crate::theme::Palette;
 
@@ -41,19 +38,11 @@ pub struct LogoColors {
 
 impl LogoColors {
     pub fn from_palette(p: &Palette) -> Self {
-        Self {
-            hat: p.text,
-            brackets: p.accent,
-            cockade: p.gold,
-        }
+        Self { hat: p.text, brackets: p.accent, cockade: p.gold }
     }
 
     pub fn mono(color: Color32) -> Self {
-        Self {
-            hat: color,
-            brackets: color,
-            cockade: color,
-        }
+        Self { hat: color, brackets: color, cockade: color }
     }
 }
 
@@ -69,12 +58,7 @@ fn bracket_rects(t: f32) -> [[f32; 4]; 4] {
         [l, BRACKET_TOP, l + t, BRACKET_BOTTOM],
         [l + t, BRACKET_BOTTOM - t, BRACKET_REACH, BRACKET_BOTTOM],
         [r - t, BRACKET_TOP, r, BRACKET_BOTTOM],
-        [
-            1.0 - BRACKET_REACH,
-            BRACKET_BOTTOM - t,
-            r - t,
-            BRACKET_BOTTOM,
-        ],
+        [1.0 - BRACKET_REACH, BRACKET_BOTTOM - t, r - t, BRACKET_BOTTOM],
     ]
 }
 
@@ -114,10 +98,7 @@ pub fn logo_colored(painter: &Painter, rect: Rect, colors: LogoColors) {
 fn cubic(p: [Pos2; 4], t: f32) -> Pos2 {
     let u = 1.0 - t;
     let w = [u * u * u, 3.0 * u * u * t, 3.0 * u * t * t, t * t * t];
-    Pos2::new(
-        p[0].x * w[0] + p[1].x * w[1] + p[2].x * w[2] + p[3].x * w[3],
-        p[0].y * w[0] + p[1].y * w[1] + p[2].y * w[2] + p[3].y * w[3],
-    )
+    Pos2::new(p[0].x * w[0] + p[1].x * w[1] + p[2].x * w[2] + p[3].x * w[3], p[0].y * w[0] + p[1].y * w[1] + p[2].y * w[2] + p[3].y * w[3])
 }
 
 // ---------------------------------------------------------------------------------------------
@@ -134,11 +115,7 @@ struct Place {
 impl Place {
     /// Places the mark so its visual center sits at (`cx`, `cy`) with the unit square `side` pixels wide.
     fn centered(cx: f32, cy: f32, side: f32) -> Self {
-        Self {
-            scale: side,
-            ox: cx - side * 0.5,
-            oy: cy - side * MARK_CENTER_Y,
-        }
+        Self { scale: side, ox: cx - side * 0.5, oy: cy - side * MARK_CENTER_Y }
     }
 
     fn map(self, (u, v): Pt) -> Point {
@@ -184,21 +161,8 @@ fn paint_color(c: [u8; 4]) -> Paint<'static> {
 }
 
 /// Draws hat, brackets and (optionally) cockade onto `pm`.
-fn draw_mark(
-    pm: &mut Pixmap,
-    place: Place,
-    hat: [u8; 4],
-    brackets: [u8; 4],
-    cockade: Option<[u8; 4]>,
-    thickness: f32,
-) {
-    pm.fill_path(
-        &hat_path(place),
-        &paint_color(hat),
-        FillRule::Winding,
-        Transform::identity(),
-        None,
-    );
+fn draw_mark(pm: &mut Pixmap, place: Place, hat: [u8; 4], brackets: [u8; 4], cockade: Option<[u8; 4]>, thickness: f32) {
+    pm.fill_path(&hat_path(place), &paint_color(hat), FillRule::Winding, Transform::identity(), None);
     let bracket_paint = paint_color(brackets);
     let mut pb = PathBuilder::new();
     for [x0, y0, x1, y1] in bracket_rects(thickness) {
@@ -208,24 +172,12 @@ fn draw_mark(
         }
     }
     if let Some(path) = pb.finish() {
-        pm.fill_path(
-            &path,
-            &bracket_paint,
-            FillRule::Winding,
-            Transform::identity(),
-            None,
-        );
+        pm.fill_path(&path, &bracket_paint, FillRule::Winding, Transform::identity(), None);
     }
     if let (Some(color), (c, r)) = (cockade, COCKADE) {
         let c = place.map(c);
         if let Some(path) = PathBuilder::from_circle(c.x, c.y, r * place.scale) {
-            pm.fill_path(
-                &path,
-                &paint_color(color),
-                FillRule::Winding,
-                Transform::identity(),
-                None,
-            );
+            pm.fill_path(&path, &paint_color(color), FillRule::Winding, Transform::identity(), None);
         }
     }
 }
@@ -252,56 +204,32 @@ pub fn app_icon_rgba(size: u32) -> RgbaImage {
         Point::from_xy(0.0, 0.0),
         Point::from_xy(s, s),
         vec![
-            GradientStop::new(
-                0.0,
-                Color::from_rgba8(ICON_TOP[0], ICON_TOP[1], ICON_TOP[2], 255),
-            ),
-            GradientStop::new(
-                1.0,
-                Color::from_rgba8(ICON_BOTTOM[0], ICON_BOTTOM[1], ICON_BOTTOM[2], 255),
-            ),
+            GradientStop::new(0.0, Color::from_rgba8(ICON_TOP[0], ICON_TOP[1], ICON_TOP[2], 255)),
+            GradientStop::new(1.0, Color::from_rgba8(ICON_BOTTOM[0], ICON_BOTTOM[1], ICON_BOTTOM[2], 255)),
         ],
         SpreadMode::Pad,
         Transform::identity(),
     )
     .expect("two-stop gradient is valid");
-    let paint = Paint {
-        shader: gradient,
-        anti_alias: true,
-        ..Paint::default()
-    };
+    let paint = Paint { shader: gradient, anti_alias: true, ..Paint::default() };
     pm.fill_path(&bg, &paint, FillRule::Winding, Transform::identity(), None);
 
     // Soft sheen over the upper half.
     let sheen = LinearGradient::new(
         Point::from_xy(0.0, 0.0),
         Point::from_xy(0.0, s * 0.62),
-        vec![
-            GradientStop::new(0.0, Color::from_rgba8(255, 255, 255, 46)),
-            GradientStop::new(1.0, Color::from_rgba8(255, 255, 255, 0)),
-        ],
+        vec![GradientStop::new(0.0, Color::from_rgba8(255, 255, 255, 46)), GradientStop::new(1.0, Color::from_rgba8(255, 255, 255, 0))],
         SpreadMode::Pad,
         Transform::identity(),
     )
     .expect("two-stop gradient is valid");
-    let paint = Paint {
-        shader: sheen,
-        anti_alias: true,
-        ..Paint::default()
-    };
+    let paint = Paint { shader: sheen, anti_alias: true, ..Paint::default() };
     pm.fill_path(&bg, &paint, FillRule::Winding, Transform::identity(), None);
 
     let side = s * ICON_MARK;
     let place = Place::centered(s * 0.5, s * 0.5, side);
     let cockade = (size >= 48).then_some(GOLD);
-    draw_mark(
-        &mut pm,
-        place,
-        [255, 255, 255, 255],
-        [255, 255, 255, 235],
-        cockade,
-        bracket_thickness(side),
-    );
+    draw_mark(&mut pm, place, [255, 255, 255, 255], [255, 255, 255, 235], cockade, bracket_thickness(side));
     into_image(pm)
 }
 
@@ -313,11 +241,7 @@ const ICON_RADIUS: f32 = 0.225;
 /// Tray glyph on transparent: white on dark taskbars/menu bars, near-black on light ones.
 /// With `recording`, a red dot with a clear halo sits in the bottom-right corner.
 pub fn tray_icon_rgba(size: u32, recording: bool) -> RgbaImage {
-    let ink = if crate::platform::system_dark().unwrap_or(true) {
-        [255, 255, 255, 255]
-    } else {
-        [24, 24, 28, 255]
-    };
+    let ink = if crate::platform::system_dark().unwrap_or(true) { [255, 255, 255, 255] } else { [24, 24, 28, 255] };
     tray_icon_rgba_colored(size, recording, ink)
 }
 
@@ -328,39 +252,16 @@ pub fn tray_icon_rgba_colored(size: u32, recording: bool, ink: [u8; 4]) -> RgbaI
     let mut pm = Pixmap::new(size, size).expect("icon size is non-zero");
     let side = s * 0.98;
     let place = Place::centered(s * 0.5, s * 0.5, side);
-    draw_mark(
-        &mut pm,
-        place,
-        ink,
-        ink,
-        None,
-        bracket_thickness(side).max(0.1),
-    );
+    draw_mark(&mut pm, place, ink, ink, None, bracket_thickness(side).max(0.1));
     if recording {
         let (cx, cy) = (s * 0.78, s * 0.78);
-        let mut clear = Paint {
-            blend_mode: BlendMode::Clear,
-            anti_alias: true,
-            ..Paint::default()
-        };
+        let mut clear = Paint { blend_mode: BlendMode::Clear, anti_alias: true, ..Paint::default() };
         clear.set_color_rgba8(0, 0, 0, 255);
         if let Some(path) = PathBuilder::from_circle(cx, cy, s * 0.235) {
-            pm.fill_path(
-                &path,
-                &clear,
-                FillRule::Winding,
-                Transform::identity(),
-                None,
-            );
+            pm.fill_path(&path, &clear, FillRule::Winding, Transform::identity(), None);
         }
         if let Some(path) = PathBuilder::from_circle(cx, cy, s * 0.17) {
-            pm.fill_path(
-                &path,
-                &paint_color(RECORD_RED),
-                FillRule::Winding,
-                Transform::identity(),
-                None,
-            );
+            pm.fill_path(&path, &paint_color(RECORD_RED), FillRule::Winding, Transform::identity(), None);
         }
     }
     into_image(pm)
@@ -373,41 +274,21 @@ pub fn tray_icon_rgba_colored(size: u32, recording: bool, ink: [u8; 4]) -> RgbaI
 pub fn app_icon_svg() -> String {
     let side = 1024.0 * ICON_MARK;
     let place = Place::centered(512.0, 512.0, side);
-    let f = |n: f32| {
-        format!("{:.2}", n)
-            .trim_end_matches('0')
-            .trim_end_matches('.')
-            .to_string()
-    };
+    let f = |n: f32| format!("{:.2}", n).trim_end_matches('0').trim_end_matches('.').to_string();
 
     let mut hat = String::new();
     let start = place.map(HAT[0][0]);
     hat.push_str(&format!("M{} {}", f(start.x), f(start.y)));
     for seg in &HAT {
         let (a, b, c) = (place.map(seg[1]), place.map(seg[2]), place.map(seg[3]));
-        hat.push_str(&format!(
-            "C{} {} {} {} {} {}",
-            f(a.x),
-            f(a.y),
-            f(b.x),
-            f(b.y),
-            f(c.x),
-            f(c.y)
-        ));
+        hat.push_str(&format!("C{} {} {} {} {} {}", f(a.x), f(a.y), f(b.x), f(b.y), f(c.x), f(c.y)));
     }
     hat.push('Z');
 
     let mut brackets = String::new();
     for [x0, y0, x1, y1] in bracket_rects(bracket_thickness(side)) {
         let (a, b) = (place.map((x0, y0)), place.map((x1, y1)));
-        brackets.push_str(&format!(
-            "M{} {}H{}V{}H{}Z",
-            f(a.x),
-            f(a.y),
-            f(b.x),
-            f(b.y),
-            f(a.x)
-        ));
+        brackets.push_str(&format!("M{} {}H{}V{}H{}Z", f(a.x), f(a.y), f(b.x), f(b.y), f(a.x)));
     }
     let (c, r) = COCKADE;
     let c = place.map(c);

@@ -9,7 +9,7 @@ use serde_json::{Value, json};
 use snap_core::{Error, Result, t};
 
 use crate::{
-    Uploader, UploadRequest, UploadResult,
+    UploadRequest, UploadResult, Uploader,
     http::{Call, Progress, Response},
     multipart::Multipart,
     util::{join_url, mime_or_octet},
@@ -134,7 +134,11 @@ impl Client {
         }
         let form = form.file("file", req.file_name, mime_or_octet(req.mime), req.data);
         let resp = self.check(
-            Call::post(self.url("api/v1/upload")).bearer(&self.token).multipart(form).progress(Progress::new(progress, req.data.len() as u64)).send()?,
+            Call::post(self.url("api/v1/upload"))
+                .bearer(&self.token)
+                .multipart(form)
+                .progress(Progress::new(progress, req.data.len() as u64))
+                .send()?,
         )?;
         let mut uploaded: Uploaded = serde_json::from_slice(&resp.body).map_err(|e| Error::Network(e.to_string()))?;
         if uploaded.url.is_empty() {

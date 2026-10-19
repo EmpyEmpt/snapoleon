@@ -49,10 +49,7 @@ pub fn filename_title(raw: &str) -> String {
     let first = first.lines().map(str::trim).find(|l| !l.is_empty()).unwrap_or("");
     let first = first.trim_start_matches(|c: char| c == '#' || c.is_whitespace());
     let first = first.strip_prefix("Title:").or_else(|| first.strip_prefix("title:")).unwrap_or(first);
-    let cleaned: String = plain_line(first)
-        .chars()
-        .map(|c| if c.is_control() || r#"<>:"/\|?*"#.contains(c) { ' ' } else { c })
-        .collect();
+    let cleaned: String = plain_line(first).chars().map(|c| if c.is_control() || r#"<>:"/\|?*"#.contains(c) { ' ' } else { c }).collect();
     let words: Vec<&str> = cleaned.split_whitespace().take(8).collect();
     let mut title = words.join(" ");
     if title.chars().count() > 80 {

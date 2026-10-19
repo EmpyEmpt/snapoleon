@@ -149,8 +149,7 @@ pub struct Db(Arc<Mutex<Connection>>);
 
 impl Db {
     pub fn open(path: &Path) -> Result<Self> {
-        let mut conn =
-            Connection::open(path).with_context(|| format!("opening {}", path.display()))?;
+        let mut conn = Connection::open(path).with_context(|| format!("opening {}", path.display()))?;
         conn.pragma_update(None, "journal_mode", "WAL")?;
         conn.pragma_update(None, "synchronous", "NORMAL")?;
         conn.pragma_update(None, "foreign_keys", "ON")?;
@@ -173,15 +172,17 @@ impl Db {
     pub async fn meta_get(&self, key: &'static str) -> Result<Option<String>, AppError> {
         self.run(move |c| {
             use rusqlite::OptionalExtension;
-            c.query_row("SELECT value FROM meta WHERE key = ?1", [key], |r| r.get(0))
-                .optional()
+            c.query_row("SELECT value FROM meta WHERE key = ?1", [key], |r| r.get(0)).optional()
         })
         .await
     }
 
     pub async fn meta_set(&self, key: &'static str, value: String) -> Result<(), AppError> {
-        self.run(move |c| c.execute("INSERT INTO meta(key, value) VALUES(?1, ?2) ON CONFLICT(key) DO UPDATE SET value = excluded.value", (key, value)).map(|_| ()))
-            .await
+        self.run(move |c| {
+            c.execute("INSERT INTO meta(key, value) VALUES(?1, ?2) ON CONFLICT(key) DO UPDATE SET value = excluded.value", (key, value))
+                .map(|_| ())
+        })
+        .await
     }
 }
 

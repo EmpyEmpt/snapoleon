@@ -1,8 +1,8 @@
 //! Server-rendered pages shared by the public viewer and the admin UI.
 
+use crate::i18n::{lang as current_language, t, tf};
 use axum::http::StatusCode;
 use maud::{DOCTYPE, Markup, PreEscaped, html};
-use crate::i18n::{lang as current_language, t, tf};
 
 use crate::{
     db::{Comment, Item},
@@ -107,11 +107,7 @@ pub struct ViewerState<'a> {
 pub fn viewer_page(v: &ViewerState) -> Markup {
     let item = v.item;
     let locked = item.is_protected() && !v.unlocked;
-    let title = if locked {
-        t("server.og.protected").into_owned()
-    } else {
-        item.display_title().to_string()
-    };
+    let title = if locked { t("server.og.protected").into_owned() } else { item.display_title().to_string() };
     let desc = if locked {
         t("server.viewer.desc_protected").into_owned()
     } else if item.is_video() {

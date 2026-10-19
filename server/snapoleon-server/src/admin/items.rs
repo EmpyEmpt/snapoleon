@@ -1,5 +1,6 @@
 //! Admin: items (search, detail, delete) and short links.
 
+use crate::i18n::{t, tf};
 use axum::{
     Router,
     extract::{Path, Query, State},
@@ -8,7 +9,6 @@ use axum::{
 };
 use maud::{Markup, html};
 use serde::Deserialize;
-use crate::i18n::{t, tf};
 
 use super::{Nav, NoticeQuery, page, redirect_with};
 use crate::{
@@ -27,10 +27,7 @@ pub fn routes() -> Router<AppState> {
         .route("/admin/items", get(list))
         .route("/admin/items/{id}", get(detail))
         .route("/admin/items/{id}/delete", post(delete))
-        .route(
-            "/admin/items/{id}/comments/{cid}/delete",
-            post(delete_comment),
-        )
+        .route("/admin/items/{id}/comments/{cid}/delete", post(delete_comment))
         .route("/admin/links", get(links))
         .route("/admin/links/{code}/delete", post(delete_link))
 }
@@ -58,22 +55,10 @@ pub fn pager(base: &str, q: &str, page: i64, total: i64) -> Markup {
     }
 }
 
-async fn list(
-    State(state): State<AppState>,
-    me: Me,
-    Query(q): Query<ListQuery>,
-) -> PageResult<Markup> {
+async fn list(State(state): State<AppState>, me: Me, Query(q): Query<ListQuery>) -> PageResult<Markup> {
     let page_no = q.page.unwrap_or(1).max(1);
     let query = q.q.unwrap_or_default().trim().to_string();
-    let (items, total) = state
-        .db
-        .list_items(
-            me.scope(),
-            query.clone(),
-            PAGE_SIZE,
-            (page_no - 1) * PAGE_SIZE,
-        )
-        .await?;
+    let (items, total) = state.db.list_items(me.scope(), query.clone(), PAGE_SIZE, (page_no - 1) * PAGE_SIZE).await?;
     Ok(page(
         &me,
         Nav::Items,
@@ -112,19 +97,10 @@ async fn list(
 
 async fn visible_item(state: &AppState, me: &Me, id: String) -> Result<Item, AppError> {
     let item = state.db.item_by_id(id).await?.ok_or(AppError::NotFound)?;
-    if me.can_manage_item(&item) {
-        Ok(item)
-    } else {
-        Err(AppError::Forbidden)
-    }
+    if me.can_manage_item(&item) { Ok(item) } else { Err(AppError::Forbidden) }
 }
 
-async fn detail(
-    State(state): State<AppState>,
-    me: Me,
-    Path(id): Path<String>,
-    Query(notice): Query<NoticeQuery>,
-) -> PageResult<Markup> {
+async fn detail(State(state): State<AppState>, me: Me, Path(id): Path<String>, Query(notice): Query<NoticeQuery>) -> PageResult<Markup> {
     let item = visible_item(&state, &me, id).await?;
     let comments = state.db.comments(item.id.clone()).await?;
     let page_url = state.item_url(&item.code);
@@ -169,11 +145,7 @@ async fn detail(
     ))
 }
 
-async fn delete(
-    State(state): State<AppState>,
-    me: Me,
-    Path(id): Path<String>,
-) -> PageResult<Response> {
+async fn delete(State(state): State<AppState>, me: Me, Path(id): Path<String>) -> PageResult<Response> {
     let item = visible_item(&state, &me, id).await?;
     viewer::remove_item(&state, &item).await?;
     Ok(redirect_with("/admin/items", "deleted"))
@@ -185,29 +157,15 @@ struct CommentPath {
     cid: i64,
 }
 
-async fn delete_comment(
-    State(state): State<AppState>,
-    me: Me,
-    Path(p): Path<CommentPath>,
-) -> PageResult<Response> {
+async fn delete_comment(State(state): State<AppState>, me: Me, Path(p): Path<CommentPath>) -> PageResult<Response> {
     let item = visible_item(&state, &me, p.id).await?;
     state.db.delete_comment(item.id.clone(), p.cid).await?;
-    Ok(redirect_with(
-        &format!("/admin/items/{}", item.id),
-        "deleted",
-    ))
+    Ok(redirect_with(&format!("/admin/items/{}", item.id), "deleted"))
 }
 
-async fn links(
-    State(state): State<AppState>,
-    me: Me,
-    Query(q): Query<ListQuery>,
-) -> PageResult<Markup> {
+async fn links(State(state): State<AppState>, me: Me, Query(q): Query<ListQuery>) -> PageResult<Markup> {
     let page_no = q.page.unwrap_or(1).max(1);
-    let (links, total) = state
-        .db
-        .list_links(me.scope(), PAGE_SIZE, (page_no - 1) * PAGE_SIZE)
-        .await?;
+    let (links, total) = state.db.list_links(me.scope(), PAGE_SIZE, (page_no - 1) * PAGE_SIZE).await?;
     Ok(page(
         &me,
         Nav::Links,
@@ -238,11 +196,7 @@ async fn links(
     ))
 }
 
-async fn delete_link(
-    State(state): State<AppState>,
-    me: Me,
-    Path(code): Path<String>,
-) -> PageResult<Response> {
+async fn delete_link(State(state): State<AppState>, me: Me, Path(code): Path<String>) -> PageResult<Response> {
     if !state.db.delete_link(code, me.scope()).await? {
         return Err(AppError::NotFound.into());
     }

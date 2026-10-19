@@ -6,9 +6,9 @@ use std::path::Path;
 use std::sync::Arc;
 
 use image::RgbaImage;
-use snap_core::settings::ImageFormat;
 use serde::Serialize;
 use serde_json::Value;
+use snap_core::settings::ImageFormat;
 use snap_core::{Error, Result, tf};
 use snap_image::encode;
 use zip::write::SimpleFileOptions;
@@ -75,7 +75,8 @@ fn put<W: Write + Seek>(zip: &mut ZipWriter<W>, name: &str, options: SimpleFileO
 }
 
 pub fn load_project(path: &Path) -> Result<Document> {
-    let mut zip = ZipArchive::new(File::open(path)?).map_err(|_| Error::Invalid(snap_core::t("annotate.error.not_a_project").into_owned()))?;
+    let mut zip =
+        ZipArchive::new(File::open(path)?).map_err(|_| Error::Invalid(snap_core::t("annotate.error.not_a_project").into_owned()))?;
 
     let json: Value = serde_json::from_slice(&read_entry(&mut zip, "doc.json")?).map_err(bad)?;
     let version = json.get("version").and_then(Value::as_u64).ok_or_else(|| bad("version"))? as u32;

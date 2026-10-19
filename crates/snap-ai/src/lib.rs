@@ -8,12 +8,7 @@ mod tasks;
 mod text;
 mod translate;
 
-use snap_core::{
-    CaptureContext, Error, Result, RgbaImage,
-    secrets::SecretStore,
-    settings::AiSettings,
-    t,
-};
+use snap_core::{CaptureContext, Error, Result, RgbaImage, secrets::SecretStore, settings::AiSettings, t};
 
 pub use translate::translate;
 

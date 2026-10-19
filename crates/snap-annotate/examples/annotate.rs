@@ -97,19 +97,46 @@ fn populate(doc: &mut Document, w: f32, h: f32) {
     let y = |v: f32| v * fy;
 
     // Arrows: plain, outlined+shadow, curved, open head, double, thick, thin.
-    doc.add(ShapeKind::Arrow { from: p(x(60.0), y(70.0)), to: p(x(260.0), y(150.0)), ctrl: None, head: ArrowHead::Triangle, double: false }, style(RED, 4.0));
     doc.add(
-        ShapeKind::Arrow { from: p(x(60.0), y(190.0)), to: p(x(300.0), y(290.0)), ctrl: Some(p(x(80.0), y(300.0))), head: ArrowHead::Triangle, double: false },
+        ShapeKind::Arrow { from: p(x(60.0), y(70.0)), to: p(x(260.0), y(150.0)), ctrl: None, head: ArrowHead::Triangle, double: false },
+        style(RED, 4.0),
+    );
+    doc.add(
+        ShapeKind::Arrow {
+            from: p(x(60.0), y(190.0)),
+            to: p(x(300.0), y(290.0)),
+            ctrl: Some(p(x(80.0), y(300.0))),
+            head: ArrowHead::Triangle,
+            double: false,
+        },
         Style { fill: Some(WHITE), shadow: true, ..style(BLUE, 5.0) },
     );
-    doc.add(ShapeKind::Arrow { from: p(x(60.0), y(330.0)), to: p(x(300.0), y(380.0)), ctrl: None, head: ArrowHead::Open, double: false }, style(GREEN, 5.0));
     doc.add(
-        ShapeKind::Arrow { from: p(x(60.0), y(430.0)), to: p(x(300.0), y(470.0)), ctrl: Some(p(x(180.0), y(380.0))), head: ArrowHead::Triangle, double: true },
+        ShapeKind::Arrow { from: p(x(60.0), y(330.0)), to: p(x(300.0), y(380.0)), ctrl: None, head: ArrowHead::Open, double: false },
+        style(GREEN, 5.0),
+    );
+    doc.add(
+        ShapeKind::Arrow {
+            from: p(x(60.0), y(430.0)),
+            to: p(x(300.0), y(470.0)),
+            ctrl: Some(p(x(180.0), y(380.0))),
+            head: ArrowHead::Triangle,
+            double: true,
+        },
         shadowed(style(RED, 4.0)),
     );
-    doc.add(ShapeKind::Arrow { from: p(x(60.0), y(520.0)), to: p(x(300.0), y(540.0)), ctrl: None, head: ArrowHead::Triangle, double: false }, style(DARK, 10.0));
-    doc.add(ShapeKind::Arrow { from: p(x(60.0), y(580.0)), to: p(x(300.0), y(560.0)), ctrl: None, head: ArrowHead::None, double: false }, style(YELLOW, 6.0));
-    doc.add(ShapeKind::Arrow { from: p(x(60.0), y(610.0)), to: p(x(130.0), y(640.0)), ctrl: None, head: ArrowHead::Triangle, double: false }, style(RED, 3.0));
+    doc.add(
+        ShapeKind::Arrow { from: p(x(60.0), y(520.0)), to: p(x(300.0), y(540.0)), ctrl: None, head: ArrowHead::Triangle, double: false },
+        style(DARK, 10.0),
+    );
+    doc.add(
+        ShapeKind::Arrow { from: p(x(60.0), y(580.0)), to: p(x(300.0), y(560.0)), ctrl: None, head: ArrowHead::None, double: false },
+        style(YELLOW, 6.0),
+    );
+    doc.add(
+        ShapeKind::Arrow { from: p(x(60.0), y(610.0)), to: p(x(130.0), y(640.0)), ctrl: None, head: ArrowHead::Triangle, double: false },
+        style(RED, 3.0),
+    );
 
     // Line, rectangles, ellipse.
     doc.add(ShapeKind::Line { from: p(x(360.0), y(60.0)), to: p(x(600.0), y(100.0)) }, Style { dashed: true, ..style(RED, 3.0) });
@@ -119,7 +146,10 @@ fn populate(doc: &mut Document, w: f32, h: f32) {
         Style { fill: Some([255, 214, 10, 70]), shadow: true, ..style(YELLOW, 3.0) },
     );
     doc.add(ShapeKind::Ellipse { rect: r(x(360.0), y(290.0), x(220.0), y(120.0)) }, style(BLUE, 4.0));
-    doc.add(ShapeKind::Ellipse { rect: r(x(620.0), y(290.0), x(220.0), y(120.0)) }, shadowed(Style { fill: Some([10, 132, 255, 60]), ..style(BLUE, 3.0) }));
+    doc.add(
+        ShapeKind::Ellipse { rect: r(x(620.0), y(290.0), x(220.0), y(120.0)) },
+        shadowed(Style { fill: Some([10, 132, 255, 60]), ..style(BLUE, 3.0) }),
+    );
 
     // Pen and highlighter.
     let wave: Vec<PointF> = (0..40).map(|i| p(x(360.0 + i as f32 * 12.0), y(470.0) + (i as f32 * 0.55).sin() * 22.0)).collect();
@@ -131,9 +161,19 @@ fn populate(doc: &mut Document, w: f32, h: f32) {
 
     // Text in every flavour; Cyrillic included.
     let pos = |a: f32, b: f32| p(x(a), y(b));
-    doc.add(ShapeKind::Text { pos: pos(900.0, 70.0), text: "Plain label".into(), size: 28.0, bold: true, bg: TextBg::None, max_width: None }, style(RED, 4.0));
     doc.add(
-        ShapeKind::Text { pos: pos(900.0, 130.0), text: "Solid background".into(), size: 24.0, bold: true, bg: TextBg::Solid, max_width: None },
+        ShapeKind::Text { pos: pos(900.0, 70.0), text: "Plain label".into(), size: 28.0, bold: true, bg: TextBg::None, max_width: None },
+        style(RED, 4.0),
+    );
+    doc.add(
+        ShapeKind::Text {
+            pos: pos(900.0, 130.0),
+            text: "Solid background".into(),
+            size: 24.0,
+            bold: true,
+            bg: TextBg::Solid,
+            max_width: None,
+        },
         Style { fill: Some(RED), ..style(RED, 4.0) },
     );
     doc.add(
@@ -141,7 +181,14 @@ fn populate(doc: &mut Document, w: f32, h: f32) {
         Style { fill: Some(YELLOW), shadow: true, ..style(RED, 4.0) },
     );
     doc.add(
-        ShapeKind::Text { pos: pos(900.0, 280.0), text: "Speech bubble".into(), size: 24.0, bold: true, bg: TextBg::Bubble, max_width: None },
+        ShapeKind::Text {
+            pos: pos(900.0, 280.0),
+            text: "Speech bubble".into(),
+            size: 24.0,
+            bold: true,
+            bg: TextBg::Bubble,
+            max_width: None,
+        },
         shadowed(Style { fill: Some(BLUE), ..style(BLUE, 4.0) }),
     );
     doc.add(
@@ -156,13 +203,21 @@ fn populate(doc: &mut Document, w: f32, h: f32) {
         Style { fill: Some(DARK), ..style(DARK, 4.0) },
     );
     doc.add(
-        ShapeKind::Callout { rect: r(x(900.0), y(540.0), x(300.0), y(90.0)), tail: pos(840.0, 690.0), text: "Нажмите здесь, чтобы продолжить".into(), size: 20.0 },
+        ShapeKind::Callout {
+            rect: r(x(900.0), y(540.0), x(300.0), y(90.0)),
+            tail: pos(840.0, 690.0),
+            text: "Нажмите здесь, чтобы продолжить".into(),
+            size: 20.0,
+        },
         shadowed(Style { fill: Some(GREEN), ..style(GREEN, 4.0) }),
     );
 
     // Step badges (plain, with ring + shadow, two-digit).
     doc.add(ShapeKind::Step { center: pos(1320.0, 90.0), number: 1, radius: 18.0 }, style(RED, 4.0));
-    doc.add(ShapeKind::Step { center: pos(1390.0, 90.0), number: 2, radius: 18.0 }, shadowed(Style { fill: Some(WHITE), ..style(BLUE, 4.0) }));
+    doc.add(
+        ShapeKind::Step { center: pos(1390.0, 90.0), number: 2, radius: 18.0 },
+        shadowed(Style { fill: Some(WHITE), ..style(BLUE, 4.0) }),
+    );
     doc.add(ShapeKind::Step { center: pos(1460.0, 90.0), number: 12, radius: 18.0 }, style(YELLOW, 4.0));
     doc.add(ShapeKind::Step { center: pos(1530.0, 90.0), number: 3, radius: 26.0 }, shadowed(style(GREEN, 4.0)));
 
@@ -172,11 +227,17 @@ fn populate(doc: &mut Document, w: f32, h: f32) {
     doc.add(ShapeKind::Redact { rect: r(x(1250.0), y(260.0), x(260.0), y(34.0)), style: RedactStyle::Blur }, Style::default());
 
     // Magnifier, pasted image, stamps, measure.
-    doc.add(ShapeKind::Magnifier { source: r(x(24.0), y(790.0), x(150.0), y(36.0)), center: pos(580.0, 880.0), radius: 80.0 }, Style::default());
+    doc.add(
+        ShapeKind::Magnifier { source: r(x(24.0), y(790.0), x(150.0), y(36.0)), center: pos(580.0, 880.0), radius: 80.0 },
+        Style::default(),
+    );
     doc.add(ShapeKind::Image { rect: r(x(1250.0), y(580.0), x(110.0), y(110.0)), image: Arc::new(logo(220)) }, shadowed(Style::default()));
     for (i, glyph) in Stamp::ALL.iter().enumerate() {
         let c = p(x(900.0 + i as f32 * 78.0), y(800.0));
-        doc.add(ShapeKind::Stamp { center: c, size: 54.0, glyph: *glyph }, Style { shadow: i % 2 == 0, ..style(glyph.default_color(), 4.0) });
+        doc.add(
+            ShapeKind::Stamp { center: c, size: 54.0, glyph: *glyph },
+            Style { shadow: i % 2 == 0, ..style(glyph.default_color(), 4.0) },
+        );
     }
     doc.add(ShapeKind::Measure { from: pos(360.0, 760.0), to: pos(605.0, 760.0) }, style(RED, 4.0));
     doc.add(ShapeKind::Measure { from: pos(380.0, 810.0), to: pos(480.0, 900.0) }, shadowed(style(BLUE, 4.0)));
@@ -216,7 +277,10 @@ fn main() {
     let mut spot = Document::new(base.clone(), 1.0);
     spot.add(ShapeKind::Spotlight { rect: r(w * 0.1, h * 0.1, w * 0.3, h * 0.2), ellipse: false }, Style::default());
     spot.add(ShapeKind::Spotlight { rect: r(w * 0.45, h * 0.3, w * 0.25, h * 0.3), ellipse: true }, Style::default());
-    spot.add(ShapeKind::Arrow { from: p(w * 0.8, h * 0.8), to: p(w * 0.58, h * 0.55), ctrl: None, head: ArrowHead::Triangle, double: false }, Style { fill: Some(WHITE), ..style(YELLOW, 5.0) });
+    spot.add(
+        ShapeKind::Arrow { from: p(w * 0.8, h * 0.8), to: p(w * 0.58, h * 0.55), ctrl: None, head: ArrowHead::Triangle, double: false },
+        Style { fill: Some(WHITE), ..style(YELLOW, 5.0) },
+    );
     save(&render(&spot, &RenderOptions::default()), "spotlight.png");
 
     // Live view: timing and a zoomed-in crop of the same document.

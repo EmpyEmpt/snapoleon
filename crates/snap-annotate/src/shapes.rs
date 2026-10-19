@@ -232,8 +232,16 @@ fn magnifier(cv: &mut Canvas, st: &Style, source: RectF, center: PointF, radius:
                 z if z < 4.0 => FilterQuality::Bicubic,
                 _ => FilterQuality::Nearest,
             };
-            let t = Transform::from_row(g.zoom, 0.0, 0.0, g.zoom, g.center.0 + (ox as f32 - sc.0) * g.zoom, g.center.1 + (oy as f32 - sc.1) * g.zoom);
-            let paint = Paint { shader: Pattern::new(pix.as_ref(), SpreadMode::Pad, quality, 1.0, t), anti_alias: true, ..Paint::default() };
+            let t = Transform::from_row(
+                g.zoom,
+                0.0,
+                0.0,
+                g.zoom,
+                g.center.0 + (ox as f32 - sc.0) * g.zoom,
+                g.center.1 + (oy as f32 - sc.1) * g.zoom,
+            );
+            let paint =
+                Paint { shader: Pattern::new(pix.as_ref(), SpreadMode::Pad, quality, 1.0, t), anti_alias: true, ..Paint::default() };
             cv.pm.fill_path(&circle, &paint, tiny_skia::FillRule::Winding, cv.ts, None);
         }
         None => cv.fill(&circle, [128, 128, 128, 255]),

@@ -30,9 +30,5 @@ fn main() {
     }
 
     let out = Path::new(&env::var("OUT_DIR").unwrap()).join("locales.rs");
-    fs::write(
-        out,
-        format!("pub(crate) static EMBEDDED: &[(&str, &str)] = &[\n{}\n];\n", entries.join("\n")),
-    )
-    .unwrap();
+    fs::write(out, format!("pub(crate) static EMBEDDED: &[(&str, &str)] = &[\n{}\n];\n", entries.join("\n"))).unwrap();
 }

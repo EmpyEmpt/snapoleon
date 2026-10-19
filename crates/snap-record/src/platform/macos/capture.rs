@@ -7,11 +7,19 @@ use block2::RcBlock;
 use dispatch2::{DispatchQueue, DispatchRetained};
 use objc2::{AllocAnyThread, DefinedClass, define_class, msg_send, rc::Retained, runtime::ProtocolObject};
 use objc2_core_foundation::{CGPoint, CGRect, CGSize};
-use objc2_core_graphics::{CGDirectDisplayID, CGDisplayMode, CGDisplayBounds, CGDisplayCopyDisplayMode, CGMainDisplayID, CGPreflightScreenCaptureAccess, CGRequestScreenCaptureAccess};
+use objc2_core_graphics::{
+    CGDirectDisplayID, CGDisplayBounds, CGDisplayCopyDisplayMode, CGDisplayMode, CGMainDisplayID, CGPreflightScreenCaptureAccess,
+    CGRequestScreenCaptureAccess,
+};
 use objc2_core_media::{CMSampleBuffer, CMTime};
-use objc2_core_video::{CVPixelBufferGetBaseAddress, CVPixelBufferGetBytesPerRow, CVPixelBufferGetHeight, CVPixelBufferGetWidth, CVPixelBufferLockBaseAddress, CVPixelBufferLockFlags, CVPixelBufferUnlockBaseAddress, kCVPixelFormatType_32BGRA};
+use objc2_core_video::{
+    CVPixelBufferGetBaseAddress, CVPixelBufferGetBytesPerRow, CVPixelBufferGetHeight, CVPixelBufferGetWidth, CVPixelBufferLockBaseAddress,
+    CVPixelBufferLockFlags, CVPixelBufferUnlockBaseAddress, kCVPixelFormatType_32BGRA,
+};
 use objc2_foundation::{NSArray, NSError, NSObject, NSObjectProtocol};
-use objc2_screen_capture_kit::{SCContentFilter, SCDisplay, SCShareableContent, SCStream, SCStreamConfiguration, SCStreamOutput, SCStreamOutputType, SCWindow};
+use objc2_screen_capture_kit::{
+    SCContentFilter, SCDisplay, SCShareableContent, SCStream, SCStreamConfiguration, SCStreamOutput, SCStreamOutputType, SCWindow,
+};
 use parking_lot::Mutex;
 use snap_core::{Error, Point, Rect, Result, t, tf};
 
@@ -191,7 +199,8 @@ pub(crate) fn open_source(spec: &SourceSpec, slot: Arc<FrameSlot>) -> Result<Box
     // SAFETY: reading the display id.
     ordered.sort_by_key(|d| unsafe { d.displayID() } != main);
 
-    let excluded: Vec<Retained<SCWindow>> = windows.iter().filter(|w| spec.exclude_windows.contains(&(unsafe { w.windowID() } as u64))).collect();
+    let excluded: Vec<Retained<SCWindow>> =
+        windows.iter().filter(|w| spec.exclude_windows.contains(&(unsafe { w.windowID() } as u64))).collect();
     let excluded_refs: Vec<&SCWindow> = excluded.iter().map(|w| &**w).collect();
     let exclude = NSArray::from_slice(&excluded_refs);
 
@@ -199,7 +208,8 @@ pub(crate) fn open_source(spec: &SourceSpec, slot: Arc<FrameSlot>) -> Result<Box
     let (filter, source_rect, size_px, origin_px, scale);
     match spec.target {
         RecordTarget::Monitor(i) => {
-            let display = ordered.get(*i).ok_or_else(|| Error::NotFound(tf("record.error.monitor_not_found", &[("index", &i.to_string())])))?;
+            let display =
+                ordered.get(*i).ok_or_else(|| Error::NotFound(tf("record.error.monitor_not_found", &[("index", &i.to_string())])))?;
             // SAFETY: display properties and filter construction.
             unsafe {
                 let id = display.displayID();
@@ -222,12 +232,16 @@ pub(crate) fn open_source(spec: &SourceSpec, slot: Arc<FrameSlot>) -> Result<Box
                 let (id, f) = unsafe { (d.displayID(), d.frame()) };
                 let s = display_scale(id);
                 let (px, py) = (f.origin.x * s, f.origin.y * s);
-                (centre.0 >= px && centre.0 < px + f.size.width * s && centre.1 >= py && centre.1 < py + f.size.height * s).then(|| (d.clone(), s, f))
+                (centre.0 >= px && centre.0 < px + f.size.width * s && centre.1 >= py && centre.1 < py + f.size.height * s)
+                    .then(|| (d.clone(), s, f))
             });
             let (display, s, f) = hit.ok_or_else(|| Error::invalid(t("record.error.region_outside")))?;
             scale = s;
             let rect_pts = Rect::new(r.x, r.y, r.w, r.h);
-            let local = CGRect::new(CGPoint::new(rect_pts.x as f64 / s - f.origin.x, rect_pts.y as f64 / s - f.origin.y), CGSize::new(rect_pts.w as f64 / s, rect_pts.h as f64 / s));
+            let local = CGRect::new(
+                CGPoint::new(rect_pts.x as f64 / s - f.origin.x, rect_pts.y as f64 / s - f.origin.y),
+                CGSize::new(rect_pts.w as f64 / s, rect_pts.h as f64 / s),
+            );
             // SAFETY: filter construction.
             filter = unsafe { SCContentFilter::initWithDisplay_excludingWindows(SCContentFilter::alloc(), &display, &exclude) };
             source_rect = Some(local);
@@ -249,7 +263,11 @@ pub(crate) fn open_source(spec: &SourceSpec, slot: Arc<FrameSlot>) -> Result<Box
                     .iter()
                     .find_map(|d| {
                         let df = d.frame();
-                        (centre.0 >= df.origin.x && centre.0 < df.origin.x + df.size.width && centre.1 >= df.origin.y && centre.1 < df.origin.y + df.size.height).then(|| display_scale(d.displayID()))
+                        (centre.0 >= df.origin.x
+                            && centre.0 < df.origin.x + df.size.width
+                            && centre.1 >= df.origin.y
+                            && centre.1 < df.origin.y + df.size.height)
+                            .then(|| display_scale(d.displayID()))
                     })
                     .unwrap_or(1.0);
                 filter = SCContentFilter::initWithDesktopIndependentWindow(SCContentFilter::alloc(), &window);
@@ -295,9 +313,13 @@ pub(crate) fn open_source(spec: &SourceSpec, slot: Arc<FrameSlot>) -> Result<Box
     let stream = unsafe {
         let stream = SCStream::initWithFilter_configuration_delegate(SCStream::alloc(), &filter, &config, None);
         let proto = ProtocolObject::from_ref(&*output);
-        stream.addStreamOutput_type_sampleHandlerQueue_error(proto, SCStreamOutputType::Screen, Some(&queue)).map_err(|e| Error::Other(anyhow!("add video output: {}", e.localizedDescription())))?;
+        stream
+            .addStreamOutput_type_sampleHandlerQueue_error(proto, SCStreamOutputType::Screen, Some(&queue))
+            .map_err(|e| Error::Other(anyhow!("add video output: {}", e.localizedDescription())))?;
         if spec.system_audio {
-            stream.addStreamOutput_type_sampleHandlerQueue_error(proto, SCStreamOutputType::Audio, Some(&queue)).map_err(|e| Error::Other(anyhow!("add audio output: {}", e.localizedDescription())))?;
+            stream
+                .addStreamOutput_type_sampleHandlerQueue_error(proto, SCStreamOutputType::Audio, Some(&queue))
+                .map_err(|e| Error::Other(anyhow!("add audio output: {}", e.localizedDescription())))?;
         }
         stream
     };
@@ -318,5 +340,13 @@ pub(crate) fn open_source(spec: &SourceSpec, slot: Arc<FrameSlot>) -> Result<Box
         return Err(Error::Other(anyhow!(t("record.error.no_frames").into_owned())));
     }
 
-    Ok(Box::new(MacSource { stream, _output: output, _queue: queue, size: size_px, origin: origin_px, scale: scale as f32, audio: audio_ring }))
+    Ok(Box::new(MacSource {
+        stream,
+        _output: output,
+        _queue: queue,
+        size: size_px,
+        origin: origin_px,
+        scale: scale as f32,
+        audio: audio_ring,
+    }))
 }

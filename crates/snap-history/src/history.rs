@@ -50,9 +50,7 @@ impl History {
         conn.pragma_update(None, "synchronous", "NORMAL").db()?;
         conn.pragma_update(None, "foreign_keys", true).db()?;
         migrate(&mut conn)?;
-        Ok(Self {
-            conn: Mutex::new(conn),
-        })
+        Ok(Self { conn: Mutex::new(conn) })
     }
 
     /// Open the database at [`paths::history_db`].
@@ -110,11 +108,7 @@ impl History {
 
     /// Replace the extracted text (OCR output) and reindex it.
     pub fn set_text(&self, id: &CaptureId, text: &str) -> Result<()> {
-        self.update(
-            id,
-            "UPDATE captures SET text = ?1 WHERE id = ?2",
-            params![text, id.0],
-        )
+        self.update(id, "UPDATE captures SET text = ?1 WHERE id = ?2", params![text, id.0])
     }
 
     /// Attach a share link to an existing entry.
@@ -127,35 +121,18 @@ impl History {
     /// case-insensitive duplicates removed.
     pub fn set_tags(&self, id: &CaptureId, tags: &[String]) -> Result<()> {
         let json = tags_json(&normalize_tags(tags));
-        self.update(
-            id,
-            "UPDATE captures SET tags = ?1 WHERE id = ?2",
-            params![json, id.0],
-        )
+        self.update(id, "UPDATE captures SET tags = ?1 WHERE id = ?2", params![json, id.0])
     }
 
     pub fn set_favorite(&self, id: &CaptureId, favorite: bool) -> Result<()> {
-        self.update(
-            id,
-            "UPDATE captures SET favorite = ?1 WHERE id = ?2",
-            params![favorite, id.0],
-        )
+        self.update(id, "UPDATE captures SET favorite = ?1 WHERE id = ?2", params![favorite, id.0])
     }
 
     /// Set the saved image and/or project file paths.
-    pub fn set_file(
-        &self,
-        id: &CaptureId,
-        file: Option<&Path>,
-        project: Option<&Path>,
-    ) -> Result<()> {
+    pub fn set_file(&self, id: &CaptureId, file: Option<&Path>, project: Option<&Path>) -> Result<()> {
         let file = path_text(file)?;
         let project = path_text(project)?;
-        self.update(
-            id,
-            "UPDATE captures SET file = ?1, project = ?2 WHERE id = ?3",
-            params![file, project, id.0],
-        )
+        self.update(id, "UPDATE captures SET file = ?1, project = ?2 WHERE id = ?3", params![file, project, id.0])
     }
 
     /// Remove an entry and its links. The thumbnail is always removed, since
@@ -165,18 +142,13 @@ impl History {
         let (file, project, thumb) = {
             let conn = self.conn.lock();
             let row: Option<(Option<String>, Option<String>, Option<String>)> = conn
-                .query_row(
-                    "SELECT file, project, thumb FROM captures WHERE id = ?1",
-                    [&id.0],
-                    |r| Ok((r.get(0)?, r.get(1)?, r.get(2)?)),
-                )
+                .query_row("SELECT file, project, thumb FROM captures WHERE id = ?1", [&id.0], |r| Ok((r.get(0)?, r.get(1)?, r.get(2)?)))
                 .optional()
                 .db()?;
             let Some(found) = row else {
                 return Err(Error::NotFound(id.0.clone()));
             };
-            conn.execute("DELETE FROM captures WHERE id = ?1", [&id.0])
-                .db()?;
+            conn.execute("DELETE FROM captures WHERE id = ?1", [&id.0]).db()?;
             found
         };
         if let Some(thumb) = thumb {
@@ -241,20 +213,15 @@ impl History {
                  GROUP BY app_name ORDER BY n DESC, app_name",
             )
             .db()?;
-        let rows = stmt
-            .query_map([], |r| Ok((r.get::<_, String>(0)?, r.get::<_, i64>(1)?)))
-            .db()?
-            .collect::<rusqlite::Result<Vec<_>>>()
-            .db()?;
+        let rows =
+            stmt.query_map([], |r| Ok((r.get::<_, String>(0)?, r.get::<_, i64>(1)?))).db()?.collect::<rusqlite::Result<Vec<_>>>().db()?;
         Ok(rows.into_iter().map(|(app, n)| (app, n as u32)).collect())
     }
 
     /// Total number of entries.
     pub fn count(&self) -> Result<u64> {
         let conn = self.conn.lock();
-        let n: i64 = conn
-            .query_row("SELECT COUNT(*) FROM captures", [], |r| r.get(0))
-            .db()?;
+        let n: i64 = conn.query_row("SELECT COUNT(*) FROM captures", [], |r| r.get(0)).db()?;
         Ok(n as u64)
     }
 
@@ -276,9 +243,7 @@ impl History {
                 .db()?
                 .collect::<rusqlite::Result<Vec<_>>>()
                 .db()?;
-            let removed = tx
-                .execute("DELETE FROM captures WHERE created_ms < ?1", [cutoff])
-                .db()?;
+            let removed = tx.execute("DELETE FROM captures WHERE created_ms < ?1", [cutoff]).db()?;
             tx.commit().db()?;
             (removed, thumbs)
         };
@@ -300,20 +265,15 @@ impl History {
 
 /// Bring the schema up to date using `PRAGMA user_version` as the version.
 fn migrate(conn: &mut Connection) -> Result<()> {
-    let current: i64 = conn
-        .pragma_query_value(None, "user_version", |r| r.get(0))
-        .db()?;
+    let current: i64 = conn.pragma_query_value(None, "user_version", |r| r.get(0)).db()?;
     let latest = MIGRATIONS.len() as i64;
     if current > latest {
-        return Err(Error::invalid(format!(
-            "history database schema v{current} is newer than this build supports (v{latest})"
-        )));
+        return Err(Error::invalid(format!("history database schema v{current} is newer than this build supports (v{latest})")));
     }
     for (index, sql) in MIGRATIONS.iter().enumerate().skip(current as usize) {
         let tx = conn.transaction().db()?;
         tx.execute_batch(sql).db()?;
-        tx.pragma_update(None, "user_version", index as i64 + 1)
-            .db()?;
+        tx.pragma_update(None, "user_version", index as i64 + 1).db()?;
         tx.commit().db()?;
     }
     Ok(())
@@ -325,13 +285,7 @@ fn insert_link(conn: &Connection, id: &CaptureId, link: &LinkRecord) -> Result<(
         .execute(
             "INSERT INTO links (capture_id, url, destination, delete_url, created_ms) \
              SELECT ?1, ?2, ?3, ?4, ?5 WHERE EXISTS (SELECT 1 FROM captures WHERE id = ?1)",
-            params![
-                id.0,
-                link.url,
-                link.destination,
-                link.delete_url,
-                link.created_ms
-            ],
+            params![id.0, link.url, link.destination, link.delete_url, link.created_ms],
         )
         .db()?;
     if inserted == 0 {
@@ -341,18 +295,9 @@ fn insert_link(conn: &Connection, id: &CaptureId, link: &LinkRecord) -> Result<(
 }
 
 fn load_links(conn: &Connection, id: &CaptureId) -> Result<Vec<LinkRecord>> {
-    let mut stmt = conn
-        .prepare("SELECT url, destination, delete_url, created_ms FROM links WHERE capture_id = ?1 ORDER BY seq")
-        .db()?;
+    let mut stmt = conn.prepare("SELECT url, destination, delete_url, created_ms FROM links WHERE capture_id = ?1 ORDER BY seq").db()?;
     let links = stmt
-        .query_map([&id.0], |r| {
-            Ok(LinkRecord {
-                url: r.get(0)?,
-                destination: r.get(1)?,
-                delete_url: r.get(2)?,
-                created_ms: r.get(3)?,
-            })
-        })
+        .query_map([&id.0], |r| Ok(LinkRecord { url: r.get(0)?, destination: r.get(1)?, delete_url: r.get(2)?, created_ms: r.get(3)? }))
         .db()?
         .collect::<rusqlite::Result<Vec<_>>>()
         .db()?;
@@ -362,11 +307,7 @@ fn load_links(conn: &Connection, id: &CaptureId) -> Result<Vec<LinkRecord>> {
 /// Run a query returning `captures` columns and attach each entry's links.
 fn query_entries(conn: &Connection, sql: &str, bound: &[(&str, &dyn ToSql)]) -> Result<Vec<Entry>> {
     let mut stmt = conn.prepare(sql).db()?;
-    let mut entries = stmt
-        .query_map(bound, row_entry)
-        .db()?
-        .collect::<rusqlite::Result<Vec<_>>>()
-        .db()?;
+    let mut entries = stmt.query_map(bound, row_entry).db()?.collect::<rusqlite::Result<Vec<_>>>().db()?;
     for entry in &mut entries {
         entry.links = load_links(conn, &entry.id)?;
     }
@@ -377,11 +318,7 @@ fn query_entries(conn: &Connection, sql: &str, bound: &[(&str, &dyn ToSql)]) -> 
 fn row_entry(r: &Row<'_>) -> rusqlite::Result<Entry> {
     let kind: String = r.get(1)?;
     let kind = kind_from_name(&kind).ok_or_else(|| {
-        rusqlite::Error::FromSqlConversionFailure(
-            1,
-            rusqlite::types::Type::Text,
-            format!("unknown capture kind `{kind}`").into(),
-        )
+        rusqlite::Error::FromSqlConversionFailure(1, rusqlite::types::Type::Text, format!("unknown capture kind `{kind}`").into())
     })?;
     let tags: String = r.get(16)?;
     Ok(Entry {
@@ -437,12 +374,8 @@ fn tags_json(tags: &[String]) -> String {
 }
 
 fn path_text(path: Option<&Path>) -> Result<Option<String>> {
-    path.map(|p| {
-        p.to_str()
-            .map(str::to_owned)
-            .ok_or_else(|| Error::invalid(format!("path is not valid UTF-8: {}", p.display())))
-    })
-    .transpose()
+    path.map(|p| p.to_str().map(str::to_owned).ok_or_else(|| Error::invalid(format!("path is not valid UTF-8: {}", p.display()))))
+        .transpose()
 }
 
 fn to_i64(v: u64) -> i64 {

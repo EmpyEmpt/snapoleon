@@ -30,11 +30,7 @@ fn add_sample(db: &History, dir: &Path, s: &Sample) -> Result<CaptureId> {
     let [r, g, b] = s.color;
     let image = RgbaImage::from_pixel(1280, 800, Rgba([r, g, b, 255]));
     let mut capture = Capture::from_image(s.kind, image);
-    capture.context = CaptureContext {
-        app_name: Some(s.app.into()),
-        window_title: Some(s.title.into()),
-        ..Default::default()
-    };
+    capture.context = CaptureContext { app_name: Some(s.app.into()), window_title: Some(s.title.into()), ..Default::default() };
     capture.taken_at_ms = now_ms() - s.age_ms;
 
     let file = dir.join(format!("{}.png", capture.id));
@@ -59,24 +55,17 @@ fn show(label: &str, got: &[Entry]) {
 /// Assert that `got` holds exactly `want`, in order.
 fn check(label: &str, got: &[Entry], want: &[&CaptureId]) -> Result<()> {
     let got_ids: Vec<&CaptureId> = got.iter().map(|e| &e.id).collect();
-    ensure!(
-        got_ids == want,
-        "{label}: expected {want:?}, got {got_ids:?}"
-    );
+    ensure!(got_ids == want, "{label}: expected {want:?}, got {got_ids:?}");
     show(label, got);
     Ok(())
 }
 
 fn query(text: &str) -> Query {
-    Query {
-        text: text.into(),
-        ..Default::default()
-    }
+    Query { text: text.into(), ..Default::default() }
 }
 
 fn main() -> Result<()> {
-    let out: PathBuf =
-        Path::new(env!("CARGO_MANIFEST_DIR")).join("../../target/smoke/snap-history");
+    let out: PathBuf = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../target/smoke/snap-history");
     fs::create_dir_all(&out)?;
     let db_path = out.join("history.sqlite");
     for suffix in ["", "-wal", "-shm"] {
@@ -110,10 +99,7 @@ fn main() -> Result<()> {
             color: [90, 160, 90],
         },
     ];
-    let ids: Vec<CaptureId> = samples
-        .iter()
-        .map(|s| add_sample(&db, &out, s))
-        .collect::<Result<_>>()?;
+    let ids: Vec<CaptureId> = samples.iter().map(|s| add_sample(&db, &out, s)).collect::<Result<_>>()?;
     let (ru, code, old) = (&ids[0], &ids[1], &ids[2]);
 
     // Reopening exercises the migration check and WAL persistence.
@@ -122,165 +108,72 @@ fn main() -> Result<()> {
     ensure!(db.count()? == 3, "expected 3 rows after reopen");
     println!("ok  reopened database, {} rows", db.count()?);
 
-    check(
-        "recent (empty query)",
-        &db.search(&Query::default())?,
-        &[ru, code, old],
-    )?;
+    check("recent (empty query)", &db.search(&Query::default())?, &[ru, code, old])?;
     check("ru prefix 'элект'", &db.search(&query("элект"))?, &[ru])?;
-    check(
-        "ru prefix, uppercase 'РУБ'",
-        &db.search(&query("РУБ"))?,
-        &[ru],
-    )?;
+    check("ru prefix, uppercase 'РУБ'", &db.search(&query("РУБ"))?, &[ru])?;
     check("en prefix 'captur'", &db.search(&query("captur"))?, &[code])?;
-    check(
-        "en phrase words 'fn capt'",
-        &db.search(&query("fn capt"))?,
-        &[code],
-    )?;
-    check(
-        "words are ANDed 'fn electr'",
-        &db.search(&query("fn electr"))?,
-        &[],
-    )?;
+    check("en phrase words 'fn capt'", &db.search(&query("fn capt"))?, &[code])?;
+    check("words are ANDed 'fn electr'", &db.search(&query("fn electr"))?, &[])?;
 
-    let by_app = Query {
-        app: Some("visual studio code".into()),
-        ..Default::default()
-    };
-    check(
-        "app filter, case-insensitive",
-        &db.search(&by_app)?,
-        &[code],
-    )?;
-    let by_kind = Query {
-        kind: Some(CaptureKind::Window),
-        ..Default::default()
-    };
+    let by_app = Query { app: Some("visual studio code".into()), ..Default::default() };
+    check("app filter, case-insensitive", &db.search(&by_app)?, &[code])?;
+    let by_kind = Query { kind: Some(CaptureKind::Window), ..Default::default() };
     check("kind filter = window", &db.search(&by_kind)?, &[ru, old])?;
-    let page = Query {
-        limit: 1,
-        offset: 1,
-        ..Default::default()
-    };
+    let page = Query { limit: 1, offset: 1, ..Default::default() };
     check("pagination limit 1 offset 1", &db.search(&page)?, &[code])?;
-    let since = Query {
-        from_ms: Some(now_ms() - DAY_MS),
-        ..Default::default()
-    };
+    let since = Query { from_ms: Some(now_ms() - DAY_MS), ..Default::default() };
     check("date filter (last 24 h)", &db.search(&since)?, &[ru, code])?;
 
     let apps = db.apps()?;
     println!("ok  apps: {apps:?}");
-    ensure!(
-        apps.contains(&("Firefox".to_string(), 1)),
-        "apps() missing Firefox"
-    );
+    ensure!(apps.contains(&("Firefox".to_string(), 1)), "apps() missing Firefox");
 
     // Edits must keep the FTS index in step (update triggers).
     db.set_text(code, "Scrolling demo")?;
-    check(
-        "after set_text: 'captur' gone",
-        &db.search(&query("captur"))?,
-        &[],
-    )?;
-    check(
-        "after set_text: 'scroll' found",
-        &db.search(&query("scroll"))?,
-        &[code],
-    )?;
+    check("after set_text: 'captur' gone", &db.search(&query("captur"))?, &[])?;
+    check("after set_text: 'scroll' found", &db.search(&query("scroll"))?, &[code])?;
 
     db.set_tags(old, &["Archive".into(), "  ".into(), "archive".into()])?;
-    ensure!(
-        db.get(old)?.map(|e| e.tags) == Some(vec!["Archive".to_string()]),
-        "tags not normalised"
-    );
-    check(
-        "tag 'archive' found",
-        &db.search(&query("archive"))?,
-        &[old],
-    )?;
+    ensure!(db.get(old)?.map(|e| e.tags) == Some(vec!["Archive".to_string()]), "tags not normalised");
+    check("tag 'archive' found", &db.search(&query("archive"))?, &[old])?;
 
     db.add_link(
         ru,
-        &LinkRecord {
-            url: "https://example.com/s/abc".into(),
-            destination: "self-hosted".into(),
-            delete_url: None,
-            created_ms: now_ms(),
-        },
+        &LinkRecord { url: "https://example.com/s/abc".into(), destination: "self-hosted".into(), delete_url: None, created_ms: now_ms() },
     )?;
-    ensure!(
-        db.get(ru)?.is_some_and(|e| e.links.len() == 1),
-        "link not stored"
-    );
+    ensure!(db.get(ru)?.is_some_and(|e| e.links.len() == 1), "link not stored");
     println!("ok  link attached to {ru}");
 
     db.set_favorite(code, true)?;
-    let favs = Query {
-        favorites: true,
-        ..Default::default()
-    };
+    let favs = Query { favorites: true, ..Default::default() };
     check("favorites only", &db.search(&favs)?, &[code])?;
 
     let missing = CaptureId("does-not-exist".into());
-    ensure!(
-        matches!(db.set_text(&missing, "x"), Err(Error::NotFound(_))),
-        "missing id must be NotFound"
-    );
+    ensure!(matches!(db.set_text(&missing, "x"), Err(Error::NotFound(_))), "missing id must be NotFound");
 
     // Retention: only the 60-day-old capture goes. Its image file stays.
-    let old_thumb = db
-        .get(old)?
-        .and_then(|e| e.thumb)
-        .context("old entry has no thumbnail")?;
+    let old_thumb = db.get(old)?.and_then(|e| e.thumb).context("old entry has no thumbnail")?;
     ensure!(old_thumb.exists(), "thumbnail should exist before purge");
     let purged = db.purge(30)?;
-    ensure!(
-        purged == 1,
-        "purge(30) should remove 1 entry, removed {purged}"
-    );
+    ensure!(purged == 1, "purge(30) should remove 1 entry, removed {purged}");
     ensure!(!old_thumb.exists(), "purge should delete the thumbnail");
     ensure!(db.count()? == 2, "2 rows should remain after purge");
-    println!(
-        "ok  purge(30) removed {purged} entry, thumbnail {}",
-        old_thumb.display()
-    );
+    println!("ok  purge(30) removed {purged} entry, thumbnail {}", old_thumb.display());
 
     // Deleting with delete_files removes the image; without it, only the thumbnail goes.
-    let code_file = db
-        .get(code)?
-        .and_then(|e| e.file)
-        .context("code entry has no file")?;
+    let code_file = db.get(code)?.and_then(|e| e.file).context("code entry has no file")?;
     db.delete(code, true)?;
-    ensure!(
-        !code_file.exists(),
-        "delete(_, true) should remove the image"
-    );
-    check(
-        "after delete: 'scrolling' gone",
-        &db.search(&query("scrolling"))?,
-        &[],
-    )?;
+    ensure!(!code_file.exists(), "delete(_, true) should remove the image");
+    check("after delete: 'scrolling' gone", &db.search(&query("scrolling"))?, &[])?;
 
-    let ru_file = db
-        .get(ru)?
-        .and_then(|e| e.file)
-        .context("ru entry has no file")?;
-    let ru_thumb = db
-        .get(ru)?
-        .and_then(|e| e.thumb)
-        .context("ru entry has no thumbnail")?;
+    let ru_file = db.get(ru)?.and_then(|e| e.file).context("ru entry has no file")?;
+    let ru_thumb = db.get(ru)?.and_then(|e| e.thumb).context("ru entry has no thumbnail")?;
     db.delete(ru, false)?;
     ensure!(ru_file.exists(), "delete(_, false) must keep the image");
     ensure!(!ru_thumb.exists(), "delete should remove the thumbnail");
     ensure!(db.count()? == 0, "database should be empty");
     ensure!(db.get(ru)?.is_none(), "deleted entry still present");
-    println!(
-        "ok  delete: image kept = {}, thumbnail removed",
-        ru_file.display()
-    );
+    println!("ok  delete: image kept = {}, thumbnail removed", ru_file.display());
 
     println!("all snap-history smoke checks passed");
     Ok(())

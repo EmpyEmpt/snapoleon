@@ -9,7 +9,9 @@ pub enum Layout {
     Horizontal,
     Vertical,
     /// Row-major grid with `cols` columns (at least 1).
-    Grid { cols: u32 },
+    Grid {
+        cols: u32,
+    },
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]

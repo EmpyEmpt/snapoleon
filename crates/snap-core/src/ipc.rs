@@ -24,11 +24,20 @@ pub enum Request {
         monitor: Option<usize>,
     },
     /// Open a file (image or `.snap` project) in the editor.
-    Edit { path: String },
-    Pin { path: String },
+    Edit {
+        path: String,
+    },
+    Pin {
+        path: String,
+    },
     /// Run a pipeline over an existing image file.
-    Process { path: String, pipeline: String },
-    ShowWindow { window: AppWindow },
+    Process {
+        path: String,
+        pipeline: String,
+    },
+    ShowWindow {
+        window: AppWindow,
+    },
     ReloadSettings,
     Quit,
 }
@@ -68,9 +77,7 @@ pub fn parse_url(url: &str) -> Option<Request> {
     let rest = url.strip_prefix(&format!("{}://", crate::URL_SCHEME))?;
     let (path, query) = rest.split_once('?').unwrap_or((rest, ""));
     let path = path.trim_matches('/');
-    let param = |k: &str| {
-        query.split('&').find_map(|kv| kv.split_once('=').filter(|(a, _)| *a == k).map(|(_, v)| percent_decode(v)))
-    };
+    let param = |k: &str| query.split('&').find_map(|kv| kv.split_once('=').filter(|(a, _)| *a == k).map(|(_, v)| percent_decode(v)));
     match path {
         "edit" => Some(Request::Edit { path: param("path")? }),
         "pin" => Some(Request::Pin { path: param("path")? }),

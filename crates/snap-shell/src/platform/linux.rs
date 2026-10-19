@@ -15,12 +15,7 @@ use crate::WindowSpec;
 /// Window managers may round or clamp placements by a pixel.
 pub(crate) const COVER_TOLERANCE: i32 = 1;
 
-pub(crate) fn window_attributes(
-    el: &ActiveEventLoop,
-    mut attrs: WindowAttributes,
-    spec: &WindowSpec,
-    app_id: &str,
-) -> WindowAttributes {
+pub(crate) fn window_attributes(el: &ActiveEventLoop, mut attrs: WindowAttributes, spec: &WindowSpec, app_id: &str) -> WindowAttributes {
     attrs = attrs.with_name(app_id, app_id);
     if spec.is_tool() {
         attrs = attrs.with_x11_window_type(vec![WindowType::Utility]);

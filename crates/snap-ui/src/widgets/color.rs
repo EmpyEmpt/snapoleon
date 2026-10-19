@@ -1,9 +1,8 @@
 //! Color swatches with a custom-color popover (HSV picker), plus the inline picker itself.
 
 use egui::{
-    Color32, ColorImage, Context, Frame, Id, Margin, Popup, PopupCloseBehavior, Pos2, Rect,
-    Response, Sense, Stroke, StrokeKind, TextureHandle, TextureOptions, Ui, Vec2, Widget,
-    ecolor::Hsva, epaint::RectShape,
+    Color32, ColorImage, Context, Frame, Id, Margin, Popup, PopupCloseBehavior, Pos2, Rect, Response, Sense, Stroke, StrokeKind,
+    TextureHandle, TextureOptions, Ui, Vec2, Widget, ecolor::Hsva, epaint::RectShape,
 };
 use snap_core::t;
 
@@ -44,11 +43,7 @@ pub struct ColorSwatches<'a> {
 
 impl<'a> ColorSwatches<'a> {
     pub fn new(color: &'a mut [u8; 4], palette: &'a [[u8; 4]]) -> Self {
-        Self {
-            color,
-            palette,
-            alpha: true,
-        }
+        Self { color, palette, alpha: true }
     }
 
     /// Whether the custom popover offers an opacity slider (default on).
@@ -69,28 +64,11 @@ impl Widget for ColorSwatches<'_> {
                 for &c in self.palette {
                     let (rect, resp) = ui.allocate_exact_size(Vec2::splat(CELL), Sense::click());
                     resp.widget_info(|| {
-                        egui::WidgetInfo::selected(
-                            egui::Role::RadioButton,
-                            ui.is_enabled(),
-                            c == *self.color,
-                            hex_string(c, true),
-                        )
+                        egui::WidgetInfo::selected(egui::Role::RadioButton, ui.is_enabled(), c == *self.color, hex_string(c, true))
                     });
                     if ui.is_rect_visible(rect) {
-                        paint_swatch(
-                            ui,
-                            rect.center(),
-                            c,
-                            c == *self.color,
-                            hover_anim(ui, &resp),
-                            &p,
-                        );
-                        focus_ring(
-                            ui,
-                            &resp,
-                            Rect::from_center_size(rect.center(), Vec2::splat(SWATCH + 4.0)),
-                            (SWATCH + 4.0) / 2.0,
-                        );
+                        paint_swatch(ui, rect.center(), c, c == *self.color, hover_anim(ui, &resp), &p);
+                        focus_ring(ui, &resp, Rect::from_center_size(rect.center(), Vec2::splat(SWATCH + 4.0)), (SWATCH + 4.0) / 2.0);
                     }
                     if resp.clicked() && c != *self.color {
                         *self.color = c;
@@ -117,13 +95,7 @@ fn paint_swatch(ui: &Ui, center: Pos2, c: [u8; 4], selected: bool, hover: f32, p
     let fill = Color32::from_rgba_unmultiplied(c[0], c[1], c[2], c[3]);
     if c[3] == 0 {
         painter.circle_filled(center, r, p.surface_2);
-        painter.line_segment(
-            [
-                center + Vec2::new(-r * 0.6, r * 0.6),
-                center + Vec2::new(r * 0.6, -r * 0.6),
-            ],
-            Stroke::new(1.5, p.danger),
-        );
+        painter.line_segment([center + Vec2::new(-r * 0.6, r * 0.6), center + Vec2::new(r * 0.6, -r * 0.6)], Stroke::new(1.5, p.danger));
     } else {
         painter.circle_filled(center, r, fill);
     }
@@ -131,67 +103,37 @@ fn paint_swatch(ui: &Ui, center: Pos2, c: [u8; 4], selected: bool, hover: f32, p
     painter.circle_stroke(
         center,
         r - 0.5,
-        Stroke::new(
-            1.0,
-            if p.dark {
-                Color32::from_white_alpha(40)
-            } else {
-                Color32::from_black_alpha(36)
-            },
-        ),
+        Stroke::new(1.0, if p.dark { Color32::from_white_alpha(40) } else { Color32::from_black_alpha(36) }),
     );
     if selected {
         painter.circle_stroke(center, r + 3.0, Stroke::new(2.0, p.accent));
     } else if hover > 0.0 {
-        painter.circle_stroke(
-            center,
-            r + 2.5,
-            Stroke::new(1.5, with_alpha(p.text_faint, hover)),
-        );
+        painter.circle_stroke(center, r + 2.5, Stroke::new(1.5, with_alpha(p.text_faint, hover)));
     }
 }
 
 /// Conic "custom" well; returns true when the color changed.
 fn custom_well(ui: &mut Ui, color: &mut [u8; 4], selected: bool, alpha: bool, p: &Palette) -> bool {
     let (rect, resp) = ui.allocate_exact_size(Vec2::splat(CELL), Sense::click());
-    resp.widget_info(|| {
-        egui::WidgetInfo::labeled(egui::Role::Button, ui.is_enabled(), t("ui.color.custom"))
-    });
+    resp.widget_info(|| egui::WidgetInfo::labeled(egui::Role::Button, ui.is_enabled(), t("ui.color.custom")));
     if ui.is_rect_visible(rect) {
         let hover = hover_anim(ui, &resp);
         let tex = hue_wheel(ui.ctx());
         let r = SWATCH / 2.0;
         let wheel = Rect::from_center_size(rect.center(), Vec2::splat(SWATCH));
         ui.painter()
-            .add(RectShape::filled(wheel, r, Color32::WHITE).with_texture(
-                tex.id(),
-                Rect::from_min_max(Pos2::ZERO, Pos2::new(1.0, 1.0)),
-            ));
-        let inner = if selected {
-            Color32::from_rgba_unmultiplied(color[0], color[1], color[2], 255)
-        } else {
-            p.surface
-        };
+            .add(RectShape::filled(wheel, r, Color32::WHITE).with_texture(tex.id(), Rect::from_min_max(Pos2::ZERO, Pos2::new(1.0, 1.0))));
+        let inner = if selected { Color32::from_rgba_unmultiplied(color[0], color[1], color[2], 255) } else { p.surface };
         ui.painter().circle_filled(rect.center(), r - 4.5, inner);
         if !selected {
             util::paint_icon(ui, rect.center(), icon::PLUS, 9.0, p.text_dim);
         }
         if selected {
-            ui.painter()
-                .circle_stroke(rect.center(), r + 3.0, Stroke::new(2.0, p.accent));
+            ui.painter().circle_stroke(rect.center(), r + 3.0, Stroke::new(2.0, p.accent));
         } else if hover > 0.0 {
-            ui.painter().circle_stroke(
-                rect.center(),
-                r + 2.5,
-                Stroke::new(1.5, with_alpha(p.text_faint, hover)),
-            );
+            ui.painter().circle_stroke(rect.center(), r + 2.5, Stroke::new(1.5, with_alpha(p.text_faint, hover)));
         }
-        focus_ring(
-            ui,
-            &resp,
-            Rect::from_center_size(rect.center(), Vec2::splat(SWATCH + 4.0)),
-            (SWATCH + 4.0) / 2.0,
-        );
+        focus_ring(ui, &resp, Rect::from_center_size(rect.center(), Vec2::splat(SWATCH + 4.0)), (SWATCH + 4.0) / 2.0);
     }
 
     let mut changed = false;
@@ -229,8 +171,7 @@ pub fn color_picker(ui: &mut Ui, color: &mut [u8; 4], alpha: bool) -> Response {
             ui.spacing_mut().item_spacing.y = 10.0;
 
             // Saturation / value field.
-            let (sv_rect, sv) =
-                ui.allocate_exact_size(Vec2::new(PICKER_W, 132.0), Sense::click_and_drag());
+            let (sv_rect, sv) = ui.allocate_exact_size(Vec2::new(PICKER_W, 132.0), Sense::click_and_drag());
             if let Some(pos) = sv.interact_pointer_pos()
                 && (sv.dragged() || sv.is_pointer_button_down_on())
             {
@@ -239,21 +180,10 @@ pub fn color_picker(ui: &mut Ui, color: &mut [u8; 4], alpha: bool) -> Response {
                 changed = true;
             }
             let tex = sv_texture(ui.ctx(), hsva.h);
-            ui.painter().add(
-                RectShape::filled(sv_rect, 8.0, Color32::WHITE).with_texture(tex.id(), unit_uv()),
-            );
-            ui.painter().rect_stroke(
-                sv_rect,
-                8.0,
-                Stroke::new(1.0, with_alpha(Color32::BLACK, 0.18)),
-                StrokeKind::Inside,
-            );
-            let knob = Pos2::new(
-                sv_rect.left() + hsva.s * sv_rect.width(),
-                sv_rect.top() + (1.0 - hsva.v) * sv_rect.height(),
-            );
-            let knob_fill =
-                Color32::from_rgb(hsva.to_srgb()[0], hsva.to_srgb()[1], hsva.to_srgb()[2]);
+            ui.painter().add(RectShape::filled(sv_rect, 8.0, Color32::WHITE).with_texture(tex.id(), unit_uv()));
+            ui.painter().rect_stroke(sv_rect, 8.0, Stroke::new(1.0, with_alpha(Color32::BLACK, 0.18)), StrokeKind::Inside);
+            let knob = Pos2::new(sv_rect.left() + hsva.s * sv_rect.width(), sv_rect.top() + (1.0 - hsva.v) * sv_rect.height());
+            let knob_fill = Color32::from_rgb(hsva.to_srgb()[0], hsva.to_srgb()[1], hsva.to_srgb()[2]);
             let painter = ui.painter();
             painter.circle_filled(knob, 7.0, knob_fill);
             painter.circle_stroke(knob, 7.0, Stroke::new(2.0, Color32::WHITE));
@@ -267,13 +197,7 @@ pub fn color_picker(ui: &mut Ui, color: &mut [u8; 4], alpha: bool) -> Response {
                 let base = Hsva { a: 1.0, ..hsva };
                 let tex = alpha_texture(ui.ctx(), base.to_srgb());
                 let mut a = hsva.a;
-                if bar(
-                    ui,
-                    &mut a,
-                    &tex,
-                    Some(base.to_srgb()),
-                    Some(t("ui.color.opacity").into_owned()),
-                ) {
+                if bar(ui, &mut a, &tex, Some(base.to_srgb()), Some(t("ui.color.opacity").into_owned())) {
                     hsva.a = a;
                     changed = true;
                 }
@@ -282,52 +206,31 @@ pub fn color_picker(ui: &mut Ui, color: &mut [u8; 4], alpha: bool) -> Response {
             // Hex input and preview.
             ui.horizontal(|ui| {
                 ui.spacing_mut().item_spacing.x = 8.0;
-                let (preview, _) =
-                    ui.allocate_exact_size(Vec2::splat(util::control_height(ui)), Sense::hover());
+                let (preview, _) = ui.allocate_exact_size(Vec2::splat(util::control_height(ui)), Sense::hover());
                 let [r, g, b, a] = hsva.to_srgba_unmultiplied();
                 if a < 255 {
                     let tex = checker_texture(ui.ctx());
                     ui.painter().add(
-                        RectShape::filled(preview, 8.0, Color32::WHITE).with_texture(
-                            tex.id(),
-                            Rect::from_min_max(Pos2::ZERO, Pos2::new(2.0, 2.0)),
-                        ),
+                        RectShape::filled(preview, 8.0, Color32::WHITE)
+                            .with_texture(tex.id(), Rect::from_min_max(Pos2::ZERO, Pos2::new(2.0, 2.0))),
                     );
                 }
-                ui.painter()
-                    .rect_filled(preview, 8.0, Color32::from_rgba_unmultiplied(r, g, b, a));
-                ui.painter().rect_stroke(
-                    preview,
-                    8.0,
-                    Stroke::new(1.0, p.border),
-                    StrokeKind::Inside,
-                );
+                ui.painter().rect_filled(preview, 8.0, Color32::from_rgba_unmultiplied(r, g, b, a));
+                ui.painter().rect_stroke(preview, 8.0, Stroke::new(1.0, p.border), StrokeKind::Inside);
 
                 let hex_id = id.with("hex");
-                let mut s = ui
-                    .data(|d| d.get_temp::<String>(hex_id))
-                    .unwrap_or_default();
+                let mut s = ui.data(|d| d.get_temp::<String>(hex_id)).unwrap_or_default();
                 let editing = ui.memory(|m| m.has_focus(hex_id.with("edit")));
                 if !editing {
                     s = hex_string(hsva.to_srgba_unmultiplied(), alpha);
                 }
                 let before = s.clone();
-                let field = ui.add(
-                    TextField::new(&mut s)
-                        .mono(true)
-                        .width(ui.available_width())
-                        .hint(&t("ui.color.hex")),
-                );
+                let field = ui.add(TextField::new(&mut s).mono(true).width(ui.available_width()).hint(&t("ui.color.hex")));
                 if field.changed()
                     && s != before
                     && let Some(c) = parse_color(&s)
                 {
-                    hsva = Hsva::from_srgba_unmultiplied([
-                        c[0],
-                        c[1],
-                        c[2],
-                        if alpha { c[3] } else { 255 },
-                    ]);
+                    hsva = Hsva::from_srgba_unmultiplied([c[0], c[1], c[2], if alpha { c[3] } else { 255 }]);
                     changed = true;
                 }
                 ui.data_mut(|d| d.insert_temp(hex_id, s));
@@ -344,13 +247,7 @@ pub fn color_picker(ui: &mut Ui, color: &mut [u8; 4], alpha: bool) -> Response {
 }
 
 /// A 12 px gradient bar with a round handle. `value` is 0..1 (hue or alpha); returns true when it changed.
-fn bar(
-    ui: &mut Ui,
-    value: &mut f32,
-    tex: &TextureHandle,
-    handle_fill: Option<[u8; 3]>,
-    tip: Option<String>,
-) -> bool {
+fn bar(ui: &mut Ui, value: &mut f32, tex: &TextureHandle, handle_fill: Option<[u8; 3]>, tip: Option<String>) -> bool {
     let (rect, resp) = ui.allocate_exact_size(Vec2::new(PICKER_W, 14.0), Sense::click_and_drag());
     if let Some(tip) = tip {
         resp.clone().on_hover_text(tip);
@@ -364,14 +261,8 @@ fn bar(
         changed = true;
     }
     let track = rect.shrink2(Vec2::new(0.0, 1.0));
-    ui.painter()
-        .add(RectShape::filled(track, 6.0, Color32::WHITE).with_texture(tex.id(), unit_uv()));
-    ui.painter().rect_stroke(
-        track,
-        6.0,
-        Stroke::new(1.0, with_alpha(Color32::BLACK, 0.16)),
-        StrokeKind::Inside,
-    );
+    ui.painter().add(RectShape::filled(track, 6.0, Color32::WHITE).with_texture(tex.id(), unit_uv()));
+    ui.painter().rect_stroke(track, 6.0, Stroke::new(1.0, with_alpha(Color32::BLACK, 0.16)), StrokeKind::Inside);
     let cx = rect.left() + r + *value * (rect.width() - 2.0 * r);
     let center = Pos2::new(cx, rect.center().y);
     let fill = match handle_fill {
@@ -381,11 +272,7 @@ fn bar(
             Color32::from_rgb(c[0], c[1], c[2])
         }
     };
-    ui.painter().circle_filled(
-        center + Vec2::new(0.0, 1.0),
-        r,
-        Color32::from_black_alpha(60),
-    );
+    ui.painter().circle_filled(center + Vec2::new(0.0, 1.0), r, Color32::from_black_alpha(60));
     ui.painter().circle_filled(center, r, Color32::WHITE);
     ui.painter().circle_filled(center, r - 2.5, fill);
     changed
@@ -395,13 +282,7 @@ fn unit_uv() -> Rect {
     Rect::from_min_max(Pos2::ZERO, Pos2::new(1.0, 1.0))
 }
 
-fn load(
-    ctx: &Context,
-    key: &str,
-    id: Id,
-    image: ColorImage,
-    options: TextureOptions,
-) -> TextureHandle {
+fn load(ctx: &Context, key: &str, id: Id, image: ColorImage, options: TextureOptions) -> TextureHandle {
     ctx.load_texture_cached(key, id, image, options)
 }
 
@@ -415,21 +296,10 @@ fn hue_wheel(ctx: &Context) -> TextureHandle {
             let angle = dy.atan2(dx) / std::f32::consts::TAU + 0.5;
             let edge = (c + 0.5 - (dx * dx + dy * dy).sqrt()).clamp(0.0, 1.0);
             let [r, g, b] = Hsva::new(angle, 0.78, 1.0, 1.0).to_srgb();
-            pixels.push(Color32::from_rgba_unmultiplied(
-                r,
-                g,
-                b,
-                (edge * 255.0) as u8,
-            ));
+            pixels.push(Color32::from_rgba_unmultiplied(r, g, b, (edge * 255.0) as u8));
         }
     }
-    load(
-        ctx,
-        "snap-ui/hue-wheel",
-        Id::unique("snap-ui/hue-wheel"),
-        ColorImage::new([N, N], pixels),
-        TextureOptions::LINEAR,
-    )
+    load(ctx, "snap-ui/hue-wheel", Id::unique("snap-ui/hue-wheel"), ColorImage::new([N, N], pixels), TextureOptions::LINEAR)
 }
 
 fn hue_texture(ctx: &Context) -> TextureHandle {
@@ -440,13 +310,7 @@ fn hue_texture(ctx: &Context) -> TextureHandle {
             Color32::from_rgb(r, g, b)
         })
         .collect();
-    load(
-        ctx,
-        "snap-ui/hue-bar",
-        Id::unique("snap-ui/hue-bar"),
-        ColorImage::new([N, 1], pixels),
-        TextureOptions::LINEAR,
-    )
+    load(ctx, "snap-ui/hue-bar", Id::unique("snap-ui/hue-bar"), ColorImage::new([N, 1], pixels), TextureOptions::LINEAR)
 }
 
 fn sv_texture(ctx: &Context, hue: f32) -> TextureHandle {
@@ -455,23 +319,11 @@ fn sv_texture(ctx: &Context, hue: f32) -> TextureHandle {
     let mut pixels = Vec::with_capacity(W * H);
     for y in 0..H {
         for x in 0..W {
-            let [r, g, b] = Hsva::new(
-                hue,
-                x as f32 / (W - 1) as f32,
-                1.0 - y as f32 / (H - 1) as f32,
-                1.0,
-            )
-            .to_srgb();
+            let [r, g, b] = Hsva::new(hue, x as f32 / (W - 1) as f32, 1.0 - y as f32 / (H - 1) as f32, 1.0).to_srgb();
             pixels.push(Color32::from_rgb(r, g, b));
         }
     }
-    load(
-        ctx,
-        "snap-ui/sv",
-        Id::unique("snap-ui/sv"),
-        ColorImage::new([W, H], pixels),
-        TextureOptions::LINEAR,
-    )
+    load(ctx, "snap-ui/sv", Id::unique("snap-ui/sv"), ColorImage::new([W, H], pixels), TextureOptions::LINEAR)
 }
 
 /// Opacity bar: checkerboard under a transparent→opaque ramp of `rgb`, baked at 2x for crisp checks.
@@ -488,29 +340,14 @@ fn alpha_texture(ctx: &Context, rgb: [u8; 3]) -> TextureHandle {
             pixels.push(Color32::from_rgb(mix(rgb[0]), mix(rgb[1]), mix(rgb[2])));
         }
     }
-    load(
-        ctx,
-        "snap-ui/alpha-bar",
-        Id::unique("snap-ui/alpha-bar"),
-        ColorImage::new([W, H], pixels),
-        TextureOptions::LINEAR,
-    )
+    load(ctx, "snap-ui/alpha-bar", Id::unique("snap-ui/alpha-bar"), ColorImage::new([W, H], pixels), TextureOptions::LINEAR)
 }
 
 /// 2x2 checkerboard repeated by UVs in 0..2.
 fn checker_texture(ctx: &Context) -> TextureHandle {
     let (a, b) = (Color32::from_gray(255), Color32::from_gray(204));
-    let options = TextureOptions {
-        wrap_mode: egui::TextureWrapMode::Repeat,
-        ..TextureOptions::NEAREST
-    };
-    load(
-        ctx,
-        "snap-ui/checker",
-        Id::unique("snap-ui/checker"),
-        ColorImage::new([2, 2], vec![a, b, b, a]),
-        options,
-    )
+    let options = TextureOptions { wrap_mode: egui::TextureWrapMode::Repeat, ..TextureOptions::NEAREST };
+    load(ctx, "snap-ui/checker", Id::unique("snap-ui/checker"), ColorImage::new([2, 2], vec![a, b, b, a]), options)
 }
 
 /// `#RRGGBB`, or `#RRGGBBAA` when `alpha` and the color is translucent.

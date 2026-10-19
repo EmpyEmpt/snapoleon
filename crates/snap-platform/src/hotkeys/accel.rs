@@ -85,29 +85,98 @@ fn is_typing_key(key: Code) -> bool {
     function_key_index(key).is_none()
         && !matches!(
             key,
-            Code::PrintScreen | Code::ScrollLock | Code::Pause | Code::Insert | Code::Delete | Code::Home | Code::End | Code::PageUp | Code::PageDown
+            Code::PrintScreen
+                | Code::ScrollLock
+                | Code::Pause
+                | Code::Insert
+                | Code::Delete
+                | Code::Home
+                | Code::End
+                | Code::PageUp
+                | Code::PageDown
         )
 }
 
 const LETTERS: [Code; 26] = [
-    Code::KeyA, Code::KeyB, Code::KeyC, Code::KeyD, Code::KeyE, Code::KeyF, Code::KeyG, Code::KeyH, Code::KeyI,
-    Code::KeyJ, Code::KeyK, Code::KeyL, Code::KeyM, Code::KeyN, Code::KeyO, Code::KeyP, Code::KeyQ, Code::KeyR,
-    Code::KeyS, Code::KeyT, Code::KeyU, Code::KeyV, Code::KeyW, Code::KeyX, Code::KeyY, Code::KeyZ,
+    Code::KeyA,
+    Code::KeyB,
+    Code::KeyC,
+    Code::KeyD,
+    Code::KeyE,
+    Code::KeyF,
+    Code::KeyG,
+    Code::KeyH,
+    Code::KeyI,
+    Code::KeyJ,
+    Code::KeyK,
+    Code::KeyL,
+    Code::KeyM,
+    Code::KeyN,
+    Code::KeyO,
+    Code::KeyP,
+    Code::KeyQ,
+    Code::KeyR,
+    Code::KeyS,
+    Code::KeyT,
+    Code::KeyU,
+    Code::KeyV,
+    Code::KeyW,
+    Code::KeyX,
+    Code::KeyY,
+    Code::KeyZ,
 ];
 
 const DIGITS: [Code; 10] = [
-    Code::Digit0, Code::Digit1, Code::Digit2, Code::Digit3, Code::Digit4,
-    Code::Digit5, Code::Digit6, Code::Digit7, Code::Digit8, Code::Digit9,
+    Code::Digit0,
+    Code::Digit1,
+    Code::Digit2,
+    Code::Digit3,
+    Code::Digit4,
+    Code::Digit5,
+    Code::Digit6,
+    Code::Digit7,
+    Code::Digit8,
+    Code::Digit9,
 ];
 
 const NUMPAD_DIGITS: [Code; 10] = [
-    Code::Numpad0, Code::Numpad1, Code::Numpad2, Code::Numpad3, Code::Numpad4,
-    Code::Numpad5, Code::Numpad6, Code::Numpad7, Code::Numpad8, Code::Numpad9,
+    Code::Numpad0,
+    Code::Numpad1,
+    Code::Numpad2,
+    Code::Numpad3,
+    Code::Numpad4,
+    Code::Numpad5,
+    Code::Numpad6,
+    Code::Numpad7,
+    Code::Numpad8,
+    Code::Numpad9,
 ];
 
 const FUNCTION_KEYS: [Code; 24] = [
-    Code::F1, Code::F2, Code::F3, Code::F4, Code::F5, Code::F6, Code::F7, Code::F8, Code::F9, Code::F10, Code::F11, Code::F12,
-    Code::F13, Code::F14, Code::F15, Code::F16, Code::F17, Code::F18, Code::F19, Code::F20, Code::F21, Code::F22, Code::F23, Code::F24,
+    Code::F1,
+    Code::F2,
+    Code::F3,
+    Code::F4,
+    Code::F5,
+    Code::F6,
+    Code::F7,
+    Code::F8,
+    Code::F9,
+    Code::F10,
+    Code::F11,
+    Code::F12,
+    Code::F13,
+    Code::F14,
+    Code::F15,
+    Code::F16,
+    Code::F17,
+    Code::F18,
+    Code::F19,
+    Code::F20,
+    Code::F21,
+    Code::F22,
+    Code::F23,
+    Code::F24,
 ];
 
 /// Canonical name, accepted lower-case aliases.

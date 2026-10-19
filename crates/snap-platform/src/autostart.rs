@@ -52,10 +52,7 @@ mod imp {
 
     pub fn get() -> bool {
         let hkcu = RegKey::predef(HKEY_CURRENT_USER);
-        let present = hkcu
-            .open_subkey_with_flags(RUN, KEY_READ)
-            .and_then(|k| k.get_value::<String, _>(APP_NAME))
-            .is_ok();
+        let present = hkcu.open_subkey_with_flags(RUN, KEY_READ).and_then(|k| k.get_value::<String, _>(APP_NAME)).is_ok();
         if !present {
             return false;
         }

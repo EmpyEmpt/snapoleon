@@ -59,10 +59,7 @@ impl RateLimiter {
         let now = Instant::now();
         let mut hits = self.hits.lock();
         if hits.len() > 20_000 {
-            hits.retain(|_, q| {
-                q.back()
-                    .is_some_and(|t| now.duration_since(*t) < Duration::from_secs(3600))
-            });
+            hits.retain(|_, q| q.back().is_some_and(|t| now.duration_since(*t) < Duration::from_secs(3600)));
         }
         let q = hits.entry(key.to_string()).or_default();
         while q.front().is_some_and(|t| now.duration_since(*t) >= window) {
@@ -76,11 +73,7 @@ impl RateLimiter {
     }
 
     pub fn check(&self, key: &str, max: usize, window: Duration) -> Result<(), AppError> {
-        if self.allow(key, max, window) {
-            Ok(())
-        } else {
-            Err(AppError::TooManyRequests)
-        }
+        if self.allow(key, max, window) { Ok(()) } else { Err(AppError::TooManyRequests) }
     }
 }
 
@@ -125,46 +118,20 @@ impl Client {
 }
 
 fn forwarded_ip(headers: &HeaderMap) -> Option<String> {
-    let get = |name: &str| {
-        headers
-            .get(name)
-            .and_then(|v| v.to_str().ok())
-            .map(str::trim)
-            .filter(|v| !v.is_empty())
-    };
+    let get = |name: &str| headers.get(name).and_then(|v| v.to_str().ok()).map(str::trim).filter(|v| !v.is_empty());
     get("cf-connecting-ip")
         .or_else(|| get("x-real-ip"))
-        .or_else(|| {
-            get("x-forwarded-for")
-                .and_then(|v| v.rsplit(',').next())
-                .map(str::trim)
-        })
+        .or_else(|| get("x-forwarded-for").and_then(|v| v.rsplit(',').next()).map(str::trim))
         .map(str::to_string)
 }
 
 impl FromRequestParts<AppState> for Client {
     type Rejection = std::convert::Infallible;
 
-    async fn from_request_parts(
-        parts: &mut Parts,
-        state: &AppState,
-    ) -> Result<Self, Self::Rejection> {
-        let peer = parts
-            .extensions
-            .get::<ConnectInfo<SocketAddr>>()
-            .map(|c| c.0.ip().to_string())
-            .unwrap_or_default();
-        let ip = if state.cfg.trust_proxy {
-            forwarded_ip(&parts.headers).unwrap_or(peer)
-        } else {
-            peer
-        };
-        let user_agent = parts
-            .headers
-            .get(header::USER_AGENT)
-            .and_then(|v| v.to_str().ok())
-            .unwrap_or_default()
-            .to_string();
+    async fn from_request_parts(parts: &mut Parts, state: &AppState) -> Result<Self, Self::Rejection> {
+        let peer = parts.extensions.get::<ConnectInfo<SocketAddr>>().map(|c| c.0.ip().to_string()).unwrap_or_default();
+        let ip = if state.cfg.trust_proxy { forwarded_ip(&parts.headers).unwrap_or(peer) } else { peer };
+        let user_agent = parts.headers.get(header::USER_AGENT).and_then(|v| v.to_str().ok()).unwrap_or_default().to_string();
         Ok(Client { ip, user_agent })
     }
 }

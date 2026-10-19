@@ -5,7 +5,10 @@
 
 use std::{path::PathBuf, time::Duration};
 
-use snap_core::{Rect, settings::{EncoderPref, VideoFormat}};
+use snap_core::{
+    Rect,
+    settings::{EncoderPref, VideoFormat},
+};
 use snap_record::{RecordOptions, RecordTarget, edit};
 
 fn options(target: RecordTarget, format: VideoFormat, fps: u32, output: PathBuf) -> RecordOptions {
@@ -48,7 +51,10 @@ fn wiggle(for_ms: u64) {
 fn report(label: &str, path: &std::path::Path) -> snap_core::Result<()> {
     let info = edit::probe(path)?;
     let bytes = std::fs::metadata(path)?.len();
-    println!("{label}: {} bytes, {} ms, {}x{} @ {:.1} fps, audio={}", bytes, info.duration_ms, info.width, info.height, info.fps, info.has_audio);
+    println!(
+        "{label}: {} bytes, {} ms, {}x{} @ {:.1} fps, audio={}",
+        bytes, info.duration_ms, info.width, info.height, info.fps, info.has_audio
+    );
     Ok(())
 }
 
@@ -139,11 +145,19 @@ fn main() -> snap_core::Result<()> {
     println!("frame_at: {}x{}", thumb.width(), thumb.height());
 
     let gif_from_mp4 = out.join("from_mp4.gif");
-    let size = edit::export(&mp4, &gif_from_mp4, &edit::ExportOptions { format: VideoFormat::Gif, width: Some(480), fps: Some(10), ..Default::default() })?;
+    let size = edit::export(
+        &mp4,
+        &gif_from_mp4,
+        &edit::ExportOptions { format: VideoFormat::Gif, width: Some(480), fps: Some(10), ..Default::default() },
+    )?;
     println!("mp4 -> gif: {size} bytes");
 
     let webp_from_mp4 = out.join("from_mp4.webp");
-    let size = edit::export(&mp4, &webp_from_mp4, &edit::ExportOptions { format: VideoFormat::Webp, width: Some(480), fps: Some(8), range: Some((500, 2000)), ..Default::default() })?;
+    let size = edit::export(
+        &mp4,
+        &webp_from_mp4,
+        &edit::ExportOptions { format: VideoFormat::Webp, width: Some(480), fps: Some(8), range: Some((500, 2000)), ..Default::default() },
+    )?;
     println!("mp4 -> webp: {size} bytes");
 
     // Cancelling removes the partial file.
@@ -155,9 +169,12 @@ fn main() -> snap_core::Result<()> {
 
     // Step-capture slideshow from three differently sized pictures.
     let slide = |w: u32, h: u32, base: [u8; 3]| {
-        image::RgbaImage::from_fn(w, h, |x, y| image::Rgba([base[0].wrapping_add((x * 255 / w) as u8), base[1].wrapping_add((y * 255 / h) as u8), base[2], 255]))
+        image::RgbaImage::from_fn(w, h, |x, y| {
+            image::Rgba([base[0].wrapping_add((x * 255 / w) as u8), base[1].wrapping_add((y * 255 / h) as u8), base[2], 255])
+        })
     };
-    let slides = vec![(slide(1280, 720, [10, 20, 200]), 1200), (slide(800, 800, [200, 30, 30]), 1000), (slide(1920, 1080, [30, 160, 60]), 1200)];
+    let slides =
+        vec![(slide(1280, 720, [10, 20, 200]), 1200), (slide(800, 800, [200, 30, 30]), 1000), (slide(1920, 1080, [30, 160, 60]), 1200)];
     let show = out.join("slides.mp4");
     snap_record::slideshow::render(&slides, &show, 30)?;
     report("slideshow", &show)?;

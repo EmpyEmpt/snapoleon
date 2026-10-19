@@ -36,8 +36,5 @@ pub(crate) fn winit_set_outer_rect(window: &Window, r: Rect) {
     let frame_w = outer.width.saturating_sub(inner.width);
     let frame_h = outer.height.saturating_sub(inner.height);
     window.set_outer_position(PhysicalPosition::new(r.x, r.y));
-    let _ = window.request_inner_size(PhysicalSize::new(
-        r.w.saturating_sub(frame_w).max(1),
-        r.h.saturating_sub(frame_h).max(1),
-    ));
+    let _ = window.request_inner_size(PhysicalSize::new(r.w.saturating_sub(frame_w).max(1), r.h.saturating_sub(frame_h).max(1)));
 }

@@ -41,11 +41,7 @@ pub fn decode(bytes: &[u8]) -> Result<RgbaImage> {
 /// Flatten transparency onto white and encode a small JPEG for lists and previews.
 pub fn thumbnail_jpeg(img: &RgbaImage) -> Result<Vec<u8>> {
     let (w, h) = fit(img.width(), img.height(), THUMB_SIDE, THUMB_SIDE);
-    let small = if (w, h) == (img.width(), img.height()) {
-        img.clone()
-    } else {
-        imageops::resize(img, w, h, FilterType::Triangle)
-    };
+    let small = if (w, h) == (img.width(), img.height()) { img.clone() } else { imageops::resize(img, w, h, FilterType::Triangle) };
     let mut rgb = image::RgbImage::new(w, h);
     for (x, y, p) in small.enumerate_pixels() {
         let a = f32::from(p[3]) / 255.0;
@@ -59,24 +55,14 @@ pub fn thumbnail_jpeg(img: &RgbaImage) -> Result<Vec<u8>> {
 
 pub fn encode_png(img: &RgbaImage) -> Result<Vec<u8>> {
     let mut out = Vec::new();
-    PngEncoder::new(&mut out).write_image(
-        img.as_raw(),
-        img.width(),
-        img.height(),
-        image::ExtendedColorType::Rgba8,
-    )?;
+    PngEncoder::new(&mut out).write_image(img.as_raw(), img.width(), img.height(), image::ExtendedColorType::Rgba8)?;
     Ok(out)
 }
 
 /// Largest size within `max_w` x `max_h` that keeps the aspect ratio (never upscales).
 fn fit(w: u32, h: u32, max_w: u32, max_h: u32) -> (u32, u32) {
-    let scale = (max_w as f32 / w as f32)
-        .min(max_h as f32 / h as f32)
-        .min(1.0);
-    (
-        ((w as f32 * scale).round() as u32).max(1),
-        ((h as f32 * scale).round() as u32).max(1),
-    )
+    let scale = (max_w as f32 / w as f32).min(max_h as f32 / h as f32).min(1.0);
+    (((w as f32 * scale).round() as u32).max(1), ((h as f32 * scale).round() as u32).max(1))
 }
 
 #[derive(Clone, Copy, PartialEq, Eq)]
@@ -106,23 +92,11 @@ fn blend(px: &mut Rgba<u8>, color: [u8; 3], alpha: f32) {
 }
 
 /// Paint `color` where the signed distance function is negative, with a 1px anti-aliased edge.
-fn paint_sdf(
-    img: &mut RgbaImage,
-    x0: i32,
-    y0: i32,
-    x1: i32,
-    y1: i32,
-    color: [u8; 3],
-    sdf: impl Fn(f32, f32) -> f32,
-) {
+fn paint_sdf(img: &mut RgbaImage, x0: i32, y0: i32, x1: i32, y1: i32, color: [u8; 3], sdf: impl Fn(f32, f32) -> f32) {
     for y in y0.max(0)..y1.min(img.height() as i32) {
         for x in x0.max(0)..x1.min(img.width() as i32) {
             let d = sdf(x as f32 + 0.5, y as f32 + 0.5);
-            blend(
-                img.get_pixel_mut(x as u32, y as u32),
-                color,
-                (0.5 - d).clamp(0.0, 1.0),
-            );
+            blend(img.get_pixel_mut(x as u32, y as u32), color, (0.5 - d).clamp(0.0, 1.0));
         }
     }
 }
@@ -130,24 +104,13 @@ fn paint_sdf(
 fn rounded_rect_sdf(x: f32, y: f32, w: f32, h: f32, r: f32) -> impl Fn(f32, f32) -> f32 {
     let (cx, cy) = (x + w / 2.0, y + h / 2.0);
     move |px, py| {
-        let (dx, dy) = (
-            (px - cx).abs() - (w / 2.0 - r),
-            (py - cy).abs() - (h / 2.0 - r),
-        );
+        let (dx, dy) = ((px - cx).abs() - (w / 2.0 - r), (py - cy).abs() - (h / 2.0 - r));
         (dx.max(0.0).powi(2) + dy.max(0.0).powi(2)).sqrt() + dx.max(dy).min(0.0) - r
     }
 }
 
 fn fill_rounded(img: &mut RgbaImage, x: f32, y: f32, w: f32, h: f32, r: f32, color: [u8; 3]) {
-    paint_sdf(
-        img,
-        x as i32 - 1,
-        y as i32 - 1,
-        (x + w) as i32 + 2,
-        (y + h) as i32 + 2,
-        color,
-        rounded_rect_sdf(x, y, w, h, r),
-    );
+    paint_sdf(img, x as i32 - 1, y as i32 - 1, (x + w) as i32 + 2, (y + h) as i32 + 2, color, rounded_rect_sdf(x, y, w, h, r));
 }
 
 fn background() -> RgbaImage {
@@ -157,8 +120,7 @@ fn background() -> RgbaImage {
         for x in 0..OG_WIDTH {
             let mut px = Rgba([0, 0, 0, 255]);
             for i in 0..3 {
-                px[i] =
-                    (f32::from(BG_TOP[i]) * (1.0 - t) + f32::from(BG_BOTTOM[i]) * t).round() as u8;
+                px[i] = (f32::from(BG_TOP[i]) * (1.0 - t) + f32::from(BG_BOTTOM[i]) * t).round() as u8;
             }
             // Soft accent glow in the top-right corner.
             let (dx, dy) = (x as f32 - 1120.0, y as f32 - 20.0);
@@ -186,15 +148,7 @@ fn text_width(font: &FontRef, size: f32, text: &str) -> f32 {
 }
 
 /// Draw one line with its baseline at `y`; returns the advance width.
-fn draw_text(
-    img: &mut RgbaImage,
-    font: &FontRef,
-    size: f32,
-    x: f32,
-    y: f32,
-    color: [u8; 3],
-    text: &str,
-) -> f32 {
+fn draw_text(img: &mut RgbaImage, font: &FontRef, size: f32, x: f32, y: f32, color: [u8; 3], text: &str) -> f32 {
     let scaled = font.as_scaled(PxScale::from(size));
     let mut cursor = x;
     let mut prev = None;
@@ -240,11 +194,7 @@ fn wrap(font: &FontRef, size: f32, text: &str, max_w: f32, max_lines: usize) -> 
     let mut line = String::new();
     let mut overflow = false;
     for word in text.split_whitespace() {
-        let candidate = if line.is_empty() {
-            word.to_string()
-        } else {
-            format!("{line} {word}")
-        };
+        let candidate = if line.is_empty() { word.to_string() } else { format!("{line} {word}") };
         if line.is_empty() || text_width(font, size, &candidate) <= max_w {
             line = candidate;
             continue;
@@ -259,11 +209,7 @@ fn wrap(font: &FontRef, size: f32, text: &str, max_w: f32, max_lines: usize) -> 
         lines.push(line);
     }
     let last = lines.len().saturating_sub(1);
-    lines
-        .into_iter()
-        .enumerate()
-        .map(|(i, l)| shorten(font, size, &l, max_w, overflow && i == last))
-        .collect()
+    lines.into_iter().enumerate().map(|(i, l)| shorten(font, size, &l, max_w, overflow && i == last)).collect()
 }
 
 fn draw_logo(img: &mut RgbaImage, x: f32, y: f32, size: f32) {
@@ -277,15 +223,9 @@ fn draw_logo(img: &mut RgbaImage, x: f32, y: f32, size: f32) {
         (x + m, y + size - m, 1.0, -1.0),
         (x + size - m, y + size - m, -1.0, -1.0),
     ] {
-        let (hx, hy) = (
-            if sx > 0.0 { cx } else { cx - arm },
-            if sy > 0.0 { cy } else { cy - t },
-        );
+        let (hx, hy) = (if sx > 0.0 { cx } else { cx - arm }, if sy > 0.0 { cy } else { cy - t });
         fill_rounded(img, hx, hy, arm, t, t / 2.0, white);
-        let (vx, vy) = (
-            if sx > 0.0 { cx } else { cx - t },
-            if sy > 0.0 { cy } else { cy - arm },
-        );
+        let (vx, vy) = (if sx > 0.0 { cx } else { cx - t }, if sy > 0.0 { cy } else { cy - arm });
         fill_rounded(img, vx, vy, t, arm, t / 2.0, white);
     }
 }
@@ -293,10 +233,7 @@ fn draw_logo(img: &mut RgbaImage, x: f32, y: f32, size: f32) {
 fn draw_shadow(img: &mut RgbaImage, x: f32, y: f32, w: f32, h: f32, r: f32) {
     let pad = 60;
     let (lx, ly) = ((x as i32 - pad).max(0), (y as i32 - pad).max(0));
-    let (lw, lh) = (
-        (w as i32 + 2 * pad).min(OG_WIDTH as i32 - lx) as u32,
-        (h as i32 + 2 * pad + 14).min(OG_HEIGHT as i32 - ly) as u32,
-    );
+    let (lw, lh) = ((w as i32 + 2 * pad).min(OG_WIDTH as i32 - lx) as u32, (h as i32 + 2 * pad + 14).min(OG_HEIGHT as i32 - ly) as u32);
     let mut layer = RgbaImage::new(lw, lh);
     let sdf = rounded_rect_sdf(x - lx as f32, y - ly as f32 + 14.0, w, h, r);
     for py in 0..lh {
@@ -309,11 +246,7 @@ fn draw_shadow(img: &mut RgbaImage, x: f32, y: f32, w: f32, h: f32, r: f32) {
     for py in 0..lh {
         for px in 0..lw {
             let a = f32::from(blurred.get_pixel(px, py)[3]) / 255.0 * 0.55;
-            blend(
-                img.get_pixel_mut(lx as u32 + px, ly as u32 + py),
-                [0, 0, 0],
-                a,
-            );
+            blend(img.get_pixel_mut(lx as u32 + px, ly as u32 + py), [0, 0, 0], a);
         }
     }
 }
@@ -333,15 +266,7 @@ fn draw_hero(img: &mut RgbaImage, card: &Card, area: (f32, f32, f32, f32)) {
             let scaled = imageops::resize(src, w, h, FilterType::Lanczos3);
             let (x, y) = (ax + (aw - w as f32) / 2.0, ay + (ah - h as f32) / 2.0);
             draw_shadow(img, x, y, w as f32, h as f32, 14.0);
-            fill_rounded(
-                img,
-                x - 1.0,
-                y - 1.0,
-                w as f32 + 2.0,
-                h as f32 + 2.0,
-                15.0,
-                BORDER,
-            );
+            fill_rounded(img, x - 1.0, y - 1.0, w as f32 + 2.0, h as f32 + 2.0, 15.0, BORDER);
             let sdf = rounded_rect_sdf(x, y, w as f32, h as f32, 14.0);
             for sy in 0..h {
                 for sx in 0..w {
@@ -364,21 +289,11 @@ fn draw_hero(img: &mut RgbaImage, card: &Card, area: (f32, f32, f32, f32)) {
             match card.hero {
                 Hero::Video => {
                     let r = 62.0;
-                    paint_sdf(
-                        img,
-                        (cx - r) as i32 - 2,
-                        (cy - r) as i32 - 2,
-                        (cx + r) as i32 + 2,
-                        (cy + r) as i32 + 2,
-                        ACCENT,
-                        |x, y| ((x - cx).powi(2) + (y - cy).powi(2)).sqrt() - r,
-                    );
+                    paint_sdf(img, (cx - r) as i32 - 2, (cy - r) as i32 - 2, (cx + r) as i32 + 2, (cy + r) as i32 + 2, ACCENT, |x, y| {
+                        ((x - cx).powi(2) + (y - cy).powi(2)).sqrt() - r
+                    });
                     // Play triangle: edge distances of a right-pointing triangle.
-                    let (p0, p1, p2) = (
-                        (cx - 16.0, cy - 28.0),
-                        (cx - 16.0, cy + 28.0),
-                        (cx + 30.0, cy),
-                    );
+                    let (p0, p1, p2) = ((cx - 16.0, cy - 28.0), (cx - 16.0, cy + 28.0), (cx + 30.0, cy));
                     paint_sdf(
                         img,
                         (cx - 40.0) as i32,
@@ -394,29 +309,15 @@ fn draw_hero(img: &mut RgbaImage, card: &Card, area: (f32, f32, f32, f32)) {
                     let (bx, by) = (cx - bw / 2.0, cy - 8.0);
                     // Shackle: an outlined rounded rectangle whose lower half the body covers.
                     let shackle = rounded_rect_sdf(cx - 28.0, by - 46.0, 56.0, 70.0, 28.0);
-                    paint_sdf(
-                        img,
-                        (cx - 36.0) as i32,
-                        (by - 52.0) as i32,
-                        (cx + 36.0) as i32,
-                        (by + 30.0) as i32,
-                        TEXT_DIM,
-                        |x, y| shackle(x, y).abs() - 5.0,
-                    );
+                    paint_sdf(img, (cx - 36.0) as i32, (by - 52.0) as i32, (cx + 36.0) as i32, (by + 30.0) as i32, TEXT_DIM, |x, y| {
+                        shackle(x, y).abs() - 5.0
+                    });
                     fill_rounded(img, bx, by, bw, bh, 12.0, TEXT_DIM);
-                    paint_sdf(
-                        img,
-                        (cx - 8.0) as i32,
-                        (by + 18.0) as i32,
-                        (cx + 8.0) as i32,
-                        (by + 52.0) as i32,
-                        SURFACE,
-                        |x, y| {
-                            let dot = ((x - cx).powi(2) + (y - (by + 28.0)).powi(2)).sqrt() - 7.0;
-                            let stem = rounded_rect_sdf(cx - 3.0, by + 30.0, 6.0, 20.0, 3.0)(x, y);
-                            dot.min(stem)
-                        },
-                    );
+                    paint_sdf(img, (cx - 8.0) as i32, (by + 18.0) as i32, (cx + 8.0) as i32, (by + 52.0) as i32, SURFACE, |x, y| {
+                        let dot = ((x - cx).powi(2) + (y - (by + 28.0)).powi(2)).sqrt() - 7.0;
+                        let stem = rounded_rect_sdf(cx - 3.0, by + 30.0, 6.0, 20.0, 3.0)(x, y);
+                        dot.min(stem)
+                    });
                 }
                 _ => {
                     draw_logo(img, cx - 48.0, cy - 48.0, 96.0);
@@ -435,9 +336,7 @@ fn triangle_sdf(p: (f32, f32), a: (f32, f32), b: (f32, f32), c: (f32, f32)) -> f
         (qx * qx + qy * qy).sqrt()
     };
     let d = edge(p, a, b).min(edge(p, b, c)).min(edge(p, c, a));
-    let cross = |v0: (f32, f32), v1: (f32, f32)| {
-        (v1.0 - v0.0) * (p.1 - v0.1) - (v1.1 - v0.1) * (p.0 - v0.0)
-    };
+    let cross = |v0: (f32, f32), v1: (f32, f32)| (v1.0 - v0.0) * (p.1 - v0.1) - (v1.1 - v0.1) * (p.0 - v0.0);
     let (s1, s2, s3) = (cross(a, b), cross(b, c), cross(c, a));
     let inside = (s1 >= 0.0 && s2 >= 0.0 && s3 >= 0.0) || (s1 <= 0.0 && s2 <= 0.0 && s3 <= 0.0);
     if inside { -d } else { d }
@@ -456,36 +355,12 @@ pub fn render_card(card: &Card) -> Result<RgbaImage> {
 
     if card.hero == Hero::Brand {
         draw_logo(&mut img, margin, margin, 56.0);
-        draw_text(
-            &mut img,
-            &bold,
-            34.0,
-            margin + 76.0,
-            margin + 40.0,
-            TEXT,
-            "Snapoleon",
-        );
+        draw_text(&mut img, &bold, 34.0, margin + 76.0, margin + 40.0, TEXT, "Snapoleon");
         let lines = wrap(&semibold, 64.0, card.title, content_w, 3);
         for (i, line) in lines.iter().enumerate() {
-            draw_text(
-                &mut img,
-                &semibold,
-                64.0,
-                margin,
-                300.0 + i as f32 * 78.0,
-                TEXT,
-                line,
-            );
+            draw_text(&mut img, &semibold, 64.0, margin, 300.0 + i as f32 * 78.0, TEXT, line);
         }
-        draw_text(
-            &mut img,
-            &regular,
-            28.0,
-            margin,
-            560.0,
-            TEXT_DIM,
-            card.subtitle,
-        );
+        draw_text(&mut img, &regular, 28.0, margin, 560.0, TEXT_DIM, card.subtitle);
         return Ok(img);
     }
 
@@ -493,15 +368,7 @@ pub fn render_card(card: &Card) -> Result<RgbaImage> {
 
     let lines = wrap(&semibold, 40.0, card.title, content_w, 2);
     for (i, line) in lines.iter().enumerate() {
-        draw_text(
-            &mut img,
-            &semibold,
-            40.0,
-            margin,
-            474.0 + i as f32 * 48.0,
-            TEXT,
-            line,
-        );
+        draw_text(&mut img, &semibold, 40.0, margin, 474.0 + i as f32 * 48.0, TEXT, line);
     }
     let footer_y = 586.0;
     let brand = "Snapoleon";
@@ -512,15 +379,7 @@ pub fn render_card(card: &Card) -> Result<RgbaImage> {
     let sub_max = brand_x - 46.0 - margin - 24.0;
     let sub = wrap(&mono, 22.0, card.subtitle, sub_max, 1);
     if let Some(line) = sub.first() {
-        draw_text(
-            &mut img,
-            &mono,
-            22.0,
-            margin,
-            footer_y - 4.0,
-            TEXT_DIM,
-            line,
-        );
+        draw_text(&mut img, &mono, 22.0, margin, footer_y - 4.0, TEXT_DIM, line);
     }
     Ok(img)
 }

@@ -216,7 +216,11 @@ impl Overlay {
 
         for (chip, w) in self.chips.iter().zip(widths) {
             let age = now.duration_since(chip.last);
-            let opacity = if age > CHIP_LIFE - CHIP_FADE { 1.0 - (age - (CHIP_LIFE - CHIP_FADE)).as_secs_f32() / CHIP_FADE.as_secs_f32() } else { 1.0 };
+            let opacity = if age > CHIP_LIFE - CHIP_FADE {
+                1.0 - (age - (CHIP_LIFE - CHIP_FADE)).as_secs_f32() / CHIP_FADE.as_secs_f32()
+            } else {
+                1.0
+            };
             let (pw, ph) = (w.ceil() as u32, height.ceil() as u32);
             if let Some(mut pm) = Pixmap::new(pw, ph)
                 && let Some(bg) = rounded_rect(0.0, 0.0, pw as f32, ph as f32, height / 2.0)

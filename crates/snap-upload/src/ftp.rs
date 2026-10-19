@@ -15,7 +15,7 @@ use suppaftp::{
 };
 
 use crate::{
-    Uploader, UploadRequest, UploadResult,
+    UploadRequest, UploadResult, Uploader,
     util::{join_url, pct_path, safe_relative_path},
 };
 
@@ -91,7 +91,8 @@ impl Ftp {
     }
 
     fn login<T: TlsStream>(&self, ftp: &mut ImplFtpStream<T>) -> Result<()> {
-        let (user, pass) = if self.user.is_empty() { ("anonymous", "anonymous@snapoleon") } else { (self.user.as_str(), self.password.as_str()) };
+        let (user, pass) =
+            if self.user.is_empty() { ("anonymous", "anonymous@snapoleon") } else { (self.user.as_str(), self.password.as_str()) };
         ftp.login(user, pass).map_err(|e| ftp_err(&self.host, e))?;
         ftp.transfer_type(FileType::Binary).map_err(|e| ftp_err(&self.host, e))
     }

@@ -10,9 +10,7 @@ use std::sync::LazyLock;
 use regex::Regex;
 use snap_core::settings::RedactKind;
 
-use crate::validate::{
-    entropy, iban_valid, inn_valid, known_card_iin, luhn, snils_valid, ssn_valid,
-};
+use crate::validate::{entropy, iban_valid, inn_valid, known_card_iin, luhn, snils_valid, ssn_valid};
 
 pub type Span = (usize, usize);
 
@@ -26,10 +24,7 @@ regex!(
     EMAIL,
     r"[A-Za-z0-9._%+\-]+@[A-Za-z0-9](?:[A-Za-z0-9\-]*[A-Za-z0-9])?(?:\.[A-Za-z0-9](?:[A-Za-z0-9\-]*[A-Za-z0-9])?)*\.[A-Za-z]{2,}"
 );
-regex!(
-    URL,
-    r#"(?:\b(?:https?|ftp|wss?)://|\bwww\.)[^\s<>"'\x60]*[^\s<>"'\x60.,;:!?)\]}]"#
-);
+regex!(URL, r#"(?:\b(?:https?|ftp|wss?)://|\bwww\.)[^\s<>"'\x60]*[^\s<>"'\x60.,;:!?)\]}]"#);
 regex!(
     PROVIDER_TOKEN,
     r"(?x)
@@ -52,44 +47,17 @@ regex!(BEARER, r"(?i)\bbearer\s+([A-Za-z0-9._~+/=\-]{16,})");
 regex!(GENERIC_TOKEN, r"[A-Za-z0-9+/=_\-.]{24,}");
 regex!(IBAN_TOKEN, r"\b[A-Z]{2}[0-9]{2}(?: ?[A-Z0-9]{1,4})+");
 regex!(SSN, r"[0-9]{3}-[0-9]{2}-[0-9]{4}");
-regex!(
-    SNILS_FORMATTED,
-    r"^[0-9]{3}[- ][0-9]{3}[- ][0-9]{3}[ -][0-9]{2}$"
-);
-regex!(
-    PHONE_RU,
-    r"(?:\+7|8)[ \-]?\(?[0-9]{3}\)?[ \-]?[0-9]{3}[ \-]?[0-9]{2}[ \-]?[0-9]{2}"
-);
-regex!(
-    PHONE_US,
-    r"(?:\+?1[ \-.]?)?(?:\([2-9][0-9]{2}\)[ \-.]?|[2-9][0-9]{2}[ \-.])[0-9]{3}[ \-.][0-9]{4}"
-);
+regex!(SNILS_FORMATTED, r"^[0-9]{3}[- ][0-9]{3}[- ][0-9]{3}[ -][0-9]{2}$");
+regex!(PHONE_RU, r"(?:\+7|8)[ \-]?\(?[0-9]{3}\)?[ \-]?[0-9]{3}[ \-]?[0-9]{2}[ \-]?[0-9]{2}");
+regex!(PHONE_US, r"(?:\+?1[ \-.]?)?(?:\([2-9][0-9]{2}\)[ \-.]?|[2-9][0-9]{2}[ \-.])[0-9]{3}[ \-.][0-9]{4}");
 regex!(PHONE_E164, r"\+[1-9](?:[ \-.()]?[0-9]){6,14}");
-regex!(
-    IPV4,
-    r"(?:(?:25[0-5]|2[0-4][0-9]|1[0-9][0-9]|[1-9]?[0-9])\.){3}(?:25[0-5]|2[0-4][0-9]|1[0-9][0-9]|[1-9]?[0-9])"
-);
-regex!(
-    IPV6,
-    r"[0-9A-Fa-f]{0,4}(?::[0-9A-Fa-f]{0,4}){2,7}(?::(?:[0-9]{1,3}\.){3}[0-9]{1,3})?"
-);
+regex!(IPV4, r"(?:(?:25[0-5]|2[0-4][0-9]|1[0-9][0-9]|[1-9]?[0-9])\.){3}(?:25[0-5]|2[0-4][0-9]|1[0-9][0-9]|[1-9]?[0-9])");
+regex!(IPV6, r"[0-9A-Fa-f]{0,4}(?::[0-9A-Fa-f]{0,4}){2,7}(?::(?:[0-9]{1,3}\.){3}[0-9]{1,3})?");
 
 const PASSPORT_CONTEXT: &[&str] = &["паспорт", "серия", "passport"];
 const SNILS_CONTEXT: &[&str] = &["снилс", "snils", "страхов"];
-const SECRET_PARAM_SUFFIXES: &[&str] = &[
-    "token",
-    "key",
-    "secret",
-    "password",
-    "passwd",
-    "pwd",
-    "pass",
-    "signature",
-    "sig",
-    "auth",
-    "session",
-    "sessionid",
-];
+const SECRET_PARAM_SUFFIXES: &[&str] =
+    &["token", "key", "secret", "password", "passwd", "pwd", "pass", "signature", "sig", "auth", "session", "sessionid"];
 
 /// Spans of `kind` in `text` (original) and `norm` (OCR-folded).
 pub fn detect(kind: RedactKind, text: &str, norm: &str) -> Vec<Span> {
@@ -105,10 +73,9 @@ pub fn detect(kind: RedactKind, text: &str, norm: &str) -> Vec<Span> {
         RedactKind::CreditCard => digit_spans(norm, 13, 19, |d| luhn(d) && known_card_iin(d)),
         RedactKind::RuInn => digit_spans(norm, 10, 12, inn_valid),
         RedactKind::RuSnils => snils(norm, text),
-        RedactKind::RuPassport => digit_spans(norm, 10, 10, |_| true)
-            .into_iter()
-            .filter(|&(s, e)| near_any(text, s, e, PASSPORT_CONTEXT))
-            .collect(),
+        RedactKind::RuPassport => {
+            digit_spans(norm, 10, 10, |_| true).into_iter().filter(|&(s, e)| near_any(text, s, e, PASSPORT_CONTEXT)).collect()
+        }
         RedactKind::UsSsn => scan(&SSN, norm, |t, s, e| {
             let p = &t[s..e];
             digit_bounded(t, s, e) && ssn_valid(&p[..3], &p[4..6], &p[7..])
@@ -132,12 +99,7 @@ pub fn detect(kind: RedactKind, text: &str, norm: &str) -> Vec<Span> {
 fn is_digit_kind(kind: RedactKind) -> bool {
     matches!(
         kind,
-        RedactKind::CreditCard
-            | RedactKind::RuInn
-            | RedactKind::RuSnils
-            | RedactKind::RuPassport
-            | RedactKind::UsSsn
-            | RedactKind::Phone
+        RedactKind::CreditCard | RedactKind::RuInn | RedactKind::RuSnils | RedactKind::RuPassport | RedactKind::UsSsn | RedactKind::Phone
     )
 }
 
@@ -153,11 +115,7 @@ fn scan(re: &Regex, text: &str, accept: impl Fn(&str, usize, usize) -> bool) -> 
         let step = text[m.start()..].chars().next().map_or(1, char::len_utf8);
         if accept(text, m.start(), m.end()) {
             out.push((m.start(), m.end()));
-            pos = if m.end() > m.start() {
-                m.end()
-            } else {
-                m.start() + step
-            };
+            pos = if m.end() > m.start() { m.end() } else { m.start() + step };
         } else {
             pos = m.start() + step;
         }
@@ -174,25 +132,18 @@ fn next_char(text: &str, e: usize) -> Option<char> {
 }
 
 fn digit_bounded(text: &str, s: usize, e: usize) -> bool {
-    !prev_char(text, s).is_some_and(|c| c.is_ascii_digit())
-        && !next_char(text, e).is_some_and(|c| c.is_ascii_digit())
+    !prev_char(text, s).is_some_and(|c| c.is_ascii_digit()) && !next_char(text, e).is_some_and(|c| c.is_ascii_digit())
 }
 
 fn ipv4_bounded(text: &str, s: usize, e: usize) -> bool {
     let before_ok = match prev_char(text, s) {
         Some(c) if c.is_ascii_digit() => false,
-        Some('.') => !text[..s - 1]
-            .chars()
-            .next_back()
-            .is_some_and(|c| c.is_ascii_digit()),
+        Some('.') => !text[..s - 1].chars().next_back().is_some_and(|c| c.is_ascii_digit()),
         _ => true,
     };
     let after_ok = match next_char(text, e) {
         Some(c) if c.is_ascii_digit() => false,
-        Some('.') => !text[e + 1..]
-            .chars()
-            .next()
-            .is_some_and(|c| c.is_ascii_digit()),
+        Some('.') => !text[e + 1..].chars().next().is_some_and(|c| c.is_ascii_digit()),
         _ => true,
     };
     before_ok && after_ok
@@ -227,10 +178,7 @@ fn digit_spans(text: &str, min: usize, max: usize, ok: impl Fn(&[u8]) -> bool) -
     let mut g0 = 0;
     while g0 < groups.len() {
         let mut g1 = g0;
-        while g1 + 1 < groups.len()
-            && groups[g1 + 1].0 == groups[g1].1 + 1
-            && matches!(b[groups[g1].1], b' ' | b'-')
-        {
+        while g1 + 1 < groups.len() && groups[g1 + 1].0 == groups[g1].1 + 1 && matches!(b[groups[g1].1], b' ' | b'-') {
             g1 += 1;
         }
         let chain = &groups[g0..=g1];
@@ -270,9 +218,7 @@ fn snils(norm: &str, text: &str) -> Vec<Span> {
         .into_iter()
         .filter(|&(s, e)| {
             let digits = &norm[s..e];
-            SNILS_FORMATTED.is_match(digits)
-                || (digits.bytes().all(|c| c.is_ascii_digit())
-                    && near_any(text, s, e, SNILS_CONTEXT))
+            SNILS_FORMATTED.is_match(digits) || (digits.bytes().all(|c| c.is_ascii_digit()) && near_any(text, s, e, SNILS_CONTEXT))
         })
         .collect()
 }
@@ -344,19 +290,11 @@ fn secrets(text: &str) -> Vec<Span> {
     for m in GENERIC_TOKEN.find_iter(text) {
         let t = m.as_str();
         let has = |f: fn(&u8) -> bool| t.bytes().any(|c| f(&c));
-        if has(u8::is_ascii_lowercase)
-            && has(u8::is_ascii_uppercase)
-            && has(u8::is_ascii_digit)
-            && entropy(t) >= 3.5
-        {
+        if has(u8::is_ascii_lowercase) && has(u8::is_ascii_uppercase) && has(u8::is_ascii_digit) && entropy(t) >= 3.5 {
             out.push((m.start(), m.end()));
         }
     }
-    out.extend(
-        scan(&URL, text, |_, _, _| true)
-            .into_iter()
-            .filter(|&(s, e)| url_has_secret(&text[s..e])),
-    );
+    out.extend(scan(&URL, text, |_, _, _| true).into_iter().filter(|&(s, e)| url_has_secret(&text[s..e])));
     out
 }
 
@@ -364,10 +302,7 @@ fn secrets(text: &str) -> Vec<Span> {
 fn url_has_secret(url: &str) -> bool {
     let rest = url.split_once("://").map_or(url, |(_, r)| r);
     let authority_end = rest.find(['/', '?', '#']).unwrap_or(rest.len());
-    if rest[..authority_end]
-        .rsplit_once('@')
-        .is_some_and(|(userinfo, _)| userinfo.contains(':'))
-    {
+    if rest[..authority_end].rsplit_once('@').is_some_and(|(userinfo, _)| userinfo.contains(':')) {
         return true;
     }
     rest.split_once('?').is_some_and(|(_, query)| {
@@ -381,6 +316,5 @@ fn url_has_secret(url: &str) -> bool {
 }
 
 fn masked(v: &str) -> bool {
-    v.chars()
-        .all(|c| matches!(c, '*' | '•' | '.' | '-' | '_' | 'x' | 'X'))
+    v.chars().all(|c| matches!(c, '*' | '•' | '.' | '-' | '_' | 'x' | 'X'))
 }

@@ -57,11 +57,7 @@ impl User {
     }
 
     pub fn label(&self) -> &str {
-        if self.display_name.is_empty() {
-            &self.username
-        } else {
-            &self.display_name
-        }
+        if self.display_name.is_empty() { &self.username } else { &self.display_name }
     }
 }
 
@@ -77,8 +73,7 @@ pub struct Workspace {
 }
 
 impl Workspace {
-    pub const COLS: &'static str =
-        "w.id, w.slug, w.name, w.retention_days, w.quota_mb, w.default_expiry_hours, w.created_ms";
+    pub const COLS: &'static str = "w.id, w.slug, w.name, w.retention_days, w.quota_mb, w.default_expiry_hours, w.created_ms";
 
     pub fn from_row(r: &Row) -> rusqlite::Result<Self> {
         Ok(Self {

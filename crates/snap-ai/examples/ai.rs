@@ -106,7 +106,13 @@ fn test_image(w: u32, h: u32) -> RgbaImage {
         let bar = y < h / 12;
         let stripe = (x / 40 + y / 40) % 2 == 0;
         let (r, g) = (x * 255 / w, y * 255 / h);
-        if bar { image::Rgba([40, 40, 48, 255]) } else if stripe { image::Rgba([r as u8, g as u8, 200, 255]) } else { image::Rgba([r as u8, g as u8, 120, 128]) }
+        if bar {
+            image::Rgba([40, 40, 48, 255])
+        } else if stripe {
+            image::Rgba([r as u8, g as u8, 200, 255])
+        } else {
+            image::Rgba([r as u8, g as u8, 120, 128])
+        }
     })
 }
 
@@ -115,11 +121,9 @@ fn describe(body: &Value) -> String {
     let temp = body.get("temperature").map(Value::to_string).unwrap_or_else(|| "-".into());
     let user = body.pointer("/messages/1/content");
     let shape = match user {
-        Some(Value::Array(parts)) => parts
-            .iter()
-            .map(|p| p.get("type").and_then(Value::as_str).unwrap_or("?"))
-            .collect::<Vec<_>>()
-            .join("+"),
+        Some(Value::Array(parts)) => {
+            parts.iter().map(|p| p.get("type").and_then(Value::as_str).unwrap_or("?")).collect::<Vec<_>>().join("+")
+        }
         Some(Value::String(_)) => "text".into(),
         _ => "-".into(),
     };

@@ -1,7 +1,6 @@
 use objc2::{MainThreadMarker, rc::Retained};
 use objc2_app_kit::{
-    NSApplication, NSFloatingWindowLevel, NSScreenSaverWindowLevel, NSView, NSWindow, NSWindowCollectionBehavior,
-    NSWindowSharingType,
+    NSApplication, NSFloatingWindowLevel, NSScreenSaverWindowLevel, NSView, NSWindow, NSWindowCollectionBehavior, NSWindowSharingType,
 };
 use snap_core::{Error, Rect, Result};
 use winit::{
@@ -17,17 +16,8 @@ use crate::WindowSpec;
 /// Logical-point rounding on mixed-DPI setups can be off by a pixel or two.
 pub(crate) const COVER_TOLERANCE: i32 = 2;
 
-pub(crate) fn window_attributes(
-    _el: &ActiveEventLoop,
-    attrs: WindowAttributes,
-    spec: &WindowSpec,
-    _app_id: &str,
-) -> WindowAttributes {
-    if spec.cover.is_some() {
-        attrs.with_has_shadow(false).with_movable_by_window_background(false)
-    } else {
-        attrs
-    }
+pub(crate) fn window_attributes(_el: &ActiveEventLoop, attrs: WindowAttributes, spec: &WindowSpec, _app_id: &str) -> WindowAttributes {
+    if spec.cover.is_some() { attrs.with_has_shadow(false).with_movable_by_window_background(false) } else { attrs }
 }
 
 fn ns_window(window: &Window) -> Option<Retained<NSWindow>> {
@@ -74,10 +64,7 @@ pub(crate) fn set_exclude_from_capture(window: &Window, on: bool) -> Result<()> 
 /// winit positions in logical points, but covers are specified in physical
 /// pixels of the monitor they sit on, so convert with that monitor's scale.
 pub(crate) fn place_cover(window: &Window, r: Rect, monitors: &[(Rect, f32)]) {
-    let scale = monitors
-        .iter()
-        .find(|(m, _)| m.contains(r.origin()))
-        .map_or_else(|| window.scale_factor(), |(_, s)| f64::from(*s));
+    let scale = monitors.iter().find(|(m, _)| m.contains(r.origin())).map_or_else(|| window.scale_factor(), |(_, s)| f64::from(*s));
     window.set_outer_position(LogicalPosition::new(f64::from(r.x) / scale, f64::from(r.y) / scale));
     let _ = window.request_inner_size(LogicalSize::new(f64::from(r.w) / scale, f64::from(r.h) / scale));
 }

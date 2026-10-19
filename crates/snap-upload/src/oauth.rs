@@ -234,7 +234,14 @@ pub(crate) fn load_fresh(key: &str, secrets: &dyn SecretStore) -> Result<Option<
     Ok(Some(fresh))
 }
 
-fn token_request(p: Provider, ep: &Endpoints, params: &[(&str, &str)], client_id: &str, client_secret: Option<&str>, old_refresh: Option<&str>) -> Result<Tokens> {
+fn token_request(
+    p: Provider,
+    ep: &Endpoints,
+    params: &[(&str, &str)],
+    client_id: &str,
+    client_secret: Option<&str>,
+    old_refresh: Option<&str>,
+) -> Result<Tokens> {
     let resp = Call::post(ep.token_url).header("Accept", "application/json").form(params).send()?;
     let status = resp.status;
     let json: Value = resp.json().unwrap_or(Value::Null);
@@ -243,9 +250,13 @@ fn token_request(p: Provider, ep: &Endpoints, params: &[(&str, &str)], client_id
         let status = status.to_string();
         return Err(Error::Network(tf("upload.error.http", &[("provider", p.name()), ("status", &status), ("detail", detail)])));
     }
-    let access_token = json["access_token"].as_str().ok_or_else(|| Error::Network(tf("upload.error.bad_response", &[("provider", p.name())])))?.to_string();
+    let access_token = json["access_token"]
+        .as_str()
+        .ok_or_else(|| Error::Network(tf("upload.error.bad_response", &[("provider", p.name())])))?
+        .to_string();
     let refresh_token = json["refresh_token"].as_str().map(String::from).or_else(|| old_refresh.map(String::from));
-    let expires_at_ms = json["expires_in"].as_i64().or_else(|| json["expires_in"].as_str().and_then(|s| s.parse().ok())).map(|s| now_ms() + s * 1000);
+    let expires_at_ms =
+        json["expires_in"].as_i64().or_else(|| json["expires_in"].as_str().and_then(|s| s.parse().ok())).map(|s| now_ms() + s * 1000);
     Ok(Tokens {
         provider: p,
         access_token,

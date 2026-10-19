@@ -7,6 +7,7 @@ mod workspaces;
 
 use std::{sync::OnceLock, time::Duration};
 
+use crate::i18n::{t, tf};
 use axum::{
     Form, Router,
     extract::{Request, State},
@@ -17,7 +18,6 @@ use axum::{
 };
 use maud::{Markup, html};
 use serde::Deserialize;
-use crate::i18n::{t, tf};
 
 use crate::{
     auth::{self, MaybeMe, Me, SESSION_COOKIE, SESSION_TTL_MS, cookie_value, set_cookie},
@@ -43,26 +43,14 @@ pub fn routes(state: AppState) -> Router<AppState> {
 
 /// Reject cross-site form posts: browsers send `Origin` (and `Sec-Fetch-Site`) on every POST.
 async fn same_origin(State(state): State<AppState>, req: Request, next: Next) -> Response {
-    if req.method() != Method::GET
-        && req.method() != Method::HEAD
-        && req.method() != Method::OPTIONS
-    {
+    if req.method() != Method::GET && req.method() != Method::HEAD && req.method() != Method::OPTIONS {
         let headers = req.headers();
-        let cross_site = headers
-            .get("sec-fetch-site")
-            .and_then(|v| v.to_str().ok())
-            .is_some_and(|v| v == "cross-site");
-        let bad_origin = headers
-            .get(header::ORIGIN)
-            .and_then(|v| v.to_str().ok())
-            .is_some_and(|origin| {
-                let host = origin.split_once("://").map_or(origin, |(_, h)| h);
-                let request_host = headers
-                    .get(header::HOST)
-                    .and_then(|v| v.to_str().ok())
-                    .unwrap_or_default();
-                host != state.cfg.public_host() && host != request_host
-            });
+        let cross_site = headers.get("sec-fetch-site").and_then(|v| v.to_str().ok()).is_some_and(|v| v == "cross-site");
+        let bad_origin = headers.get(header::ORIGIN).and_then(|v| v.to_str().ok()).is_some_and(|origin| {
+            let host = origin.split_once("://").map_or(origin, |(_, h)| h);
+            let request_host = headers.get(header::HOST).and_then(|v| v.to_str().ok()).unwrap_or_default();
+            host != state.cfg.public_host() && host != request_host
+        });
         if cross_site || bad_origin {
             return crate::error::PageError(AppError::Forbidden).into_response();
         }
@@ -89,18 +77,10 @@ const NOTICES: &[(&str, bool)] = &[
 
 impl NoticeQuery {
     pub fn render(&self) -> Markup {
-        let Some((key, ok)) = self
-            .n
-            .as_deref()
-            .and_then(|n| NOTICES.iter().find(|(k, _)| *k == n))
-        else {
+        let Some((key, ok)) = self.n.as_deref().and_then(|n| NOTICES.iter().find(|(k, _)| *k == n)) else {
             return html! {};
         };
-        let detail = self
-            .d
-            .as_deref()
-            .map(|d| d.chars().take(200).collect::<String>())
-            .unwrap_or_default();
+        let detail = self.d.as_deref().map(|d| d.chars().take(200).collect::<String>()).unwrap_or_default();
         html! {
             p.notice.ok[*ok].error[!*ok] role="status" { (t(&format!("server.admin.notice.{key}"))) @if !detail.is_empty() { ": " (detail) } }
         }
@@ -170,34 +150,18 @@ pub fn checked_box(name: &str, label: &str, on: bool) -> Markup {
 async fn overview(State(state): State<AppState>, me: Me) -> PageResult<Markup> {
     let usage = state.db.scope_usage(me.scope()).await?;
     let managed = if me.is_admin() {
-        state
-            .db
-            .list_workspaces()
-            .await?
-            .into_iter()
-            .map(|w| (w, None))
-            .collect::<Vec<_>>()
+        state.db.list_workspaces().await?.into_iter().map(|w| (w, None)).collect::<Vec<_>>()
     } else {
-        me.managed_workspaces()
-            .into_iter()
-            .map(|m| (m.workspace, Some(m.role)))
-            .collect()
+        me.managed_workspaces().into_iter().map(|m| (m.workspace, Some(m.role))).collect()
     };
     let mut rows = Vec::new();
     for (ws, _) in &managed {
         rows.push((ws.clone(), state.db.workspace_usage(ws.id.clone()).await?));
     }
-    let users = if me.is_admin() {
-        Some(state.db.count_users().await?)
-    } else {
-        None
-    };
+    let users = if me.is_admin() { Some(state.db.count_users().await?) } else { None };
     let backend = match state.cfg.storage.kind {
         StorageKind::Fs => t("server.admin.overview.backend_fs").into_owned(),
-        StorageKind::S3 => tf(
-            "server.admin.overview.backend_s3",
-            &[("bucket", &state.cfg.storage.bucket)],
-        ),
+        StorageKind::S3 => tf("server.admin.overview.backend_s3", &[("bucket", &state.cfg.storage.bucket)]),
     };
     Ok(page(
         &me,
@@ -290,46 +254,20 @@ fn dummy_hash() -> &'static str {
     static HASH: OnceLock<String> = OnceLock::new();
     HASH.get_or_init(|| {
         use argon2::password_hash::PasswordHasher;
-        argon2::Argon2::default()
-            .hash_password(b"snapoleon-dummy")
-            .map(|h| h.to_string())
-            .unwrap_or_default()
+        argon2::Argon2::default().hash_password(b"snapoleon-dummy").map(|h| h.to_string()).unwrap_or_default()
     })
 }
 
 async fn start_session(state: &AppState, user_id: String, to: &str) -> PageResult<Response> {
     let sid = state.db.create_session(user_id, SESSION_TTL_MS).await?;
     let mut resp = Redirect::to(to).into_response();
-    resp.headers_mut().append(
-        header::SET_COOKIE,
-        set_cookie(
-            SESSION_COOKIE,
-            &sid,
-            SESSION_TTL_MS / 1000,
-            "/",
-            state.cfg.secure_cookies(),
-        ),
-    );
+    resp.headers_mut().append(header::SET_COOKIE, set_cookie(SESSION_COOKIE, &sid, SESSION_TTL_MS / 1000, "/", state.cfg.secure_cookies()));
     Ok(resp)
 }
 
-async fn login(
-    State(state): State<AppState>,
-    client: Client,
-    Form(form): Form<LoginForm>,
-) -> PageResult<Response> {
-    state.limiter.check(
-        &format!("login:{}", client.ip),
-        10,
-        Duration::from_secs(600),
-    )?;
-    let bad = |state: &AppState| {
-        Ok((
-            StatusCode::UNAUTHORIZED,
-            login_markup(state, Some(&t("server.admin.login.failed"))),
-        )
-            .into_response())
-    };
+async fn login(State(state): State<AppState>, client: Client, Form(form): Form<LoginForm>) -> PageResult<Response> {
+    state.limiter.check(&format!("login:{}", client.ip), 10, Duration::from_secs(600))?;
+    let bad = |state: &AppState| Ok((StatusCode::UNAUTHORIZED, login_markup(state, Some(&t("server.admin.login.failed")))).into_response());
 
     if !form.token.trim().is_empty() {
         return match state.db.user_by_token(form.token.trim()).await? {
@@ -338,21 +276,12 @@ async fn login(
         };
     }
     let username = form.username.trim().to_string();
-    state.limiter.check(
-        &format!("login-user:{}", username.to_lowercase()),
-        10,
-        Duration::from_secs(600),
-    )?;
+    state.limiter.check(&format!("login-user:{}", username.to_lowercase()), 10, Duration::from_secs(600))?;
     let user = state.db.user_by_username(username).await?;
-    let hash = user
-        .as_ref()
-        .and_then(|u| u.password_hash.clone())
-        .unwrap_or_else(|| dummy_hash().to_string());
+    let hash = user.as_ref().and_then(|u| u.password_hash.clone()).unwrap_or_else(|| dummy_hash().to_string());
     let verified = auth::verify_password(hash, form.password).await;
     match user {
-        Some(u) if verified && !u.disabled && u.password_hash.is_some() => {
-            start_session(&state, u.id, "/admin").await
-        }
+        Some(u) if verified && !u.disabled && u.password_hash.is_some() => start_session(&state, u.id, "/admin").await,
         _ => bad(&state),
     }
 }
@@ -362,10 +291,7 @@ async fn logout(State(state): State<AppState>, headers: HeaderMap) -> PageResult
         state.db.delete_session(&sid).await?;
     }
     let mut resp = Redirect::to("/admin/login").into_response();
-    resp.headers_mut().append(
-        header::SET_COOKIE,
-        set_cookie(SESSION_COOKIE, "", 0, "/", state.cfg.secure_cookies()),
-    );
+    resp.headers_mut().append(header::SET_COOKIE, set_cookie(SESSION_COOKIE, "", 0, "/", state.cfg.secure_cookies()));
     Ok(resp)
 }
 
@@ -409,28 +335,16 @@ struct RegisterForm {
 }
 
 pub fn valid_username(name: &str) -> bool {
-    (3..=40).contains(&name.chars().count())
-        && name
-            .chars()
-            .all(|c| c.is_alphanumeric() || matches!(c, '.' | '_' | '-'))
+    (3..=40).contains(&name.chars().count()) && name.chars().all(|c| c.is_alphanumeric() || matches!(c, '.' | '_' | '-'))
 }
 
-async fn register(
-    State(state): State<AppState>,
-    client: Client,
-    Form(form): Form<RegisterForm>,
-) -> PageResult<Response> {
+async fn register(State(state): State<AppState>, client: Client, Form(form): Form<RegisterForm>) -> PageResult<Response> {
     if state.cfg.registration != Registration::Open {
         return Err(AppError::NotFound.into());
     }
-    state.limiter.check(
-        &format!("register:{}", client.ip),
-        5,
-        Duration::from_secs(3600),
-    )?;
+    state.limiter.check(&format!("register:{}", client.ip), 5, Duration::from_secs(3600))?;
     let username = form.username.trim().to_string();
-    let invalid =
-        |msg: String| Ok((StatusCode::BAD_REQUEST, register_markup(Some(&msg))).into_response());
+    let invalid = |msg: String| Ok((StatusCode::BAD_REQUEST, register_markup(Some(&msg))).into_response());
     if !valid_username(&username) {
         return invalid(t("server.error.invalid_username").into_owned());
     }
@@ -453,9 +367,6 @@ async fn register(
         return invalid(t("server.error.username_taken").into_owned());
     };
     let workspace = state.db.default_workspace().await?;
-    state
-        .db
-        .set_member(workspace.id, user.id.clone(), crate::db::Role::Member)
-        .await?;
+    state.db.set_member(workspace.id, user.id.clone(), crate::db::Role::Member).await?;
     start_session(&state, user.id, "/admin").await
 }

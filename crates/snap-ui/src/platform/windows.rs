@@ -48,18 +48,12 @@ fn read_dword(subkey: &str, value: &str) -> Option<u32> {
 }
 
 pub fn system_dark() -> Option<bool> {
-    read_dword(
-        r"Software\Microsoft\Windows\CurrentVersion\Themes\Personalize",
-        "AppsUseLightTheme",
-    )
-    .map(|v| v == 0)
+    read_dword(r"Software\Microsoft\Windows\CurrentVersion\Themes\Personalize", "AppsUseLightTheme").map(|v| v == 0)
 }
 
 pub fn reduce_motion() -> bool {
     let mut enabled = 1i32;
-    let ok = unsafe {
-        SystemParametersInfoW(SPI_GETCLIENTAREAANIMATION, 0, (&raw mut enabled).cast(), 0)
-    };
+    let ok = unsafe { SystemParametersInfoW(SPI_GETCLIENTAREAANIMATION, 0, (&raw mut enabled).cast(), 0) };
     ok != 0 && enabled == 0
 }
 
@@ -82,8 +76,5 @@ pub fn extra_keys_down() -> ExtraKeys {
     } else {
         None
     };
-    ExtraKeys {
-        super_key: down(VK_LWIN) || down(VK_RWIN),
-        key,
-    }
+    ExtraKeys { super_key: down(VK_LWIN) || down(VK_RWIN), key }
 }

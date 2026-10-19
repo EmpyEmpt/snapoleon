@@ -83,7 +83,12 @@ impl OcrResult {
     /// Tab-separated values, one table row per line.
     pub fn to_tsv(&self) -> Option<String> {
         let rows = self.table()?;
-        Some(rows.iter().map(|r| r.iter().map(|c| c.replace(['\t', '\n'], " ")).collect::<Vec<_>>().join("\t")).collect::<Vec<_>>().join("\n"))
+        Some(
+            rows.iter()
+                .map(|r| r.iter().map(|c| c.replace(['\t', '\n'], " ")).collect::<Vec<_>>().join("\t"))
+                .collect::<Vec<_>>()
+                .join("\n"),
+        )
     }
 }
 

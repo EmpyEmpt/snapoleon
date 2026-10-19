@@ -35,14 +35,8 @@ pub fn find(text: &str, kinds: &[RedactKind]) -> Vec<Match> {
         return Vec::new();
     }
     let norm = ocr::fold_digits(text);
-    let mut cands: Vec<(RedactKind, Span)> = kinds
-        .iter()
-        .flat_map(|&k| {
-            detect::detect(k, text, &norm)
-                .into_iter()
-                .map(move |s| (k, s))
-        })
-        .collect();
+    let mut cands: Vec<(RedactKind, Span)> =
+        kinds.iter().flat_map(|&k| detect::detect(k, text, &norm).into_iter().map(move |s| (k, s))).collect();
     cands.sort_by_key(|&(k, (s, e))| (Reverse(e - s), rank(k), s));
 
     let mut taken = vec![false; text.len()];
@@ -52,12 +46,7 @@ pub fn find(text: &str, kinds: &[RedactKind]) -> Vec<Match> {
             continue;
         }
         taken[start..end].fill(true);
-        chosen.push(Match {
-            kind,
-            start,
-            end,
-            text: text[start..end].to_owned(),
-        });
+        chosen.push(Match { kind, start, end, text: text[start..end].to_owned() });
     }
     chosen.sort_by_key(|m| m.start);
     chosen

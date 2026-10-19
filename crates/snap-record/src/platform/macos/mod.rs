@@ -58,7 +58,8 @@ pub(super) fn pcm_f32(buffer: &CMSampleBuffer) -> Option<(Vec<f32>, u32, usize)>
         let list = storage.as_mut_ptr().cast::<AudioBufferList>();
         let mut needed = 0usize;
         let mut block: *mut CMBlockBuffer = ptr::null_mut();
-        let status = buffer.audio_buffer_list_with_retained_block_buffer(&mut needed, list, size_of_val(&storage), None, None, 0, &mut block);
+        let status =
+            buffer.audio_buffer_list_with_retained_block_buffer(&mut needed, list, size_of_val(&storage), None, None, 0, &mut block);
         let _block = NonNull::new(block).map(|b| CFRetained::from_raw(b));
         if status != 0 {
             return None;

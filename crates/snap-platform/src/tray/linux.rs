@@ -53,10 +53,8 @@ impl Backend {
         let sni = Sni { tooltip: tooltip.into(), icon: to_icon(icon), items, on_event };
         // The panel may start after us (autostart): keep the item registered and
         // let it appear once a StatusNotifierHost shows up.
-        let handle = sni
-            .assume_sni_available(true)
-            .spawn()
-            .map_err(|e| Error::unsupported(format!("StatusNotifierItem tray unavailable: {e}")))?;
+        let handle =
+            sni.assume_sni_available(true).spawn().map_err(|e| Error::unsupported(format!("StatusNotifierItem tray unavailable: {e}")))?;
         Ok(Self { handle })
     }
 
@@ -99,13 +97,21 @@ fn convert(items: &[TrayItem], cb: &Callback) -> Vec<MenuItem<Sni>> {
                 return MenuItem::Separator;
             }
             if !item.children.is_empty() {
-                return SubMenu { label: label(&item.label), enabled: item.enabled, submenu: convert(&item.children, cb), ..Default::default() }.into();
+                return SubMenu {
+                    label: label(&item.label),
+                    enabled: item.enabled,
+                    submenu: convert(&item.children, cb),
+                    ..Default::default()
+                }
+                .into();
             }
             let id = item.id.clone();
             let cb = cb.clone();
             let activate = Box::new(move |_: &mut Sni| cb(TrayEvent::Menu(id.clone())));
             match item.checked {
-                Some(checked) => CheckmarkItem { label: label(&item.label), enabled: item.enabled, checked, activate, ..Default::default() }.into(),
+                Some(checked) => {
+                    CheckmarkItem { label: label(&item.label), enabled: item.enabled, checked, activate, ..Default::default() }.into()
+                }
                 None => StandardItem { label: label(&item.label), enabled: item.enabled, activate, ..Default::default() }.into(),
             }
         })

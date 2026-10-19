@@ -34,19 +34,12 @@ pub struct ItemScope {
 
 impl ItemScope {
     pub fn own(user_id: &str) -> Self {
-        Self {
-            all: false,
-            user_id: user_id.to_string(),
-            workspaces: Vec::new(),
-        }
+        Self { all: false, user_id: user_id.to_string(), workspaces: Vec::new() }
     }
 }
 
 fn like_pattern(q: &str) -> String {
-    let escaped = q
-        .replace('\\', "\\\\")
-        .replace('%', "\\%")
-        .replace('_', "\\_");
+    let escaped = q.replace('\\', "\\\\").replace('%', "\\%").replace('_', "\\_");
     format!("%{escaped}%")
 }
 
@@ -69,8 +62,7 @@ fn event_from_row(r: &rusqlite::Row) -> rusqlite::Result<Event> {
     })
 }
 
-const EVENT_COLS: &str =
-    "id, owner_id, workspace_id, item_id, code, title, kind, actor, text, created_ms";
+const EVENT_COLS: &str = "id, owner_id, workspace_id, item_id, code, title, kind, actor, text, created_ms";
 
 impl Db {
     /// Insert an item; `None` when the short code is already taken.
@@ -92,40 +84,20 @@ impl Db {
 
     pub async fn item_by_code(&self, code: String) -> Result<Option<Item>, AppError> {
         self.run(move |c| {
-            c.query_row(
-                &format!(
-                    "SELECT {} FROM {} WHERE i.code = ?1",
-                    Item::COLS,
-                    Item::FROM
-                ),
-                [&code],
-                Item::from_row,
-            )
-            .optional()
+            c.query_row(&format!("SELECT {} FROM {} WHERE i.code = ?1", Item::COLS, Item::FROM), [&code], Item::from_row).optional()
         })
         .await
     }
 
     pub async fn item_by_id(&self, id: String) -> Result<Option<Item>, AppError> {
         self.run(move |c| {
-            c.query_row(
-                &format!("SELECT {} FROM {} WHERE i.id = ?1", Item::COLS, Item::FROM),
-                [&id],
-                Item::from_row,
-            )
-            .optional()
+            c.query_row(&format!("SELECT {} FROM {} WHERE i.id = ?1", Item::COLS, Item::FROM), [&id], Item::from_row).optional()
         })
         .await
     }
 
     /// Newest-first page of visible items plus the total match count.
-    pub async fn list_items(
-        &self,
-        scope: ItemScope,
-        q: String,
-        limit: i64,
-        offset: i64,
-    ) -> Result<(Vec<Item>, i64), AppError> {
+    pub async fn list_items(&self, scope: ItemScope, q: String, limit: i64, offset: i64) -> Result<(Vec<Item>, i64), AppError> {
         self.run(move |c| {
             let workspaces = serde_json::to_string(&scope.workspaces).unwrap_or_else(|_| "[]".into());
             let pattern = like_pattern(&q);
@@ -143,13 +115,8 @@ impl Db {
     pub async fn delete_item(&self, id: String) -> Result<Option<Item>, AppError> {
         self.run(move |c| {
             let tx = c.transaction()?;
-            let item = tx
-                .query_row(
-                    &format!("SELECT {} FROM {} WHERE i.id = ?1", Item::COLS, Item::FROM),
-                    [&id],
-                    Item::from_row,
-                )
-                .optional()?;
+            let item =
+                tx.query_row(&format!("SELECT {} FROM {} WHERE i.id = ?1", Item::COLS, Item::FROM), [&id], Item::from_row).optional()?;
             if item.is_some() {
                 tx.execute("DELETE FROM items WHERE id = ?1", [&id])?;
             }
@@ -160,23 +127,13 @@ impl Db {
     }
 
     /// Record a view unless the same visitor already counted in this hour bucket.
-    pub async fn register_view(
-        &self,
-        item_id: String,
-        visitor: String,
-        bucket: i64,
-    ) -> Result<bool, AppError> {
+    pub async fn register_view(&self, item_id: String, visitor: String, bucket: i64) -> Result<bool, AppError> {
         self.run(move |c| {
             let tx = c.transaction()?;
-            let fresh = tx.execute(
-                "INSERT OR IGNORE INTO views(item_id, visitor, bucket) VALUES(?1, ?2, ?3)",
-                (&item_id, &visitor, bucket),
-            )? > 0;
+            let fresh =
+                tx.execute("INSERT OR IGNORE INTO views(item_id, visitor, bucket) VALUES(?1, ?2, ?3)", (&item_id, &visitor, bucket))? > 0;
             if fresh {
-                tx.execute(
-                    "UPDATE items SET views = views + 1 WHERE id = ?1",
-                    [&item_id],
-                )?;
+                tx.execute("UPDATE items SET views = views + 1 WHERE id = ?1", [&item_id])?;
             }
             tx.commit()?;
             Ok(fresh)
@@ -184,12 +141,7 @@ impl Db {
         .await
     }
 
-    pub async fn add_comment(
-        &self,
-        item_id: String,
-        name: String,
-        text: String,
-    ) -> Result<Comment, AppError> {
+    pub async fn add_comment(&self, item_id: String, name: String, text: String) -> Result<Comment, AppError> {
         self.run(move |c| {
             let tx = c.transaction()?;
             let created_ms = now_ms();
@@ -198,35 +150,17 @@ impl Db {
                 params![item_id, name, text, created_ms],
             )?;
             let id = tx.last_insert_rowid();
-            tx.execute(
-                "UPDATE items SET comments = comments + 1 WHERE id = ?1",
-                [&item_id],
-            )?;
+            tx.execute("UPDATE items SET comments = comments + 1 WHERE id = ?1", [&item_id])?;
             tx.commit()?;
-            Ok(Comment {
-                id,
-                name,
-                text,
-                created_ms,
-            })
+            Ok(Comment { id, name, text, created_ms })
         })
         .await
     }
 
     pub async fn comments(&self, item_id: String) -> Result<Vec<Comment>, AppError> {
         self.run(move |c| {
-            let mut st = c.prepare(
-                "SELECT id, name, text, created_ms FROM comments WHERE item_id = ?1 ORDER BY id",
-            )?;
-            st.query_map([&item_id], |r| {
-                Ok(Comment {
-                    id: r.get(0)?,
-                    name: r.get(1)?,
-                    text: r.get(2)?,
-                    created_ms: r.get(3)?,
-                })
-            })?
-            .collect()
+            let mut st = c.prepare("SELECT id, name, text, created_ms FROM comments WHERE item_id = ?1 ORDER BY id")?;
+            st.query_map([&item_id], |r| Ok(Comment { id: r.get(0)?, name: r.get(1)?, text: r.get(2)?, created_ms: r.get(3)? }))?.collect()
         })
         .await
     }
@@ -234,15 +168,8 @@ impl Db {
     pub async fn delete_comment(&self, item_id: String, comment_id: i64) -> Result<(), AppError> {
         self.run(move |c| {
             let tx = c.transaction()?;
-            if tx.execute(
-                "DELETE FROM comments WHERE id = ?1 AND item_id = ?2",
-                (comment_id, &item_id),
-            )? > 0
-            {
-                tx.execute(
-                    "UPDATE items SET comments = MAX(comments - 1, 0) WHERE id = ?1",
-                    [&item_id],
-                )?;
+            if tx.execute("DELETE FROM comments WHERE id = ?1 AND item_id = ?2", (comment_id, &item_id))? > 0 {
+                tx.execute("UPDATE items SET comments = MAX(comments - 1, 0) WHERE id = ?1", [&item_id])?;
             }
             tx.commit()
         })
@@ -261,14 +188,11 @@ impl Db {
     }
 
     /// Events on items owned by `owner_id`, oldest first, strictly after `since_ms`.
-    pub async fn events_since(
-        &self,
-        owner_id: String,
-        since_ms: i64,
-        limit: i64,
-    ) -> Result<Vec<Event>, AppError> {
+    pub async fn events_since(&self, owner_id: String, since_ms: i64, limit: i64) -> Result<Vec<Event>, AppError> {
         self.run(move |c| {
-            let mut st = c.prepare(&format!("SELECT {EVENT_COLS} FROM events WHERE owner_id = ?1 AND created_ms > ?2 ORDER BY created_ms, id LIMIT ?3"))?;
+            let mut st = c.prepare(&format!(
+                "SELECT {EVENT_COLS} FROM events WHERE owner_id = ?1 AND created_ms > ?2 ORDER BY created_ms, id LIMIT ?3"
+            ))?;
             st.query_map(params![owner_id, since_ms, limit], event_from_row)?.collect()
         })
         .await
@@ -291,32 +215,20 @@ impl Db {
     // Short links
 
     /// Existing short code for this user and URL, if any.
-    pub async fn link_for_url(
-        &self,
-        user_id: String,
-        url: String,
-    ) -> Result<Option<String>, AppError> {
+    pub async fn link_for_url(&self, user_id: String, url: String) -> Result<Option<String>, AppError> {
         self.run(move |c| {
-            c.query_row(
-                "SELECT code FROM links WHERE user_id = ?1 AND url = ?2 LIMIT 1",
-                (user_id, url),
-                |r| r.get(0),
-            )
-            .optional()
+            c.query_row("SELECT code FROM links WHERE user_id = ?1 AND url = ?2 LIMIT 1", (user_id, url), |r| r.get(0)).optional()
         })
         .await
     }
 
     /// Insert a link; `false` when the code collides.
-    pub async fn create_link(
-        &self,
-        code: String,
-        url: String,
-        user_id: String,
-        workspace_id: String,
-    ) -> Result<bool, AppError> {
+    pub async fn create_link(&self, code: String, url: String, user_id: String, workspace_id: String) -> Result<bool, AppError> {
         self.run(move |c| {
-            match c.execute("INSERT INTO links(code, url, user_id, workspace_id, created_ms) VALUES(?1, ?2, ?3, ?4, ?5)", params![code, url, user_id, workspace_id, now_ms()]) {
+            match c.execute(
+                "INSERT INTO links(code, url, user_id, workspace_id, created_ms) VALUES(?1, ?2, ?3, ?4, ?5)",
+                params![code, url, user_id, workspace_id, now_ms()],
+            ) {
                 Err(e) if is_conflict(&e) => Ok(false),
                 other => other.map(|_| true),
             }
@@ -327,28 +239,16 @@ impl Db {
     /// Resolve a short code and count the click.
     pub async fn follow_link(&self, code: String) -> Result<Option<String>, AppError> {
         self.run(move |c| {
-            let url: Option<String> = c
-                .query_row("SELECT url FROM links WHERE code = ?1", [&code], |r| {
-                    r.get(0)
-                })
-                .optional()?;
+            let url: Option<String> = c.query_row("SELECT url FROM links WHERE code = ?1", [&code], |r| r.get(0)).optional()?;
             if url.is_some() {
-                c.execute(
-                    "UPDATE links SET clicks = clicks + 1 WHERE code = ?1",
-                    [&code],
-                )?;
+                c.execute("UPDATE links SET clicks = clicks + 1 WHERE code = ?1", [&code])?;
             }
             Ok(url)
         })
         .await
     }
 
-    pub async fn list_links(
-        &self,
-        scope: ItemScope,
-        limit: i64,
-        offset: i64,
-    ) -> Result<(Vec<Link>, i64), AppError> {
+    pub async fn list_links(&self, scope: ItemScope, limit: i64, offset: i64) -> Result<(Vec<Link>, i64), AppError> {
         self.run(move |c| {
             let workspaces = serde_json::to_string(&scope.workspaces).unwrap_or_else(|_| "[]".into());
             let filter = "(?1 OR l.user_id = ?2 OR l.workspace_id IN (SELECT value FROM json_each(?3)))";
@@ -398,14 +298,8 @@ impl Db {
     /// Drop stale bookkeeping rows: dedupe buckets, old events, expired sessions.
     pub async fn prune(&self, now: i64) -> Result<(), AppError> {
         self.run(move |c| {
-            c.execute(
-                "DELETE FROM views WHERE bucket < ?1",
-                [now / crate::util::HOUR_MS - 48],
-            )?;
-            c.execute(
-                "DELETE FROM events WHERE created_ms < ?1",
-                [now - 30 * DAY_MS],
-            )?;
+            c.execute("DELETE FROM views WHERE bucket < ?1", [now / crate::util::HOUR_MS - 48])?;
+            c.execute("DELETE FROM events WHERE created_ms < ?1", [now - 30 * DAY_MS])?;
             c.execute("DELETE FROM sessions WHERE expires_ms < ?1", [now])?;
             Ok(())
         })

@@ -125,7 +125,8 @@ mod imp {
         // Try the usual players in turn on a helper thread so the caller never waits.
         let _ = std::thread::Builder::new().name("snap-sound".into()).spawn(move || {
             for (player, args) in [("pw-play", &[][..]), ("paplay", &[][..]), ("aplay", &["-q"][..])] {
-                let child = Command::new(player).args(args).arg(&file).stdin(Stdio::null()).stdout(Stdio::null()).stderr(Stdio::null()).spawn();
+                let child =
+                    Command::new(player).args(args).arg(&file).stdin(Stdio::null()).stdout(Stdio::null()).stderr(Stdio::null()).spawn();
                 if let Ok(mut child) = child
                     && child.wait().is_ok_and(|status| status.success())
                 {

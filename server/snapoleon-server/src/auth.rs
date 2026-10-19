@@ -21,23 +21,16 @@ pub const SESSION_TTL_MS: i64 = 14 * 24 * 3_600_000;
 
 pub async fn hash_password(password: String) -> Result<String, AppError> {
     tokio::task::spawn_blocking(move || {
-        Argon2::default()
-            .hash_password(password.as_bytes())
-            .map(|h| h.to_string())
-            .map_err(|e| anyhow::anyhow!("hashing password: {e}"))
+        Argon2::default().hash_password(password.as_bytes()).map(|h| h.to_string()).map_err(|e| anyhow::anyhow!("hashing password: {e}"))
     })
     .await?
     .map_err(AppError::Internal)
 }
 
 pub async fn verify_password(hash: String, password: String) -> bool {
-    tokio::task::spawn_blocking(move || {
-        Argon2::default()
-            .verify_password(password.as_bytes(), hash.as_str())
-            .is_ok()
-    })
-    .await
-    .unwrap_or(false)
+    tokio::task::spawn_blocking(move || Argon2::default().verify_password(password.as_bytes(), hash.as_str()).is_ok())
+        .await
+        .unwrap_or(false)
 }
 
 pub fn cookie_value(headers: &HeaderMap, name: &str) -> Option<String> {
@@ -46,26 +39,13 @@ pub fn cookie_value(headers: &HeaderMap, name: &str) -> Option<String> {
         .iter()
         .filter_map(|v| v.to_str().ok())
         .flat_map(|v| v.split(';'))
-        .find_map(|pair| {
-            pair.trim()
-                .strip_prefix(name)?
-                .strip_prefix('=')
-                .map(str::to_string)
-        })
+        .find_map(|pair| pair.trim().strip_prefix(name)?.strip_prefix('=').map(str::to_string))
 }
 
-pub fn set_cookie(
-    name: &str,
-    value: &str,
-    max_age_secs: i64,
-    path: &str,
-    secure: bool,
-) -> HeaderValue {
+pub fn set_cookie(name: &str, value: &str, max_age_secs: i64, path: &str, secure: bool) -> HeaderValue {
     let secure = if secure { "; Secure" } else { "" };
-    HeaderValue::from_str(&format!(
-        "{name}={value}; Path={path}; Max-Age={max_age_secs}; HttpOnly; SameSite=Lax{secure}"
-    ))
-    .expect("cookie values are ASCII")
+    HeaderValue::from_str(&format!("{name}={value}; Path={path}; Max-Age={max_age_secs}; HttpOnly; SameSite=Lax{secure}"))
+        .expect("cookie values are ASCII")
 }
 
 /// The signed-in user of an admin-UI session plus their workspace roles.
@@ -80,10 +60,7 @@ impl Me {
     }
 
     pub fn role_in(&self, workspace_id: &str) -> Option<Role> {
-        self.memberships
-            .iter()
-            .find(|m| m.workspace.id == workspace_id)
-            .map(|m| m.role)
+        self.memberships.iter().find(|m| m.workspace.id == workspace_id).map(|m| m.role)
     }
 
     /// Instance admins and workspace owners/admins manage a workspace.
@@ -92,11 +69,7 @@ impl Me {
     }
 
     pub fn managed_workspaces(&self) -> Vec<Membership> {
-        self.memberships
-            .iter()
-            .filter(|m| m.role >= Role::Admin)
-            .cloned()
-            .collect()
+        self.memberships.iter().filter(|m| m.role >= Role::Admin).cloned().collect()
     }
 
     pub fn manages_any(&self) -> bool {
@@ -112,11 +85,7 @@ impl Me {
         ItemScope {
             all: self.is_admin(),
             user_id: self.user.id.clone(),
-            workspaces: self
-                .managed_workspaces()
-                .into_iter()
-                .map(|m| m.workspace.id)
-                .collect(),
+            workspaces: self.managed_workspaces().into_iter().map(|m| m.workspace.id).collect(),
         }
     }
 }
@@ -144,15 +113,10 @@ pub async fn session_user(parts: &Parts, state: &AppState) -> Result<Option<Me>,
 impl FromRequestParts<AppState> for Me {
     type Rejection = SessionRejection;
 
-    async fn from_request_parts(
-        parts: &mut Parts,
-        state: &AppState,
-    ) -> Result<Self, Self::Rejection> {
+    async fn from_request_parts(parts: &mut Parts, state: &AppState) -> Result<Self, Self::Rejection> {
         match session_user(parts, state).await {
             Ok(Some(me)) => Ok(me),
-            Ok(None) => Err(SessionRejection(
-                Redirect::to("/admin/login").into_response(),
-            )),
+            Ok(None) => Err(SessionRejection(Redirect::to("/admin/login").into_response())),
             Err(e) => Err(SessionRejection(crate::error::PageError(e).into_response())),
         }
     }
@@ -164,10 +128,7 @@ pub struct MaybeMe(pub Option<Me>);
 impl FromRequestParts<AppState> for MaybeMe {
     type Rejection = crate::error::PageError;
 
-    async fn from_request_parts(
-        parts: &mut Parts,
-        state: &AppState,
-    ) -> Result<Self, Self::Rejection> {
+    async fn from_request_parts(parts: &mut Parts, state: &AppState) -> Result<Self, Self::Rejection> {
         Ok(MaybeMe(session_user(parts, state).await?))
     }
 }
@@ -178,24 +139,15 @@ pub struct ApiUser(pub User);
 pub fn bearer_token(headers: &HeaderMap) -> Option<&str> {
     let v = headers.get(header::AUTHORIZATION)?.to_str().ok()?;
     let (scheme, token) = v.split_once(' ')?;
-    scheme
-        .eq_ignore_ascii_case("bearer")
-        .then_some(token.trim())
+    scheme.eq_ignore_ascii_case("bearer").then_some(token.trim())
 }
 
 impl FromRequestParts<AppState> for ApiUser {
     type Rejection = ApiError;
 
-    async fn from_request_parts(
-        parts: &mut Parts,
-        state: &AppState,
-    ) -> Result<Self, Self::Rejection> {
+    async fn from_request_parts(parts: &mut Parts, state: &AppState) -> Result<Self, Self::Rejection> {
         let token = bearer_token(&parts.headers).ok_or(AppError::Unauthorized)?;
-        let user = state
-            .db
-            .user_by_token(token)
-            .await?
-            .ok_or(AppError::Unauthorized)?;
+        let user = state.db.user_by_token(token).await?.ok_or(AppError::Unauthorized)?;
         Ok(ApiUser(user))
     }
 }

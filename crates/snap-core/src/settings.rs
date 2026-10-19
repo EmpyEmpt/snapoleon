@@ -8,7 +8,7 @@ use std::path::Path;
 
 use serde::{Deserialize, Serialize};
 
-use crate::{hotkey::HotkeyBinding, pipeline::Pipeline, Result};
+use crate::{Result, hotkey::HotkeyBinding, pipeline::Pipeline};
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(default)]
@@ -317,21 +317,32 @@ pub enum DestinationKind {
         public_base_url: String,
     },
     /// Copy into a (synced) folder and build a URL from a base.
-    LocalFolder { dir: String, public_base_url: String },
-    Imgur { client_id: String },
+    LocalFolder {
+        dir: String,
+        public_base_url: String,
+    },
+    Imgur {
+        client_id: String,
+    },
     /// Bot token in secret; posts the file to a chat/channel.
-    Telegram { chat_id: String },
+    Telegram {
+        chat_id: String,
+    },
     YandexDisk {
         folder: String,
         #[serde(default = "yes")]
         publish: bool,
     },
-    Dropbox { folder: String },
+    Dropbox {
+        folder: String,
+    },
     GoogleDrive {
         #[serde(default)]
         folder_id: String,
     },
-    OneDrive { folder: String },
+    OneDrive {
+        folder: String,
+    },
     Box {
         #[serde(default)]
         folder_id: String,
@@ -341,7 +352,9 @@ pub enum DestinationKind {
     /// ShareX `.sxcu`-compatible custom uploader.
     CustomHttp(CustomUploader),
     /// Self-hosted `snapoleon-server` (team mode).
-    SnapServer { url: String },
+    SnapServer {
+        url: String,
+    },
 }
 
 fn default_code_len() -> u8 {
@@ -387,8 +400,16 @@ pub enum Shortener {
     None,
     /// Use the team server's short links.
     SnapServer,
-    Yourls { url: String, #[serde(default)] secret_ref: Option<String> },
-    Shlink { url: String, #[serde(default)] secret_ref: Option<String> },
+    Yourls {
+        url: String,
+        #[serde(default)]
+        secret_ref: Option<String>,
+    },
+    Shlink {
+        url: String,
+        #[serde(default)]
+        secret_ref: Option<String>,
+    },
     IsGd,
 }
 
@@ -589,8 +610,13 @@ impl Default for OcrSettings {
 #[serde(tag = "type", rename_all = "snake_case")]
 pub enum TranslateProvider {
     None,
-    LibreTranslate { url: String },
-    DeepL { #[serde(default)] free_api: bool },
+    LibreTranslate {
+        url: String,
+    },
+    DeepL {
+        #[serde(default)]
+        free_api: bool,
+    },
     /// Use the AI endpoint from `AiSettings`.
     Ai,
 }
@@ -678,11 +704,19 @@ impl Default for BeautifyPreset {
 #[serde(tag = "type", rename_all = "snake_case")]
 pub enum Background {
     Transparent,
-    Solid { color: String },
-    Gradient { from: String, to: String, angle_deg: f32 },
+    Solid {
+        color: String,
+    },
+    Gradient {
+        from: String,
+        to: String,
+        angle_deg: f32,
+    },
     /// Blurred, enlarged copy of the capture itself.
     BlurredCapture,
-    Image { path: String },
+    Image {
+        path: String,
+    },
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Serialize, Deserialize)]

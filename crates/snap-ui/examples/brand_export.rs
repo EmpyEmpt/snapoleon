@@ -22,9 +22,7 @@ fn main() -> std::io::Result<()> {
     fs::write(brand.join("snapoleon.svg"), snap_ui::app_icon_svg())?;
     for size in SIZES {
         let path = brand.join(format!("snapoleon-{size}.png"));
-        snap_ui::app_icon_rgba(size)
-            .save(&path)
-            .expect("write icon png");
+        snap_ui::app_icon_rgba(size).save(&path).expect("write icon png");
         println!("{}", path.display());
     }
 
@@ -39,36 +37,19 @@ fn main() -> std::io::Result<()> {
     let mut x = 10;
     for size in [128u32, 64, 32, 16] {
         imageops::overlay(&mut sheet, &snap_ui::app_icon_rgba(size), x as i64, 6);
-        imageops::overlay(
-            &mut sheet,
-            &snap_ui::app_icon_rgba(size),
-            x as i64,
-            (cell + 6) as i64,
-        );
+        imageops::overlay(&mut sheet, &snap_ui::app_icon_rgba(size), x as i64, (cell + 6) as i64);
         x += size + 12;
     }
     let mut x = 10 + cell * 3;
     for size in [64u32, 32, 16] {
         for (row, ink) in [(0, [255, 255, 255, 255]), (1, [24, 24, 28, 255])] {
             let y = (row * cell + 6) as i64;
-            imageops::overlay(
-                &mut sheet,
-                &snap_ui::tray_icon_rgba_colored(size, false, ink),
-                x as i64,
-                y,
-            );
-            imageops::overlay(
-                &mut sheet,
-                &snap_ui::tray_icon_rgba_colored(size, true, ink),
-                (x + size + 8) as i64,
-                y,
-            );
+            imageops::overlay(&mut sheet, &snap_ui::tray_icon_rgba_colored(size, false, ink), x as i64, y);
+            imageops::overlay(&mut sheet, &snap_ui::tray_icon_rgba_colored(size, true, ink), (x + size + 8) as i64, y);
         }
         x += (size + 8) * 2 + 8;
     }
-    sheet
-        .save(smoke.join("brand-sheet.png"))
-        .expect("write sheet");
+    sheet.save(smoke.join("brand-sheet.png")).expect("write sheet");
 
     let tray = snap_ui::tray_icon_rgba(32, true);
     println!("tray icon {}x{}", tray.width(), tray.height());

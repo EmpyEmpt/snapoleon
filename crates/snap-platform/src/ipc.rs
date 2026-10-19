@@ -131,7 +131,8 @@ fn handle(stream: Stream, handler: &Handler) {
         Ok(_) => {}
     }
     let response = match serde_json::from_str::<Request>(line.trim()) {
-        Ok(req) => std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| handler(req))).unwrap_or_else(|_| Response::err("request handler panicked")),
+        Ok(req) => std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| handler(req)))
+            .unwrap_or_else(|_| Response::err("request handler panicked")),
         Err(e) => Response::err(format!("invalid request: {e}")),
     };
     match serde_json::to_string(&response) {

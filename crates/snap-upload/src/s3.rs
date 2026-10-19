@@ -8,7 +8,7 @@ use snap_core::{
 use url::Url;
 
 use crate::{
-    Uploader, UploadRequest, UploadResult,
+    UploadRequest, UploadResult, Uploader,
     http::{Call, Progress},
     sigv4::{self, Credentials},
     util::{join_url, mime_or_octet, pct_path, safe_relative_path, split_ext},
@@ -110,7 +110,11 @@ impl S3Uploader {
         let prefix = naming::expand(&self.cfg.prefix, &cx);
         let name = safe_relative_path(req.file_name);
         let (stem, ext) = split_ext(&name);
-        let leaf = if self.cfg.random_code_len > 0 { format!("{}{ext}", naming::random_code(self.cfg.random_code_len as usize)) } else { format!("{stem}{ext}") };
+        let leaf = if self.cfg.random_code_len > 0 {
+            format!("{}{ext}", naming::random_code(self.cfg.random_code_len as usize))
+        } else {
+            format!("{stem}{ext}")
+        };
         format!("{prefix}{leaf}").trim_start_matches('/').to_string()
     }
 

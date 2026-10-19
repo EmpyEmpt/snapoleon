@@ -30,9 +30,7 @@ fn image_part(img: &RgbaImage, max_side: u32) -> Result<Part> {
 fn context_lines(cx: &CaptureContext) -> String {
     [("Application", &cx.app_name), ("Window title", &cx.window_title), ("URL", &cx.url), ("Element", &cx.element)]
         .iter()
-        .filter_map(|(label, v)| {
-            v.as_deref().map(str::trim).filter(|v| !v.is_empty()).map(|v| format!("{label}: {v}"))
-        })
+        .filter_map(|(label, v)| v.as_deref().map(str::trim).filter(|v| !v.is_empty()).map(|v| format!("{label}: {v}")))
         .collect::<Vec<_>>()
         .join("\n")
 }
@@ -55,13 +53,7 @@ pub fn alt_text(c: &Client, model: &str, img: &RgbaImage, cx: &CaptureContext) -
     Ok(plain_text(&reply))
 }
 
-pub fn title(
-    c: &Client,
-    model: &str,
-    img: Option<&RgbaImage>,
-    text: Option<&str>,
-    cx: &CaptureContext,
-) -> Result<String> {
+pub fn title(c: &Client, model: &str, img: Option<&RgbaImage>, text: Option<&str>, cx: &CaptureContext) -> Result<String> {
     let text = text.map(str::trim).filter(|s| !s.is_empty());
     let ctx = context_lines(cx);
     if img.is_none() && text.is_none() && ctx.is_empty() {

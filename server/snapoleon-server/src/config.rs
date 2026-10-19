@@ -125,8 +125,7 @@ impl Config {
             .or_else(|| Some(PathBuf::from("snapoleon-server.toml")).filter(|p| p.exists()));
         let mut cfg = match &path {
             Some(p) => {
-                let text = std::fs::read_to_string(p)
-                    .with_context(|| format!("reading {}", p.display()))?;
+                let text = std::fs::read_to_string(p).with_context(|| format!("reading {}", p.display()))?;
                 toml::from_str(&text).with_context(|| format!("parsing {}", p.display()))?
             }
             None => Config::default(),
@@ -217,8 +216,6 @@ impl Config {
 
     /// `host[:port]` of the public URL.
     pub fn public_host(&self) -> &str {
-        self.public_url
-            .split_once("://")
-            .map_or("", |(_, rest)| rest.split('/').next().unwrap_or(""))
+        self.public_url.split_once("://").map_or("", |(_, rest)| rest.split('/').next().unwrap_or(""))
     }
 }

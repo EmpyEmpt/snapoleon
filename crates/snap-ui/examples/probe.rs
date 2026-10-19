@@ -10,36 +10,17 @@ fn main() {
     println!("reduce motion:    {}", snap_ui::reduce_motion());
 
     let system = ThemeSpec::from_settings(&General::default());
-    println!(
-        "default settings -> dark={} accent={:?}",
-        system.dark, system.accent
-    );
+    println!("default settings -> dark={} accent={:?}", system.dark, system.accent);
 
-    let custom = General {
-        theme: Theme::Light,
-        accent: "#FF8800".into(),
-        ..General::default()
-    };
+    let custom = General { theme: Theme::Light, accent: "#FF8800".into(), ..General::default() };
     let spec = ThemeSpec::from_settings(&custom);
     let p = Palette::new(spec.dark, spec.accent);
-    println!(
-        "light + #FF8800  -> dark={} accent={:?} on_accent={:?} accent_soft={:?}",
-        spec.dark, spec.accent, p.on_accent, p.accent_soft
-    );
+    println!("light + #FF8800  -> dark={} accent={:?} on_accent={:?} accent_soft={:?}", spec.dark, spec.accent, p.on_accent, p.accent_soft);
 
-    let bad = General {
-        accent: "not-a-color".into(),
-        theme: Theme::Dark,
-        ..General::default()
-    };
+    let bad = General { accent: "not-a-color".into(), theme: Theme::Dark, ..General::default() };
     println!("bad accent       -> {:?}", ThemeSpec::from_settings(&bad));
 
-    for accel in [
-        "Ctrl+Shift+4",
-        "PrintScreen",
-        "Cmd+Shift+4",
-        "CmdOrCtrl+Alt+Left",
-    ] {
+    for accel in ["Ctrl+Shift+4", "PrintScreen", "Cmd+Shift+4", "CmdOrCtrl+Alt+Left"] {
         println!("{accel:>20} -> {:?}", snap_ui::widgets::accel_parts(accel));
     }
     for hex in ["#3D5AFE", "f80", "#11223344", "zz"] {

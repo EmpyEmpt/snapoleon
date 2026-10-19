@@ -15,9 +15,7 @@ pub const DAY_MS: i64 = 24 * HOUR_MS;
 
 fn random_from(alphabet: &[u8], len: usize) -> String {
     let mut rng = rand::rng();
-    (0..len)
-        .map(|_| alphabet[rng.random_range(0..alphabet.len())] as char)
-        .collect()
+    (0..len).map(|_| alphabet[rng.random_range(0..alphabet.len())] as char).collect()
 }
 
 /// A short, human-typeable code for items and links.
@@ -50,8 +48,7 @@ pub fn sha256_hex(data: &[u8]) -> String {
 }
 
 pub fn hmac_hex(key: &[u8], msg: &[u8]) -> String {
-    let mut mac =
-        <Hmac<Sha256> as KeyInit>::new_from_slice(key).expect("HMAC accepts any key length");
+    let mut mac = <Hmac<Sha256> as KeyInit>::new_from_slice(key).expect("HMAC accepts any key length");
     mac.update(msg);
     hex(&mac.finalize().into_bytes())
 }
@@ -81,18 +78,8 @@ pub struct Sniffed {
 /// Identify an upload from its leading bytes. The client-supplied content type
 /// is never trusted, and only formats that are safe to serve inline are allowed.
 pub fn sniff(head: &[u8]) -> Option<Sniffed> {
-    let img = |mime| {
-        Some(Sniffed {
-            mime,
-            kind: MediaKind::Image,
-        })
-    };
-    let vid = |mime| {
-        Some(Sniffed {
-            mime,
-            kind: MediaKind::Video,
-        })
-    };
+    let img = |mime| Some(Sniffed { mime, kind: MediaKind::Image });
+    let vid = |mime| Some(Sniffed { mime, kind: MediaKind::Video });
     if head.starts_with(b"\x89PNG\r\n\x1a\n") {
         img("image/png")
     } else if head.starts_with(&[0xFF, 0xD8, 0xFF]) {
@@ -120,34 +107,23 @@ pub fn human_bytes(n: u64) -> String {
         v /= 1024.0;
         u += 1;
     }
-    if u == 0 {
-        format!("{n} B")
-    } else {
-        format!("{v:.1} {}", UNITS[u])
-    }
+    if u == 0 { format!("{n} B") } else { format!("{v:.1} {}", UNITS[u]) }
 }
 
 /// `2026-10-19 14:05` in UTC.
 pub fn format_ms(ms: i64) -> String {
-    chrono::DateTime::from_timestamp_millis(ms)
-        .map(|d| d.format("%Y-%m-%d %H:%M").to_string())
-        .unwrap_or_default()
+    chrono::DateTime::from_timestamp_millis(ms).map(|d| d.format("%Y-%m-%d %H:%M").to_string()).unwrap_or_default()
 }
 
 /// RFC 3339 timestamp for `<time datetime>` and meta tags.
 pub fn iso_ms(ms: i64) -> String {
-    chrono::DateTime::from_timestamp_millis(ms)
-        .map(|d| d.to_rfc3339_opts(chrono::SecondsFormat::Secs, true))
-        .unwrap_or_default()
+    chrono::DateTime::from_timestamp_millis(ms).map(|d| d.to_rfc3339_opts(chrono::SecondsFormat::Secs, true)).unwrap_or_default()
 }
 
 /// Strip path components and control characters from a client file name.
 pub fn clean_file_name(name: &str) -> String {
     let base = name.rsplit(['/', '\\']).next().unwrap_or(name);
-    let cleaned: String = base
-        .chars()
-        .filter(|c| !c.is_control() && !matches!(c, '"' | '<' | '>' | ':' | '|' | '?' | '*'))
-        .collect();
+    let cleaned: String = base.chars().filter(|c| !c.is_control() && !matches!(c, '"' | '<' | '>' | ':' | '|' | '?' | '*')).collect();
     let cleaned = cleaned.trim().trim_matches('.').to_string();
     cleaned.chars().take(120).collect()
 }

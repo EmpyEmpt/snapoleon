@@ -153,7 +153,8 @@ impl Stitcher {
         }
         let row_bytes = self.width as usize * 4;
         if total <= max_h.max(1) {
-            return RgbaImage::from_raw(self.width, total, [self.pixels.as_slice(), self.footer.as_slice()].concat()).expect("rows are tightly packed");
+            return RgbaImage::from_raw(self.width, total, [self.pixels.as_slice(), self.footer.as_slice()].concat())
+                .expect("rows are tightly packed");
         }
         let scale = max_h.max(1) as f32 / total as f32;
         let tw = ((self.width as f32 * scale).round() as u32).max(1);

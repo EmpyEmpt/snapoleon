@@ -4,10 +4,10 @@
 //! 1200 px capture and a 2x HiDPI 2400 px capture get proportionally identical chrome.
 
 use image::RgbaImage;
-use snap_core::{CaptureContext, t};
 use snap_core::settings::FrameStyle;
+use snap_core::{CaptureContext, t};
 use tiny_skia::{
-    Color, FillRule, GradientStop, LinearGradient, LineCap, LineJoin, Mask, Paint, Path, PathBuilder, Pixmap, PixmapPaint, Point,
+    Color, FillRule, GradientStop, LineCap, LineJoin, LinearGradient, Mask, Paint, Path, PathBuilder, Pixmap, PixmapPaint, Point,
     SpreadMode, Stroke, Transform,
 };
 
@@ -54,11 +54,8 @@ fn mac_window(img: &RgbaImage, dark: bool, radius: u32, cx: &CaptureContext) -> 
     fill_vgradient(&mut pm, &rect_path(0.0, 0.0, w as f32, bar), 0.0, bar, top, bottom);
     fill(&mut pm, &rect_path(0.0, bar - 1.0, w as f32, 1.0), hairline);
 
-    let lights: [(Rgba, Rgba); 3] = [
-        ([255, 95, 87, 255], [224, 68, 62, 255]),
-        ([254, 188, 46, 255], [222, 161, 35, 255]),
-        ([40, 200, 64, 255], [26, 171, 41, 255]),
-    ];
+    let lights: [(Rgba, Rgba); 3] =
+        [([255, 95, 87, 255], [224, 68, 62, 255]), ([254, 188, 46, 255], [222, 161, 35, 255]), ([40, 200, 64, 255], [26, 171, 41, 255])];
     for (i, (face, ring)) in lights.iter().enumerate() {
         let c = (20.0 + 20.0 * i as f32) * u;
         let path = circle_path(c, bar / 2.0, 6.0 * u);
@@ -268,7 +265,14 @@ fn phone_portrait(img: &RgbaImage) -> RgbaImage {
     if let Some(mut mask) = Mask::new(pm.width(), pm.height()) {
         mask.fill_path(&screen, FillRule::Winding, true, Transform::identity());
         let shot = to_pixmap(img);
-        pm.draw_pixmap(screen_x.round() as i32, screen_y.round() as i32, shot.as_ref(), &PixmapPaint::default(), Transform::identity(), Some(&mask));
+        pm.draw_pixmap(
+            screen_x.round() as i32,
+            screen_y.round() as i32,
+            shot.as_ref(),
+            &PixmapPaint::default(),
+            Transform::identity(),
+            Some(&mask),
+        );
     }
 
     // Dynamic island with its camera lens.

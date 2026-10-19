@@ -21,9 +21,9 @@ fn main() -> snap_core::Result<()> {
             UI::{
                 Input::KeyboardAndMouse::SetFocus,
                 WindowsAndMessaging::{
-                    CreateWindowExW, DefWindowProcW, DispatchMessageW, GetForegroundWindow, GetMessageW, GetWindowRect, GetWindowThreadProcessId, MSG,
-                    PostMessageW, RegisterClassW, SetForegroundWindow, ShowWindow, SW_SHOW, TranslateMessage, WM_CLOSE, WM_DESTROY, WNDCLASSW, WS_EX_TOPMOST, WS_OVERLAPPEDWINDOW,
-                    WS_VISIBLE,
+                    CreateWindowExW, DefWindowProcW, DispatchMessageW, GetForegroundWindow, GetMessageW, GetWindowRect,
+                    GetWindowThreadProcessId, MSG, PostMessageW, RegisterClassW, SW_SHOW, SetForegroundWindow, ShowWindow,
+                    TranslateMessage, WM_CLOSE, WM_DESTROY, WNDCLASSW, WS_EX_TOPMOST, WS_OVERLAPPEDWINDOW, WS_VISIBLE,
                 },
             },
         },
@@ -59,8 +59,21 @@ fn main() -> snap_core::Result<()> {
             ..Default::default()
         };
         RegisterClassW(&class);
-        let hwnd = CreateWindowExW(WS_EX_TOPMOST, w!("SnapRecordDemo"), w!("snap-record overlay demo"), WS_OVERLAPPEDWINDOW | WS_VISIBLE, 300, 200, 900, 600, None, None, Some(hinst.into()), Some(null()))
-            .map_err(|e| snap_core::Error::Other(e.into()))?;
+        let hwnd = CreateWindowExW(
+            WS_EX_TOPMOST,
+            w!("SnapRecordDemo"),
+            w!("snap-record overlay demo"),
+            WS_OVERLAPPEDWINDOW | WS_VISIBLE,
+            300,
+            200,
+            900,
+            600,
+            None,
+            None,
+            Some(hinst.into()),
+            Some(null()),
+        )
+        .map_err(|e| snap_core::Error::Other(e.into()))?;
         let _ = ShowWindow(hwnd, SW_SHOW);
         hwnd
     };
@@ -137,7 +150,9 @@ fn main() -> snap_core::Result<()> {
         let r = rec.stop()?;
         println!("recorded {} ms, {}x{}, {} bytes -> {}", r.duration_ms, r.width, r.height, r.bytes, r.path.display());
         // SAFETY: closes our own window, ending the message loop.
-        unsafe { let _ = PostMessageW(Some(hwnd), WM_CLOSE, WPARAM(0), LPARAM(0)); }
+        unsafe {
+            let _ = PostMessageW(Some(hwnd), WM_CLOSE, WPARAM(0), LPARAM(0));
+        }
         Ok(())
     });
 

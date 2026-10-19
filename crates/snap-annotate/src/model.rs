@@ -6,7 +6,7 @@ use std::sync::Arc;
 use image::RgbaImage;
 use serde::{Deserialize, Serialize};
 use snap_core::settings::{BeautifyPreset, RedactStyle};
-use snap_core::{Capture, CaptureContext, CaptureId, PointF, RectF, Rect};
+use snap_core::{Capture, CaptureContext, CaptureId, PointF, Rect, RectF};
 
 use crate::cache::ImageCache;
 

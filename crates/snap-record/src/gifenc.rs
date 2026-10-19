@@ -207,7 +207,9 @@ impl<W: Write> GifEncoder<W> {
 }
 
 fn differs(bgr: &[u8], canvas_rgb: &[u8], tol: i32) -> bool {
-    (bgr[2] as i32 - canvas_rgb[0] as i32).abs() > tol || (bgr[1] as i32 - canvas_rgb[1] as i32).abs() > tol || (bgr[0] as i32 - canvas_rgb[2] as i32).abs() > tol
+    (bgr[2] as i32 - canvas_rgb[0] as i32).abs() > tol
+        || (bgr[1] as i32 - canvas_rgb[1] as i32).abs() > tol
+        || (bgr[0] as i32 - canvas_rgb[2] as i32).abs() > tol
 }
 
 fn gif_err(e: impl std::fmt::Display) -> Error {

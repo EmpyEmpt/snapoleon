@@ -8,7 +8,7 @@ use sha1::{Digest, Sha1};
 use snap_core::{Error, Result, naming, t};
 
 use crate::{
-    Uploader, UploadRequest, UploadResult,
+    UploadRequest, UploadResult, Uploader,
     http::{Call, Progress, Response},
     multipart::Multipart,
     session::Session,
@@ -87,7 +87,9 @@ impl BoxCom {
 
         let whole = digest(req.data);
         for _ in 0..12 {
-            let resp = self.session.send(|tok| Call::post(commit_url).bearer(tok).header("Digest", whole.clone()).json(&json!({ "parts": parts })).send())?;
+            let resp = self
+                .session
+                .send(|tok| Call::post(commit_url).bearer(tok).header("Digest", whole.clone()).json(&json!({ "parts": parts })).send())?;
             if resp.status != 202 {
                 return Ok(resp);
             }
@@ -116,7 +118,12 @@ impl Uploader for BoxCom {
 
         let shared = self
             .session
-            .send(|tok| Call::put(format!("{API}/files/{id}?fields=shared_link")).bearer(tok).json(&json!({ "shared_link": { "access": "open" } })).send())?
+            .send(|tok| {
+                Call::put(format!("{API}/files/{id}?fields=shared_link"))
+                    .bearer(tok)
+                    .json(&json!({ "shared_link": { "access": "open" } }))
+                    .send()
+            })?
             .check(PROVIDER)?
             .json()?;
         let url = shared["shared_link"]["url"].as_str().ok_or_else(|| Error::Network(t("upload.error.no_link").into_owned()))?.to_string();

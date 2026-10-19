@@ -4,7 +4,11 @@ use std::io::Cursor;
 
 use anyhow::anyhow;
 use image::{DynamicImage, ImageFormat};
-use objc2::{AnyThread, rc::{Retained, autoreleasepool}, runtime::AnyObject};
+use objc2::{
+    AnyThread,
+    rc::{Retained, autoreleasepool},
+    runtime::AnyObject,
+};
 use objc2_foundation::{NSArray, NSData, NSDictionary, NSError, NSRange, NSString};
 use objc2_vision::{VNImageRequestHandler, VNRecognizeTextRequest, VNRequest, VNRequestTextRecognitionLevel};
 use snap_core::{Error, RectF, Result, RgbaImage};
@@ -23,9 +27,7 @@ pub(crate) fn languages() -> Vec<String> {
 
 fn supported(request: &VNRecognizeTextRequest) -> Vec<String> {
     // SAFETY: plain query on a request we own.
-    unsafe { request.supportedRecognitionLanguagesAndReturnError() }
-        .map(|a| a.iter().map(|s| s.to_string()).collect())
-        .unwrap_or_default()
+    unsafe { request.supportedRecognitionLanguagesAndReturnError() }.map(|a| a.iter().map(|s| s.to_string()).collect()).unwrap_or_default()
 }
 
 pub(crate) fn status() -> (bool, String) {

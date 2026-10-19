@@ -43,10 +43,7 @@ pub(crate) fn apply_text_styles(style: &mut Style) {
         (TextStyle::Body, inter(13.0)),
         (TextStyle::Button, FontId::new(13.0, fonts::semibold())),
         (TextStyle::Heading, FontId::new(22.0, fonts::bold())),
-        (
-            TextStyle::Monospace,
-            FontId::new(12.0, FontFamily::Monospace),
-        ),
+        (TextStyle::Monospace, FontId::new(12.0, FontFamily::Monospace)),
         (caption_style(), inter(11.0)),
         (body_strong_style(), FontId::new(13.0, fonts::semibold())),
         (title_style(), FontId::new(16.0, fonts::semibold())),
@@ -71,9 +68,7 @@ pub fn title(s: impl Into<String>) -> RichText {
 
 /// 22 px bold with slightly tightened tracking.
 pub fn headline(s: impl Into<String>) -> RichText {
-    RichText::new(s)
-        .text_style(headline_style())
-        .extra_letter_spacing(-0.3)
+    RichText::new(s).text_style(headline_style()).extra_letter_spacing(-0.3)
 }
 
 /// Monospace for numbers, sizes, hex values and hotkeys.

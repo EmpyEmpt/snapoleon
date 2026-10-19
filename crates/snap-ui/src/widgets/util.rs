@@ -2,10 +2,7 @@
 
 use std::sync::Arc;
 
-use egui::{
-    Align2, Color32, Context, FontId, Galley, Id, Pos2, Rect, Response, Stroke, StrokeKind,
-    TextStyle, Ui, emath::easing,
-};
+use egui::{Align2, Color32, Context, FontId, Galley, Id, Pos2, Rect, Response, Stroke, StrokeKind, TextStyle, Ui, emath::easing};
 
 use crate::theme::Palette;
 
@@ -35,12 +32,7 @@ pub fn anim(ctx: &Context, id: Id, on: bool, secs: f32) -> f32 {
 
 /// 0..1 hover fade (100 ms).
 pub fn hover_anim(ui: &Ui, resp: &Response) -> f32 {
-    anim(
-        ui.ctx(),
-        resp.id.with("hover"),
-        resp.hovered() && ui.is_enabled(),
-        Motion::HOVER,
-    )
+    anim(ui.ctx(), resp.id.with("hover"), resp.hovered() && ui.is_enabled(), Motion::HOVER)
 }
 
 /// Animates a value toward `target` linearly over `secs`.
@@ -56,12 +48,7 @@ pub fn lerp_color(a: Color32, b: Color32, t: f32) -> Color32 {
 pub fn focus_ring(ui: &Ui, resp: &Response, rect: Rect, rounding: f32) {
     if resp.has_focus() && ui.is_enabled() {
         let p = Palette::of(ui);
-        ui.painter().rect_stroke(
-            rect,
-            rounding,
-            Stroke::new(2.0, p.accent),
-            StrokeKind::Outside,
-        );
+        ui.painter().rect_stroke(rect, rounding, Stroke::new(2.0, p.accent), StrokeKind::Outside);
     }
 }
 
@@ -75,19 +62,11 @@ pub fn font_id(ui: &Ui, style: &TextStyle) -> FontId {
 }
 
 pub fn layout(ui: &Ui, text: &str, style: &TextStyle, color: Color32) -> Arc<Galley> {
-    ui.painter()
-        .layout_no_wrap(text.to_owned(), font_id(ui, style), color)
+    ui.painter().layout_no_wrap(text.to_owned(), font_id(ui, style), color)
 }
 
-pub fn layout_wrapped(
-    ui: &Ui,
-    text: &str,
-    style: &TextStyle,
-    color: Color32,
-    width: f32,
-) -> Arc<Galley> {
-    ui.painter()
-        .layout(text.to_owned(), font_id(ui, style), color, width)
+pub fn layout_wrapped(ui: &Ui, text: &str, style: &TextStyle, color: Color32, width: f32) -> Arc<Galley> {
+    ui.painter().layout(text.to_owned(), font_id(ui, style), color, width)
 }
 
 /// Paints `galley` centered on `center`, snapped to whole pixels so text stays crisp.
@@ -103,11 +82,5 @@ pub fn snap(ui: &Ui, p: Pos2) -> Pos2 {
 
 /// Draws an icon glyph centered on `center`.
 pub fn paint_icon(ui: &Ui, center: Pos2, icon: &str, size: f32, color: Color32) {
-    ui.painter().text(
-        snap(ui, center),
-        Align2::CENTER_CENTER,
-        icon,
-        FontId::proportional(size),
-        color,
-    );
+    ui.painter().text(snap(ui, center), Align2::CENTER_CENTER, icon, FontId::proportional(size), color);
 }

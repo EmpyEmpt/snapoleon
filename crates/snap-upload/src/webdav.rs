@@ -4,7 +4,7 @@
 use snap_core::{Error, Result, tf};
 
 use crate::{
-    Uploader, UploadRequest, UploadResult,
+    UploadRequest, UploadResult, Uploader,
     http::{Call, Progress},
     util::{join_url, mime_or_octet, pct_path, safe_relative_path},
 };

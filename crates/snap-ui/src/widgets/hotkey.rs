@@ -2,10 +2,7 @@
 
 use std::time::Duration;
 
-use egui::{
-    Event, EventFilter, Key, Modifiers, Pos2, Rect, Response, Role, Sense, Stroke, StrokeKind, Ui,
-    Vec2, WidgetInfo,
-};
+use egui::{Event, EventFilter, Key, Modifiers, Pos2, Rect, Response, Role, Sense, Stroke, StrokeKind, Ui, Vec2, WidgetInfo};
 use snap_core::t;
 
 use super::{
@@ -44,8 +41,7 @@ enum Outcome {
 pub fn hotkey_recorder(ui: &mut Ui, accel: &mut String, state: &mut RecorderState) -> Response {
     let p = Palette::of(ui);
     let width = ui.available_width().clamp(210.0, 270.0);
-    let (rect, mut resp) =
-        ui.allocate_exact_size(Vec2::new(width, control_height(ui)), Sense::click());
+    let (rect, mut resp) = ui.allocate_exact_size(Vec2::new(width, control_height(ui)), Sense::click());
     resp.widget_info(|| WidgetInfo::labeled(Role::Button, ui.is_enabled(), accel.as_str()));
     if resp.clicked() {
         resp.request_focus();
@@ -55,15 +51,7 @@ pub fn hotkey_recorder(ui: &mut Ui, accel: &mut String, state: &mut RecorderStat
 
     if recording {
         ui.memory_mut(|m| {
-            m.set_focus_lock_filter(
-                resp.id,
-                EventFilter {
-                    tab: true,
-                    horizontal_arrows: true,
-                    vertical_arrows: true,
-                    escape: true,
-                },
-            );
+            m.set_focus_lock_filter(resp.id, EventFilter { tab: true, horizontal_arrows: true, vertical_arrows: true, escape: true });
         });
         let extra = platform::extra_keys_down();
         let outcome = ui.input_mut(|i| {
@@ -71,20 +59,8 @@ pub fn hotkey_recorder(ui: &mut Ui, accel: &mut String, state: &mut RecorderStat
             held = held_modifiers(mods, extra.super_key);
             let mut outcome = None;
             for event in &i.events {
-                if let Event::Key {
-                    key,
-                    physical_key,
-                    pressed: true,
-                    repeat: false,
-                    modifiers,
-                    ..
-                } = event
-                {
-                    outcome = outcome.or(classify(
-                        physical_key.unwrap_or(*key),
-                        *modifiers,
-                        extra.super_key,
-                    ));
+                if let Event::Key { key, physical_key, pressed: true, repeat: false, modifiers, .. } = event {
+                    outcome = outcome.or(classify(physical_key.unwrap_or(*key), *modifiers, extra.super_key));
                 }
             }
             // A key already held when recording began must be released and pressed again.
@@ -96,8 +72,7 @@ pub fn hotkey_recorder(ui: &mut Ui, accel: &mut String, state: &mut RecorderStat
             }
             state.prev_extra_key = Some(extra.key);
             // Keep the recorded keys away from the rest of the UI (Esc must not close the dialog, etc.).
-            i.events
-                .retain(|e| !matches!(e, Event::Key { .. } | Event::Text(_)));
+            i.events.retain(|e| !matches!(e, Event::Key { .. } | Event::Text(_)));
             outcome
         });
         match outcome {
@@ -123,16 +98,10 @@ pub fn hotkey_recorder(ui: &mut Ui, accel: &mut String, state: &mut RecorderStat
     let recording = recording && resp.has_focus();
 
     // Clear button, only on a hovered, filled, idle field.
-    let clear_rect = Rect::from_center_size(
-        Pos2::new(rect.right() - 18.0, rect.center().y),
-        Vec2::splat(22.0),
-    );
+    let clear_rect = Rect::from_center_size(Pos2::new(rect.right() - 18.0, rect.center().y), Vec2::splat(22.0));
     let hovered = ui.rect_contains_pointer(rect);
     let show_clear = !recording && !accel.is_empty() && hovered && ui.is_enabled();
-    let clear = show_clear.then(|| {
-        ui.interact(clear_rect, resp.id.with("clear"), Sense::click())
-            .on_hover_text(t("ui.hotkey.clear"))
-    });
+    let clear = show_clear.then(|| ui.interact(clear_rect, resp.id.with("clear"), Sense::click()).on_hover_text(t("ui.hotkey.clear")));
     if clear.as_ref().is_some_and(Response::clicked) {
         accel.clear();
         state.invalid = false;
@@ -145,85 +114,42 @@ pub fn hotkey_recorder(ui: &mut Ui, accel: &mut String, state: &mut RecorderStat
         let round = radius::CARD;
         let painter = ui.painter();
         painter.rect_filled(rect, round, p.surface_2);
-        painter.rect_filled(
-            rect,
-            round,
-            p.hover().gamma_multiply(hover * (1.0 - active)),
-        );
-        let idle_border = if state.invalid {
-            p.danger
-        } else {
-            lerp_color(p.border, p.border_strong(), hover)
-        };
-        painter.rect_stroke(
-            rect,
-            round,
-            Stroke::new(1.0, lerp_color(idle_border, p.accent, active)),
-            StrokeKind::Inside,
-        );
+        painter.rect_filled(rect, round, p.hover().gamma_multiply(hover * (1.0 - active)));
+        let idle_border = if state.invalid { p.danger } else { lerp_color(p.border, p.border_strong(), hover) };
+        painter.rect_stroke(rect, round, Stroke::new(1.0, lerp_color(idle_border, p.accent, active)), StrokeKind::Inside);
         if active > 0.0 {
             let pulse = 0.22 + 0.12 * ((ui.input(|i| i.time) * 4.0).sin() as f32 * 0.5 + 0.5);
-            painter.rect_stroke(
-                rect,
-                round,
-                Stroke::new(2.0, with_alpha(p.accent, pulse * active)),
-                StrokeKind::Outside,
-            );
+            painter.rect_stroke(rect, round, Stroke::new(2.0, with_alpha(p.accent, pulse * active)), StrokeKind::Outside);
         }
 
         let origin = Pos2::new(rect.left() + 10.0, rect.center().y);
         if recording {
             if held.is_empty() {
-                let galley =
-                    util::layout(ui, &t("ui.hotkey.press_keys"), &body_style(), p.text_dim);
+                let galley = util::layout(ui, &t("ui.hotkey.press_keys"), &body_style(), p.text_dim);
                 let end = origin.x + 2.0 + galley.size().x;
-                ui.painter().galley(
-                    util::snap(
-                        ui,
-                        Pos2::new(origin.x + 2.0, rect.center().y - galley.size().y / 2.0),
-                    ),
-                    galley,
-                    p.text_dim,
-                );
-                let hint =
-                    util::layout(ui, &t("ui.hotkey.esc_hint"), &caption_style(), p.text_faint);
+                ui.painter().galley(util::snap(ui, Pos2::new(origin.x + 2.0, rect.center().y - galley.size().y / 2.0)), galley, p.text_dim);
+                let hint = util::layout(ui, &t("ui.hotkey.esc_hint"), &caption_style(), p.text_faint);
                 let hint_x = rect.right() - 10.0 - hint.size().x;
                 if hint_x > end + 12.0 {
-                    ui.painter().galley(
-                        util::snap(ui, Pos2::new(hint_x, rect.center().y - hint.size().y / 2.0)),
-                        hint,
-                        p.text_faint,
-                    );
+                    ui.painter().galley(util::snap(ui, Pos2::new(hint_x, rect.center().y - hint.size().y / 2.0)), hint, p.text_faint);
                 }
             } else {
                 let x = origin.x + paint_keycaps(ui, origin, &held, true) + 8.0;
                 let galley = util::layout(ui, "…", &body_style(), p.text_dim);
-                ui.painter().galley(
-                    util::snap(ui, Pos2::new(x, rect.center().y - galley.size().y / 2.0)),
-                    galley,
-                    p.text_dim,
-                );
+                ui.painter().galley(util::snap(ui, Pos2::new(x, rect.center().y - galley.size().y / 2.0)), galley, p.text_dim);
             }
         } else if accel.is_empty() {
             let galley = util::layout(ui, &t("ui.hotkey.not_set"), &body_style(), p.text_faint);
             let pos = Pos2::new(origin.x + 2.0, rect.center().y - galley.size().y / 2.0);
-            ui.painter()
-                .galley(util::snap(ui, pos), galley, p.text_faint);
+            ui.painter().galley(util::snap(ui, pos), galley, p.text_faint);
         } else {
             paint_keycaps(ui, origin, &accel_parts(accel), false);
         }
 
         if let Some(clear) = &clear {
             let h = hover_anim(ui, clear);
-            ui.painter()
-                .circle_filled(clear_rect.center(), 10.0, p.hover().gamma_multiply(h));
-            util::paint_icon(
-                ui,
-                clear_rect.center(),
-                icon::X,
-                12.0,
-                lerp_color(p.text_faint, p.text, h),
-            );
+            ui.painter().circle_filled(clear_rect.center(), 10.0, p.hover().gamma_multiply(h));
+            util::paint_icon(ui, clear_rect.center(), icon::X, 12.0, lerp_color(p.text_faint, p.text, h));
         }
         focus_ring(ui, &resp, rect, round);
     }
@@ -232,13 +158,7 @@ pub fn hotkey_recorder(ui: &mut Ui, accel: &mut String, state: &mut RecorderStat
 
 fn held_modifiers(m: Modifiers, super_key: bool) -> Vec<String> {
     let mut parts = Vec::new();
-    for (on, name) in [
-        (m.ctrl, "Ctrl"),
-        (m.alt, "Alt"),
-        (m.shift, "Shift"),
-        (m.mac_cmd, "Cmd"),
-        (super_key, "Win"),
-    ] {
+    for (on, name) in [(m.ctrl, "Ctrl"), (m.alt, "Alt"), (m.shift, "Shift"), (m.mac_cmd, "Cmd"), (super_key, "Win")] {
         if on {
             parts.push(name);
         }

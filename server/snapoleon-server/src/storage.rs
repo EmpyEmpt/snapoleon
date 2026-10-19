@@ -10,9 +10,9 @@ use std::{ops::Range, sync::Arc};
 use anyhow::{Context, Result};
 use bytes::Bytes;
 use object_store::{
-    Attribute, AttributeValue, Attributes, GetOptions, GetRange, GetResult, MultipartUpload,
-    ObjectStore, ObjectStoreExt, PutMultipartOptions, PutOptions, PutPayload, WriteMultipart,
-    aws::AmazonS3Builder, local::LocalFileSystem, path::Path, prefix::PrefixStore,
+    Attribute, AttributeValue, Attributes, GetOptions, GetRange, GetResult, MultipartUpload, ObjectStore, ObjectStoreExt,
+    PutMultipartOptions, PutOptions, PutPayload, WriteMultipart, aws::AmazonS3Builder, local::LocalFileSystem, path::Path,
+    prefix::PrefixStore,
 };
 
 use crate::{
@@ -26,19 +26,11 @@ pub const PUBLIC_CACHE: &str = "public, max-age=3600";
 pub const SHORT_CACHE: &str = "public, max-age=300";
 
 pub fn blob_key(id: &str, code: &str, protected: bool) -> String {
-    if protected {
-        format!("private/{id}")
-    } else {
-        format!("raw/{code}")
-    }
+    if protected { format!("private/{id}") } else { format!("raw/{code}") }
 }
 
 pub fn thumb_key(id: &str, code: &str, protected: bool) -> String {
-    if protected {
-        format!("private/{id}.thumb")
-    } else {
-        format!("thumb/{code}.jpg")
-    }
+    if protected { format!("private/{id}.thumb") } else { format!("thumb/{code}.jpg") }
 }
 
 pub fn og_key(item: &Item) -> String {
@@ -55,19 +47,10 @@ pub struct PutMeta<'a> {
 impl PutMeta<'_> {
     fn attributes(&self) -> Attributes {
         let mut a = Attributes::new();
-        a.insert(
-            Attribute::ContentType,
-            AttributeValue::from(self.mime.to_string()),
-        );
-        a.insert(
-            Attribute::CacheControl,
-            AttributeValue::from(self.cache_control.to_string()),
-        );
+        a.insert(Attribute::ContentType, AttributeValue::from(self.mime.to_string()));
+        a.insert(Attribute::CacheControl, AttributeValue::from(self.cache_control.to_string()));
         if let Some(exp) = self.expires_ms {
-            a.insert(
-                Attribute::Metadata("expires-ms".into()),
-                AttributeValue::from(exp.to_string()),
-            );
+            a.insert(Attribute::Metadata("expires-ms".into()), AttributeValue::from(exp.to_string()));
         }
         a
     }
@@ -107,28 +90,18 @@ impl Blobs {
         match cfg.storage.kind {
             StorageKind::Fs => {
                 let dir = cfg.data_dir.join("blobs");
-                std::fs::create_dir_all(&dir)
-                    .with_context(|| format!("creating {}", dir.display()))?;
+                std::fs::create_dir_all(&dir).with_context(|| format!("creating {}", dir.display()))?;
                 let store = LocalFileSystem::new_with_prefix(&dir)?.with_automatic_cleanup(true);
-                Ok(Self {
-                    store: Arc::new(store),
-                    remote: false,
-                })
+                Ok(Self { store: Arc::new(store), remote: false })
             }
             StorageKind::S3 => {
                 let s = &cfg.storage;
-                let mut b = AmazonS3Builder::new()
-                    .with_bucket_name(&s.bucket)
-                    .with_region(&s.region);
+                let mut b = AmazonS3Builder::new().with_bucket_name(&s.bucket).with_region(&s.region);
                 if !s.endpoint.is_empty() {
-                    b = b
-                        .with_endpoint(&s.endpoint)
-                        .with_allow_http(s.endpoint.starts_with("http://"));
+                    b = b.with_endpoint(&s.endpoint).with_allow_http(s.endpoint.starts_with("http://"));
                 }
                 if !s.key.is_empty() {
-                    b = b
-                        .with_access_key_id(&s.key)
-                        .with_secret_access_key(&s.secret);
+                    b = b.with_access_key_id(&s.key).with_secret_access_key(&s.secret);
                 }
                 let s3 = b.build().context("configuring S3 storage")?;
                 let store: Arc<dyn ObjectStore> = if s.prefix.trim_matches('/').is_empty() {
@@ -136,47 +109,26 @@ impl Blobs {
                 } else {
                     Arc::new(PrefixStore::new(s3, s.prefix.trim_matches('/')))
                 };
-                Ok(Self {
-                    store,
-                    remote: true,
-                })
+                Ok(Self { store, remote: true })
             }
         }
     }
 
     pub async fn put(&self, key: &str, data: Bytes, meta: PutMeta<'_>) -> Result<(), AppError> {
-        let opts = if self.remote {
-            PutOptions::from(meta.attributes())
-        } else {
-            PutOptions::default()
-        };
-        self.store
-            .put_opts(&Path::from(key), PutPayload::from(data), opts)
-            .await?;
+        let opts = if self.remote { PutOptions::from(meta.attributes()) } else { PutOptions::default() };
+        self.store.put_opts(&Path::from(key), PutPayload::from(data), opts).await?;
         Ok(())
     }
 
     /// Start a streaming upload for objects too large to buffer.
     pub async fn begin(&self, key: &str, meta: PutMeta<'_>) -> Result<StreamUpload, AppError> {
-        let opts = if self.remote {
-            PutMultipartOptions::from(meta.attributes())
-        } else {
-            PutMultipartOptions::default()
-        };
-        let upload: Box<dyn MultipartUpload> = self
-            .store
-            .put_multipart_opts(&Path::from(key), opts)
-            .await?;
-        Ok(StreamUpload {
-            inner: WriteMultipart::new(upload),
-        })
+        let opts = if self.remote { PutMultipartOptions::from(meta.attributes()) } else { PutMultipartOptions::default() };
+        let upload: Box<dyn MultipartUpload> = self.store.put_multipart_opts(&Path::from(key), opts).await?;
+        Ok(StreamUpload { inner: WriteMultipart::new(upload) })
     }
 
     pub async fn get(&self, key: &str, range: Option<Range<u64>>) -> Result<GetResult, AppError> {
-        let options = GetOptions {
-            range: range.map(GetRange::Bounded),
-            ..Default::default()
-        };
+        let options = GetOptions { range: range.map(GetRange::Bounded), ..Default::default() };
         match self.store.get_opts(&Path::from(key), options).await {
             Ok(r) => Ok(r),
             Err(object_store::Error::NotFound { .. }) => Err(AppError::NotFound),
@@ -197,9 +149,7 @@ impl Blobs {
     }
 
     pub async fn rename(&self, from: &str, to: &str) -> Result<(), AppError> {
-        self.store
-            .rename(&Path::from(from), &Path::from(to))
-            .await?;
+        self.store.rename(&Path::from(from), &Path::from(to)).await?;
         Ok(())
     }
 

@@ -55,12 +55,6 @@ pub fn extra_keys_down() -> ExtraKeys {
 
 #[cfg(any(target_os = "macos", target_os = "linux"))]
 fn run(program: &str, args: &[&str]) -> Option<String> {
-    let out = std::process::Command::new(program)
-        .args(args)
-        .stderr(std::process::Stdio::null())
-        .output()
-        .ok()?;
-    out.status
-        .success()
-        .then(|| String::from_utf8_lossy(&out.stdout).trim().to_string())
+    let out = std::process::Command::new(program).args(args).stderr(std::process::Stdio::null()).output().ok()?;
+    out.status.success().then(|| String::from_utf8_lossy(&out.stdout).trim().to_string())
 }

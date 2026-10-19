@@ -12,15 +12,22 @@ use anyhow::anyhow;
 use block2::RcBlock;
 use objc2::{AllocAnyThread, rc::Retained, runtime::AnyObject};
 use objc2_av_foundation::{
-    AVAssetWriter, AVAssetWriterInput, AVAssetWriterInputPixelBufferAdaptor, AVAssetWriterStatus, AVFileTypeMPEG4, AVMediaTypeAudio, AVMediaTypeVideo, AVVideoAllowFrameReorderingKey,
-    AVVideoAverageBitRateKey, AVVideoCodecKey, AVVideoCodecTypeH264, AVVideoCompressionPropertiesKey, AVVideoEncoderSpecificationKey, AVVideoExpectedSourceFrameRateKey, AVVideoHeightKey,
+    AVAssetWriter, AVAssetWriterInput, AVAssetWriterInputPixelBufferAdaptor, AVAssetWriterStatus, AVFileTypeMPEG4, AVMediaTypeAudio,
+    AVMediaTypeVideo, AVVideoAllowFrameReorderingKey, AVVideoAverageBitRateKey, AVVideoCodecKey, AVVideoCodecTypeH264,
+    AVVideoCompressionPropertiesKey, AVVideoEncoderSpecificationKey, AVVideoExpectedSourceFrameRateKey, AVVideoHeightKey,
     AVVideoMaxKeyFrameIntervalKey, AVVideoProfileLevelH264HighAutoLevel, AVVideoProfileLevelKey, AVVideoWidthKey,
 };
 use objc2_avf_audio::{AVEncoderBitRateKey, AVFormatIDKey, AVNumberOfChannelsKey, AVSampleRateKey};
 use objc2_core_audio_types::{AudioStreamBasicDescription, kAudioFormatMPEG4AAC};
 use objc2_core_foundation::CFRetained;
-use objc2_core_media::{CMAudioFormatDescription, CMAudioSampleBufferCreateReadyWithPacketDescriptions, CMAudioFormatDescriptionCreate, CMBlockBuffer, CMSampleBuffer, CMTime};
-use objc2_core_video::{CVPixelBuffer, CVPixelBufferCreate, CVPixelBufferGetBaseAddress, CVPixelBufferGetBytesPerRow, CVPixelBufferLockBaseAddress, CVPixelBufferLockFlags, CVPixelBufferUnlockBaseAddress, kCVPixelFormatType_32BGRA};
+use objc2_core_media::{
+    CMAudioFormatDescription, CMAudioFormatDescriptionCreate, CMAudioSampleBufferCreateReadyWithPacketDescriptions, CMBlockBuffer,
+    CMSampleBuffer, CMTime,
+};
+use objc2_core_video::{
+    CVPixelBuffer, CVPixelBufferCreate, CVPixelBufferGetBaseAddress, CVPixelBufferGetBytesPerRow, CVPixelBufferLockBaseAddress,
+    CVPixelBufferLockFlags, CVPixelBufferUnlockBaseAddress, kCVPixelFormatType_32BGRA,
+};
 use objc2_foundation::{NSDictionary, NSNumber, NSString, NSURL};
 use snap_core::{Error, Result, settings::EncoderPref};
 
@@ -81,7 +88,8 @@ pub(crate) fn native_mp4_sink(spec: &SinkSpec) -> Result<Box<dyn Sink>> {
         let url = NSURL::fileURLWithPath(&NSString::from_str(&spec.output.to_string_lossy()));
         remove_existing(&spec.output);
         let file_type = AVFileTypeMPEG4.ok_or_else(|| av("AVFoundation", "AVFileTypeMPEG4 missing"))?;
-        let writer = AVAssetWriter::assetWriterWithURL_fileType_error(&url, file_type).map_err(|e| av("create writer", e.localizedDescription()))?;
+        let writer =
+            AVAssetWriter::assetWriterWithURL_fileType_error(&url, file_type).map_err(|e| av("create writer", e.localizedDescription()))?;
 
         // Video input: H.264 High profile.
         let (k_codec, k_w, k_h, k_props) = (
@@ -120,7 +128,11 @@ pub(crate) fn native_mp4_sink(spec: &SinkSpec) -> Result<Box<dyn Sink>> {
             values.push(any(&*software_spec));
         }
         let settings = dict(&keys, &values);
-        let video = AVAssetWriterInput::initWithMediaType_outputSettings(AVAssetWriterInput::alloc(), AVMediaTypeVideo.ok_or_else(missing)?, Some(&settings));
+        let video = AVAssetWriterInput::initWithMediaType_outputSettings(
+            AVAssetWriterInput::alloc(),
+            AVMediaTypeVideo.ok_or_else(missing)?,
+            Some(&settings),
+        );
         video.setExpectsMediaDataInRealTime(true);
         if !writer.canAddInput(&video) {
             return Err(av("configure writer", "the video input was rejected"));
@@ -128,7 +140,11 @@ pub(crate) fn native_mp4_sink(spec: &SinkSpec) -> Result<Box<dyn Sink>> {
         writer.addInput(&video);
 
         let attrs = dict(&[&*NSString::from_str("PixelFormatType")], &[any(&*NSNumber::new_u32(kCVPixelFormatType_32BGRA))]);
-        let adaptor = AVAssetWriterInputPixelBufferAdaptor::assetWriterInputPixelBufferAdaptorWithAssetWriterInput_sourcePixelBufferAttributes(&video, Some(&attrs));
+        let adaptor =
+            AVAssetWriterInputPixelBufferAdaptor::assetWriterInputPixelBufferAdaptorWithAssetWriterInput_sourcePixelBufferAttributes(
+                &video,
+                Some(&attrs),
+            );
 
         let audio = if spec.audio {
             let format = NSNumber::new_u32(kAudioFormatMPEG4AAC);
@@ -136,10 +152,19 @@ pub(crate) fn native_mp4_sink(spec: &SinkSpec) -> Result<Box<dyn Sink>> {
             let sample_rate = NSNumber::new_u32(48_000);
             let bit_rate = NSNumber::new_u32(192_000);
             let settings = dict(
-                &[AVFormatIDKey.ok_or_else(missing)?, AVNumberOfChannelsKey.ok_or_else(missing)?, AVSampleRateKey.ok_or_else(missing)?, AVEncoderBitRateKey.ok_or_else(missing)?],
+                &[
+                    AVFormatIDKey.ok_or_else(missing)?,
+                    AVNumberOfChannelsKey.ok_or_else(missing)?,
+                    AVSampleRateKey.ok_or_else(missing)?,
+                    AVEncoderBitRateKey.ok_or_else(missing)?,
+                ],
                 &[any(&*format), any(&*channels), any(&*sample_rate), any(&*bit_rate)],
             );
-            let input = AVAssetWriterInput::initWithMediaType_outputSettings(AVAssetWriterInput::alloc(), AVMediaTypeAudio.ok_or_else(missing)?, Some(&settings));
+            let input = AVAssetWriterInput::initWithMediaType_outputSettings(
+                AVAssetWriterInput::alloc(),
+                AVMediaTypeAudio.ok_or_else(missing)?,
+                Some(&settings),
+            );
             input.setExpectsMediaDataInRealTime(true);
             if !writer.canAddInput(&input) {
                 return Err(av("configure writer", "the audio input was rejected"));
@@ -170,7 +195,8 @@ impl AvSink {
     fn failed(&self) -> Option<Error> {
         // SAFETY: reading writer state.
         unsafe {
-            (self.writer.status() == AVAssetWriterStatus::Failed).then(|| av("AVAssetWriter", self.writer.error().map(|e| e.localizedDescription().to_string()).unwrap_or_default()))
+            (self.writer.status() == AVAssetWriterStatus::Failed)
+                .then(|| av("AVAssetWriter", self.writer.error().map(|e| e.localizedDescription().to_string()).unwrap_or_default()))
         }
     }
 
@@ -194,7 +220,14 @@ impl AvSink {
         // SAFETY: the buffer is created, locked, filled row by row within its stride and unlocked.
         unsafe {
             let mut raw: *mut CVPixelBuffer = ptr::null_mut();
-            let status = CVPixelBufferCreate(None, self.size.0 as usize, self.size.1 as usize, kCVPixelFormatType_32BGRA, None, NonNull::from(&mut raw));
+            let status = CVPixelBufferCreate(
+                None,
+                self.size.0 as usize,
+                self.size.1 as usize,
+                kCVPixelFormatType_32BGRA,
+                None,
+                NonNull::from(&mut raw),
+            );
             let raw = NonNull::new(raw).filter(|_| status == 0).ok_or_else(|| av("CVPixelBufferCreate", status))?;
             let buffer = CFRetained::from_raw(raw);
             CVPixelBufferLockBaseAddress(&buffer, CVPixelBufferLockFlags(0));
@@ -228,12 +261,33 @@ impl AvSink {
                 mReserved: 0,
             };
             let mut desc: *const CMAudioFormatDescription = ptr::null();
-            let status = CMAudioFormatDescriptionCreate(None, NonNull::from(&mut asbd), 0, ptr::null(), 0, ptr::null(), None, NonNull::from(&mut desc));
-            let desc = NonNull::new(desc as *mut CMAudioFormatDescription).filter(|_| status == 0).ok_or_else(|| av("CMAudioFormatDescriptionCreate", status))?;
+            let status = CMAudioFormatDescriptionCreate(
+                None,
+                NonNull::from(&mut asbd),
+                0,
+                ptr::null(),
+                0,
+                ptr::null(),
+                None,
+                NonNull::from(&mut desc),
+            );
+            let desc = NonNull::new(desc as *mut CMAudioFormatDescription)
+                .filter(|_| status == 0)
+                .ok_or_else(|| av("CMAudioFormatDescriptionCreate", status))?;
             let desc = CFRetained::from_raw(desc);
 
             let mut block: *mut CMBlockBuffer = ptr::null_mut();
-            let status = CMBlockBuffer::create_with_memory_block(None, ptr::null_mut(), bytes, None, ptr::null(), 0, bytes, objc2_core_media::kCMBlockBufferAssureMemoryNowFlag, NonNull::from(&mut block));
+            let status = CMBlockBuffer::create_with_memory_block(
+                None,
+                ptr::null_mut(),
+                bytes,
+                None,
+                ptr::null(),
+                0,
+                bytes,
+                objc2_core_media::kCMBlockBufferAssureMemoryNowFlag,
+                NonNull::from(&mut block),
+            );
             let block = NonNull::new(block).filter(|_| status == 0).ok_or_else(|| av("CMBlockBufferCreate", status))?;
             let block = CFRetained::from_raw(block);
             let status = CMBlockBuffer::replace_data_bytes(NonNull::new_unchecked(samples.as_ptr() as *mut c_void), &block, 0, bytes);
@@ -242,7 +296,15 @@ impl AvSink {
             }
 
             let mut sample: *mut CMSampleBuffer = ptr::null_mut();
-            let status = CMAudioSampleBufferCreateReadyWithPacketDescriptions(None, &block, &desc, frames as isize, time(pts), ptr::null(), NonNull::from(&mut sample));
+            let status = CMAudioSampleBufferCreateReadyWithPacketDescriptions(
+                None,
+                &block,
+                &desc,
+                frames as isize,
+                time(pts),
+                ptr::null(),
+                NonNull::from(&mut sample),
+            );
             let sample = NonNull::new(sample).filter(|_| status == 0).ok_or_else(|| av("CMAudioSampleBufferCreate", status))?;
             Ok(CFRetained::from_raw(sample))
         }

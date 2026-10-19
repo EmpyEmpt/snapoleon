@@ -53,7 +53,8 @@ fn read_request(stream: &mut TcpStream) -> Option<Req> {
     let mut lines = head.lines();
     let mut first = lines.next()?.split_whitespace();
     let (method, path) = (first.next()?.to_string(), first.next()?.to_string());
-    let headers: Vec<(String, String)> = lines.filter_map(|l| l.split_once(':')).map(|(k, v)| (k.trim().to_string(), v.trim().to_string())).collect();
+    let headers: Vec<(String, String)> =
+        lines.filter_map(|l| l.split_once(':')).map(|(k, v)| (k.trim().to_string(), v.trim().to_string())).collect();
     let len: usize = headers.iter().find(|(k, _)| k.eq_ignore_ascii_case("content-length")).and_then(|(_, v)| v.parse().ok()).unwrap_or(0);
     let mut body = buf[head_end + 4..].to_vec();
     while body.len() < len {
@@ -116,7 +117,9 @@ fn handle(req: Req, base: &str, dav: &Mutex<HashSet<String>>) -> Reply {
         ),
         ("POST", "/text") => (200, vec![], b"saved id=4711 done".to_vec()),
         ("POST", "/hdr") => (200, vec![("X-Delete", format!("{base}/del/123"))], b"ok".to_vec()),
-        ("POST", "/jsonbody") => json(200, serde_json::json!({ "echo": serde_json::from_slice::<serde_json::Value>(&req.body).unwrap_or_default() })),
+        ("POST", "/jsonbody") => {
+            json(200, serde_json::json!({ "echo": serde_json::from_slice::<serde_json::Value>(&req.body).unwrap_or_default() }))
+        }
         ("POST", "/fail") => json(500, serde_json::json!({ "error": "disk is full" })),
         ("POST", "/api/v1/upload") => {
             if req.header("authorization") != Some("Bearer team-token") {
@@ -125,12 +128,20 @@ fn handle(req: Req, base: &str, dav: &Mutex<HashSet<String>>) -> Reply {
             let (fields, file) = parse_multipart(&req);
             let (name, _) = file.unwrap_or_default();
             println!("  [server] team fields: {fields:?}");
-            json(200, serde_json::json!({ "id": "abc123", "url": format!("{base}/abc123"), "raw_url": format!("{base}/abc123/raw/{name}"), "delete_url": "/api/v1/items/abc123" }))
+            json(
+                200,
+                serde_json::json!({ "id": "abc123", "url": format!("{base}/abc123"), "raw_url": format!("{base}/abc123/raw/{name}"), "delete_url": "/api/v1/items/abc123" }),
+            )
         }
         ("POST", "/api/v1/shorten") => json(200, serde_json::json!({ "short_url": format!("{base}/s/xYz") })),
         ("GET", "/api/v1/me") => json(200, serde_json::json!({ "id": "u1", "name": "Napoleon", "workspace": "Elba" })),
-        ("GET", p) if p.starts_with("/api/v1/items") => json(200, serde_json::json!({ "items": [{ "id": "abc123", "url": format!("{base}/abc123"), "views": 3, "created_ms": 1 }] })),
-        ("GET", p) if p.starts_with("/api/v1/events") => json(200, serde_json::json!([{ "id": "e1", "kind": "view", "item_id": "abc123", "at_ms": 5 }, { "id": "e2", "kind": "weird", "item_id": "abc123", "at_ms": 6 }])),
+        ("GET", p) if p.starts_with("/api/v1/items") => {
+            json(200, serde_json::json!({ "items": [{ "id": "abc123", "url": format!("{base}/abc123"), "views": 3, "created_ms": 1 }] }))
+        }
+        ("GET", p) if p.starts_with("/api/v1/events") => json(
+            200,
+            serde_json::json!([{ "id": "e1", "kind": "view", "item_id": "abc123", "at_ms": 5 }, { "id": "e2", "kind": "weird", "item_id": "abc123", "at_ms": 6 }]),
+        ),
         ("DELETE", p) if p.starts_with("/api/v1/items/") => (204, vec![], vec![]),
         ("MKCOL", p) => {
             dav.lock().unwrap().insert(p.trim_end_matches('/').to_string());
@@ -159,7 +170,8 @@ fn verify_sigv4(req: &Req, secret: &str) -> Reply {
     let payload_hash = req.header("x-amz-content-sha256").unwrap_or_default();
     let body_ok = sigv4::sha256_hex(&req.body) == payload_hash;
     let creds = Credentials { access_key: parts[0], secret_key: secret };
-    let expected = sigv4::sign("PUT", &req.path, "", &headers, payload_hash, &creds, parts[2], "s3", req.header("x-amz-date").unwrap_or_default());
+    let expected =
+        sigv4::sign("PUT", &req.path, "", &headers, payload_hash, &creds, parts[2], "s3", req.header("x-amz-date").unwrap_or_default());
     let ok = body_ok && expected.signature == signature;
     println!(
         "  [server] SigV4 {} (signed headers: {signed_headers}; acl={:?}; content-type={:?})",
@@ -167,7 +179,11 @@ fn verify_sigv4(req: &Req, secret: &str) -> Reply {
         req.header("x-amz-acl"),
         req.header("content-type")
     );
-    if ok { (200, vec![("ETag", "\"abc\"".into())], vec![]) } else { (403, vec![], b"<Error><Message>SignatureDoesNotMatch</Message></Error>".to_vec()) }
+    if ok {
+        (200, vec![("ETag", "\"abc\"".into())], vec![])
+    } else {
+        (403, vec![], b"<Error><Message>SignatureDoesNotMatch</Message></Error>".to_vec())
+    }
 }
 
 fn spawn_server() -> String {
@@ -264,7 +280,13 @@ fn dest(id: &str, kind: DestinationKind, secret: Option<&str>) -> Destination {
 }
 
 fn custom(url: String, body: &str, f: impl FnOnce(&mut CustomUploader)) -> DestinationKind {
-    let mut c = CustomUploader { request_method: "POST".into(), request_url: url, body: body.into(), file_form_name: "file".into(), ..Default::default() };
+    let mut c = CustomUploader {
+        request_method: "POST".into(),
+        request_url: url,
+        body: body.into(),
+        file_form_name: "file".into(),
+        ..Default::default()
+    };
     f(&mut c);
     DestinationKind::CustomHttp(c)
 }
@@ -302,7 +324,11 @@ fn main() {
         "20130524T000000Z",
     );
     let get_expected = "f0e8bdb87c964420e857bd35b5d6ed310bd44f0170aba48dd91039c6036bdb41";
-    say!("GET Object   signature {}  expected {get_expected}  -> {}", get.signature, if get.signature == get_expected { "MATCH" } else { "MISMATCH" });
+    say!(
+        "GET Object   signature {}  expected {get_expected}  -> {}",
+        get.signature,
+        if get.signature == get_expected { "MATCH" } else { "MISMATCH" }
+    );
     say!("             {}", get.authorization);
 
     let body = b"Welcome to Amazon S3.";
@@ -325,13 +351,24 @@ fn main() {
         "20130524T000000Z",
     );
     let put_expected = "98ad721746da40c64f1a55b78f14c238d841ea1380cd77a1b5971af0ece108bd";
-    say!("PUT Object   signature {}  expected {put_expected}  -> {}", put.signature, if put.signature == put_expected { "MATCH" } else { "MISMATCH" });
+    say!(
+        "PUT Object   signature {}  expected {put_expected}  -> {}",
+        put.signature,
+        if put.signature == put_expected { "MATCH" } else { "MISMATCH" }
+    );
 
     let base = spawn_server();
     say!("\n== local server at {base} ==");
     let secrets = MemoryStore::default();
     let png: Vec<u8> = (0..70_000u32).map(|i| 32 + (i * 31 % 90) as u8).collect();
-    let req = UploadRequest { data: &png, file_name: "My shot (1) ü.png", mime: "image/png", title: Some("Demo \"title\""), expiry_hours: Some(24), password: Some("pw") };
+    let req = UploadRequest {
+        data: &png,
+        file_name: "My shot (1) ü.png",
+        mime: "image/png",
+        title: Some("Demo \"title\""),
+        expiry_hours: Some(24),
+        password: Some("pw"),
+    };
     let last = std::cell::Cell::new((0u64, 0u64));
     let ticks = std::cell::Cell::new(0u32);
     let progress = |s: u64, t: u64| {
@@ -352,24 +389,48 @@ fn main() {
     };
 
     say!("\n== CustomHttp ==");
-    run("multipart + json path", dest("c1", custom(format!("{base}/mp"), "multipart_form_data", |c| {
-        c.arguments = vec![("title".into(), "{filename}".into()), ("tag".into(), "{random:a|b|c}".into())];
-        c.parameters = vec![("v".into(), "1".into())];
-        c.headers = vec![("X-Test".into(), "yes".into())];
-        c.url = "{json:data.link}".into();
-        c.thumbnail_url = "{json:data.items[1].u}".into();
-        c.deletion_url = "{base64:abc}-{json:data.size}".into();
-    }), None));
-    run("xml xpath", dest("c2", custom(format!("{base}/xml"), "multipart_form_data", |c| c.url = "{xml://file[@id='2']/url}".into()), None));
+    run(
+        "multipart + json path",
+        dest(
+            "c1",
+            custom(format!("{base}/mp"), "multipart_form_data", |c| {
+                c.arguments = vec![("title".into(), "{filename}".into()), ("tag".into(), "{random:a|b|c}".into())];
+                c.parameters = vec![("v".into(), "1".into())];
+                c.headers = vec![("X-Test".into(), "yes".into())];
+                c.url = "{json:data.link}".into();
+                c.thumbnail_url = "{json:data.items[1].u}".into();
+                c.deletion_url = "{base64:abc}-{json:data.size}".into();
+            }),
+            None,
+        ),
+    );
+    run(
+        "xml xpath",
+        dest("c2", custom(format!("{base}/xml"), "multipart_form_data", |c| c.url = "{xml://file[@id='2']/url}".into()), None),
+    );
     run("regex group", dest("c3", custom(format!("{base}/text"), "binary", |c| c.url = "https://x/{regex:id=(\\d+)|1}".into()), None));
-    run("header + response", dest("c4", custom(format!("{base}/hdr"), "binary", |c| {
-        c.url = "{response}".into();
-        c.deletion_url = "{header:x-delete}".into();
-    }), None));
-    run("json body", dest("c5", custom(format!("{base}/jsonbody"), "json", |c| {
-        c.arguments = vec![(String::new(), "{\"name\": \"{filename}\", \"title\": \"{title}\"}".into())];
-        c.url = "{json:echo.name}".into();
-    }), None));
+    run(
+        "header + response",
+        dest(
+            "c4",
+            custom(format!("{base}/hdr"), "binary", |c| {
+                c.url = "{response}".into();
+                c.deletion_url = "{header:x-delete}".into();
+            }),
+            None,
+        ),
+    );
+    run(
+        "json body",
+        dest(
+            "c5",
+            custom(format!("{base}/jsonbody"), "json", |c| {
+                c.arguments = vec![(String::new(), "{\"name\": \"{filename}\", \"title\": \"{title}\"}".into())];
+                c.url = "{json:echo.name}".into();
+            }),
+            None,
+        ),
+    );
     run("error message", dest("c6", custom(format!("{base}/fail"), "binary", |c| c.error_message = "{json:error}".into()), None));
 
     say!("\n== LocalFolder ==");
@@ -386,25 +447,70 @@ fn main() {
 
     say!("\n== S3 (path-style against the local server, SigV4 verified server-side) ==");
     secrets.set("s3", "SnapSecretKey/ForTests+1234567890abcdefghij").unwrap();
-    run("s3 random name", dest("s3a", DestinationKind::S3 {
-        endpoint: base.clone(), region: "ru-central1".into(), bucket: "snaps".into(), access_key_id: "AKIATESTKEY".into(), path_style: true,
-        prefix: "shots/{yyyy}/".into(), public_base_url: "https://img.example.com".into(), random_code_len: 10, acl_public_read: true,
-    }, Some("s3")));
-    run("s3 keep name", dest("s3b", DestinationKind::S3 {
-        endpoint: base.clone(), region: "us-east-1".into(), bucket: "snaps".into(), access_key_id: "AKIATESTKEY".into(), path_style: true,
-        prefix: String::new(), public_base_url: String::new(), random_code_len: 0, acl_public_read: false,
-    }, Some("s3")));
+    run(
+        "s3 random name",
+        dest(
+            "s3a",
+            DestinationKind::S3 {
+                endpoint: base.clone(),
+                region: "ru-central1".into(),
+                bucket: "snaps".into(),
+                access_key_id: "AKIATESTKEY".into(),
+                path_style: true,
+                prefix: "shots/{yyyy}/".into(),
+                public_base_url: "https://img.example.com".into(),
+                random_code_len: 10,
+                acl_public_read: true,
+            },
+            Some("s3"),
+        ),
+    );
+    run(
+        "s3 keep name",
+        dest(
+            "s3b",
+            DestinationKind::S3 {
+                endpoint: base.clone(),
+                region: "us-east-1".into(),
+                bucket: "snaps".into(),
+                access_key_id: "AKIATESTKEY".into(),
+                path_style: true,
+                prefix: String::new(),
+                public_base_url: String::new(),
+                random_code_len: 0,
+                acl_public_read: false,
+            },
+            Some("s3"),
+        ),
+    );
     let vhost = base.replace("127.0.0.1", "s3.localhost");
-    run("s3 virtual-hosted (snaps.s3.localhost)", dest("s3c", DestinationKind::S3 {
-        endpoint: vhost, region: "us-east-1".into(), bucket: "snaps".into(), access_key_id: "AKIATESTKEY".into(), path_style: false,
-        prefix: "v/".into(), public_base_url: String::new(), random_code_len: 6, acl_public_read: false,
-    }, Some("s3")));
+    run(
+        "s3 virtual-hosted (snaps.s3.localhost)",
+        dest(
+            "s3c",
+            DestinationKind::S3 {
+                endpoint: vhost,
+                region: "us-east-1".into(),
+                bucket: "snaps".into(),
+                access_key_id: "AKIATESTKEY".into(),
+                path_style: false,
+                prefix: "v/".into(),
+                public_base_url: String::new(),
+                random_code_len: 6,
+                acl_public_read: false,
+            },
+            Some("s3"),
+        ),
+    );
     for p in presets::s3() {
         say!("preset {:<22} {:<48} {:<12} path_style={}", p.name, p.endpoint, p.region, p.path_style);
     }
 
     say!("\n== WebDAV (409 -> MKCOL parents -> PUT) ==");
-    run("webdav", dest("dav", DestinationKind::WebDav { url: format!("{base}/dav"), user: "u".into(), public_base_url: String::new() }, Some("s3")));
+    run(
+        "webdav",
+        dest("dav", DestinationKind::WebDav { url: format!("{base}/dav"), user: "u".into(), public_base_url: String::new() }, Some("s3")),
+    );
 
     say!("\n== Team server client ==");
     secrets.set("team", "team-token").unwrap();
@@ -419,21 +525,39 @@ fn main() {
     secrets.set(&snap_upload::snap_server_secret_key(&base), "team-token").unwrap();
     say!("shorten (team server): {}", shorten("https://example.com/long", &Shortener::SnapServer, Some(&base), &secrets).unwrap());
 
-
     say!("\n== FTP (passive mode against a local server) ==");
     let ftp_root = out.join("ftp_root");
     let _ = std::fs::remove_dir_all(&ftp_root);
     std::fs::create_dir_all(&ftp_root).unwrap();
     let ftp_port = spawn_ftp(ftp_root.clone());
     let ftp_kind = DestinationKind::Ftp {
-        host: "127.0.0.1".into(), port: ftp_port, user: "me".into(), secure: false, dir: "/public/shots".into(), public_base_url: "https://files.example.com/shots".into(),
+        host: "127.0.0.1".into(),
+        port: ftp_port,
+        user: "me".into(),
+        secure: false,
+        dir: "/public/shots".into(),
+        public_base_url: "https://files.example.com/shots".into(),
     };
     run("ftp", dest("ftp", ftp_kind, Some("s3")));
     let stored = std::fs::read(ftp_root.join("public/shots/My shot (1) ü.png")).map(|b| b.len());
     say!("file on the FTP server: {stored:?} bytes");
     secrets.set("rebex", "password").unwrap();
-    let ftps = dest("ftps", DestinationKind::Ftp { host: "test.rebex.net".into(), port: 21, user: "demo".into(), secure: true, dir: "/".into(), public_base_url: String::new() }, Some("rebex"));
-    say!("FTPS test.rebex.net (live, explicit TLS via rustls): {:?}", uploader_for(&ftps, &secrets).and_then(|u| u.test()).map_err(|e| e.to_string()));
+    let ftps = dest(
+        "ftps",
+        DestinationKind::Ftp {
+            host: "test.rebex.net".into(),
+            port: 21,
+            user: "demo".into(),
+            secure: true,
+            dir: "/".into(),
+            public_base_url: String::new(),
+        },
+        Some("rebex"),
+    );
+    say!(
+        "FTPS test.rebex.net (live, explicit TLS via rustls): {:?}",
+        uploader_for(&ftps, &secrets).and_then(|u| u.test()).map_err(|e| e.to_string())
+    );
 
     say!("\n== OAuth loopback (PKCE) ==");
     for (label, tamper) in [("valid state", false), ("tampered state", true)] {
@@ -442,11 +566,20 @@ fn main() {
             thread::spawn(move || {
                 let u = url::Url::parse(&auth_url).unwrap();
                 let q: std::collections::HashMap<_, _> = u.query_pairs().into_owned().collect();
-                println!("  [oauth] {}://{}{} challenge_method={} scope={} redirect={}", u.scheme(), u.host_str().unwrap(), u.path(), q["code_challenge_method"], q["scope"], q["redirect_uri"]);
+                println!(
+                    "  [oauth] {}://{}{} challenge_method={} scope={} redirect={}",
+                    u.scheme(),
+                    u.host_str().unwrap(),
+                    u.path(),
+                    q["code_challenge_method"],
+                    q["scope"],
+                    q["redirect_uri"]
+                );
                 let redirect = &q["redirect_uri"];
                 let _ = ureq::get(format!("{redirect}favicon.ico")).call();
                 let state = if tamper { "forged".to_string() } else { q["state"].clone() };
-                let page = ureq::get(format!("{redirect}?code=fakecode&state={state}")).call().unwrap().body_mut().read_to_string().unwrap();
+                let page =
+                    ureq::get(format!("{redirect}?code=fakecode&state={state}")).call().unwrap().body_mut().read_to_string().unwrap();
                 let title = page.split("<title>").nth(1).and_then(|s| s.split("</title>").next()).unwrap_or_default();
                 println!("  [oauth] browser sees page titled {title:?}");
             });
@@ -455,7 +588,12 @@ fn main() {
         let r = oauth::authorize_with(oauth::Provider::Dropbox, "snapoleon-smoke-client", None, &opts);
         say!("{label}: {:?}", r.map(|_| ()).map_err(|e| e.to_string()));
     }
-    let timeout = oauth::authorize_with(oauth::Provider::Box, "x", None, &oauth::AuthorizeOptions { timeout: std::time::Duration::from_millis(300), on_url: Some(&|_| {}), port: 0 });
+    let timeout = oauth::authorize_with(
+        oauth::Provider::Box,
+        "x",
+        None,
+        &oauth::AuthorizeOptions { timeout: std::time::Duration::from_millis(300), on_url: Some(&|_| {}), port: 0 },
+    );
     say!("no browser callback: {:?}", timeout.map(|_| ()).map_err(|e| e.to_string()));
 
     say!("\n== is.gd (live) ==");
@@ -473,7 +611,9 @@ fn main() {
     say!("dropbox without credential: {:?}", uploader_for(&missing, &secrets).map(|_| ()).map_err(|e| e.to_string()));
     say!("\n== format_link ==");
     let url = "https://x.test/a b/(1).png";
-    for (f, label) in [(LinkFormat::Url, "url"), (LinkFormat::Markdown, "markdown"), (LinkFormat::Html, "html"), (LinkFormat::BbCode, "bbcode")] {
+    for (f, label) in
+        [(LinkFormat::Url, "url"), (LinkFormat::Markdown, "markdown"), (LinkFormat::Html, "html"), (LinkFormat::BbCode, "bbcode")]
+    {
         say!("{label:<9} link : {}", format_link(url, f, Some("Tom & <Jerry> [x]"), false));
         say!("{label:<9} image: {}", format_link(url, f, Some("Tom & <Jerry> [x]"), true));
     }

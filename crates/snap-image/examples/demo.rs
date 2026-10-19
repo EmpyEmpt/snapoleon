@@ -75,7 +75,8 @@ fn synth_ui() -> RgbaImage {
     let (w, h) = (1200, 760);
     let mut img = RgbaImage::from_pixel(w, h, Rgba([250, 250, 252, 255]));
     rect(&mut img, 0, 0, 220, h as i32, [30, 32, 38, 255]);
-    for (i, label) in ["Overview", "Captures", "Pipelines", "Destinations", "Hotkeys", "History", "Privacy", "Advanced"].iter().enumerate() {
+    for (i, label) in ["Overview", "Captures", "Pipelines", "Destinations", "Hotkeys", "History", "Privacy", "Advanced"].iter().enumerate()
+    {
         let y = 70 + i as i32 * 34;
         if i == 1 {
             rect(&mut img, 10, y - 20, 200, 28, [58, 62, 74, 255]);
@@ -99,7 +100,13 @@ fn synth_ui() -> RgbaImage {
     for r in 0..9 {
         let y = top + 28 + r * 30;
         rect(&mut img, 252, y + 29, 900, 1, [222, 225, 232, 255]);
-        let cells = [format!("Screenshot {:04}.png", 1041 + r), "PNG".into(), format!("{}%", 100 - r * 3), format!("{} KB", 212 + r * 37), format!("2026-10-{:02}", 10 + r)];
+        let cells = [
+            format!("Screenshot {:04}.png", 1041 + r),
+            "PNG".into(),
+            format!("{}%", 100 - r * 3),
+            format!("{} KB", 212 + r * 37),
+            format!("2026-10-{:02}", 10 + r),
+        ];
         for (i, cell) in cells.iter().enumerate() {
             text(&mut img, cell, 264.0 + i as f32 * 180.0, y as f32 + 19.0, 11.0, [40, 44, 54, 255]);
         }
@@ -115,7 +122,13 @@ fn synth_ui() -> RgbaImage {
     text(&mut img, "Cancel", 398.0, 632.0, 12.0, [40, 44, 54, 255]);
     // Dark code block.
     rect(&mut img, 252, 666, 900, 70, [24, 26, 32, 255]);
-    for (i, code) in ["$ snapoleon capture --region 0,0,1280,720 --pipeline share", "> saved C:\\Users\\me\\Pictures\\Screenshots\\Screenshot 1050.png (214 KB)"].iter().enumerate() {
+    for (i, code) in [
+        "$ snapoleon capture --region 0,0,1280,720 --pipeline share",
+        "> saved C:\\Users\\me\\Pictures\\Screenshots\\Screenshot 1050.png (214 KB)",
+    ]
+    .iter()
+    .enumerate()
+    {
         text(&mut img, code, 268.0, 692.0 + i as f32 * 22.0, 12.0, [190, 230, 190, 255]);
     }
     img
@@ -130,7 +143,14 @@ fn synth_page(w: u32, h: u32) -> RgbaImage {
         text(&mut img, &format!("{n}. Section heading number {n}"), 60.0, y as f32 + 20.0, 20.0, [20, 24, 36, 255]);
         y += 36;
         for line in 0..4 {
-            text(&mut img, &format!("{} (paragraph {n}, line {})", LOREM[(n + line) % LOREM.len()], line + 1), 60.0, y as f32 + 14.0, 13.0, [60, 64, 76, 255]);
+            text(
+                &mut img,
+                &format!("{} (paragraph {n}, line {})", LOREM[(n + line) % LOREM.len()], line + 1),
+                60.0,
+                y as f32 + 14.0,
+                13.0,
+                [60, 64, 76, 255],
+            );
             y += 24;
         }
         let shade = ((n * 37) % 160) as u8;
@@ -238,23 +258,54 @@ fn beautify_stage(dir: &Path, ui: &RgbaImage) {
     // Phone: a portrait crop of the UI.
     let portrait = image::imageops::crop_imm(ui, 220, 0, 420, 760).to_image();
     for (preset, name) in [
-        (BeautifyPreset { frame: FrameStyle::Phone, background: Background::Gradient { from: "#FF9A62".into(), to: "#E8467C".into(), angle_deg: 120.0 }, ..BeautifyPreset::default() }, "phone"),
-        (BeautifyPreset { frame: FrameStyle::Phone, background: Background::Transparent, shadow: 0, padding: 0, ..BeautifyPreset::default() }, "phone_transparent"),
+        (
+            BeautifyPreset {
+                frame: FrameStyle::Phone,
+                background: Background::Gradient { from: "#FF9A62".into(), to: "#E8467C".into(), angle_deg: 120.0 },
+                ..BeautifyPreset::default()
+            },
+            "phone",
+        ),
+        (
+            BeautifyPreset {
+                frame: FrameStyle::Phone,
+                background: Background::Transparent,
+                shadow: 0,
+                padding: 0,
+                ..BeautifyPreset::default()
+            },
+            "phone_transparent",
+        ),
     ] {
         save(dir, &format!("beautify_{name}.png"), &beautify::apply(&portrait, &preset));
     }
-    let landscape = beautify::apply(&resize::resize(ui, 640, 400), &BeautifyPreset { frame: FrameStyle::Phone, ..BeautifyPreset::default() });
+    let landscape =
+        beautify::apply(&resize::resize(ui, 640, 400), &BeautifyPreset { frame: FrameStyle::Phone, ..BeautifyPreset::default() });
     save(dir, "beautify_phone_landscape.png", &landscape);
 
     // Every background kind and the shipped presets.
     for (i, preset) in snap_core::settings::default_beautify_presets().iter().enumerate() {
-        save(dir, &format!("preset_{i}_{}.png", preset.name.to_lowercase().replace([' ', ':'], "_")), &beautify::apply_with(&shot, preset, &ctx));
+        save(
+            dir,
+            &format!("preset_{i}_{}.png", preset.name.to_lowercase().replace([' ', ':'], "_")),
+            &beautify::apply_with(&shot, preset, &ctx),
+        );
     }
-    let solid = BeautifyPreset { background: Background::Solid { color: "#0F172A".into() }, aspect: Some((1, 1)), corner_radius: 20, padding: 40, shadow: 40, ..BeautifyPreset::default() };
+    let solid = BeautifyPreset {
+        background: Background::Solid { color: "#0F172A".into() },
+        aspect: Some((1, 1)),
+        corner_radius: 20,
+        padding: 40,
+        shadow: 40,
+        ..BeautifyPreset::default()
+    };
     save(dir, "beautify_square_solid.png", &beautify::apply(&shot, &solid));
     let transparent = BeautifyPreset { background: Background::Transparent, ..BeautifyPreset::default() };
     save(dir, "beautify_transparent_bg.png", &beautify::apply(&shot, &transparent));
-    let img_bg = BeautifyPreset { background: Background::Image { path: dir.join("beautify_square_solid.png").display().to_string() }, ..BeautifyPreset::default() };
+    let img_bg = BeautifyPreset {
+        background: Background::Image { path: dir.join("beautify_square_solid.png").display().to_string() },
+        ..BeautifyPreset::default()
+    };
     save(dir, "beautify_image_bg.png", &beautify::apply(&shot, &img_bg));
 }
 
@@ -320,14 +371,29 @@ fn stitch_stage(dir: &Path) {
     let page = synth_page(1200, 2600);
     let all = Chrome { header: true, footer: true, scrollbar: true, sidebar: false };
     stitch_case(dir, "sticky", &page, 700, &[480], all, true);
-    stitch_case(dir, "plain", &page, 700, &[300, 450, 120, 610], Chrome { header: false, footer: false, scrollbar: false, sidebar: false }, false);
+    stitch_case(
+        dir,
+        "plain",
+        &page,
+        700,
+        &[300, 450, 120, 610],
+        Chrome { header: false, footer: false, scrollbar: false, sidebar: false },
+        false,
+    );
     stitch_case(dir, "big_steps", &page, 700, &[480, 520], all, false);
     stitch_case(dir, "tiny_steps", &page, 700, &[37, 58, 21], all, false);
     stitch_case(dir, "sidebar", &page, 700, &[400, 520], Chrome { sidebar: true, ..all }, false);
     let sparse = {
         let mut p = RgbaImage::from_pixel(1200, 2600, Rgba([255, 255, 255, 255]));
         for k in 0..6 {
-            text(&mut p, &format!("Isolated paragraph {k}: sparse pages have long blank gaps."), 60.0, 160.0 + k as f32 * 420.0, 16.0, [30, 30, 40, 255]);
+            text(
+                &mut p,
+                &format!("Isolated paragraph {k}: sparse pages have long blank gaps."),
+                60.0,
+                160.0 + k as f32 * 420.0,
+                16.0,
+                [30, 30, 40, 255],
+            );
             rect(&mut p, 60, 200 + k * 420, 300, 4, [200, 60, 60, 255]);
         }
         p
@@ -375,7 +441,13 @@ fn effects_stage(dir: &Path, ui: &RgbaImage) {
         println!("diff {name}: {} px changed, bbox {:?}", stats.changed_pixels, stats.bbox);
         save(dir, &format!("diff_{name}.png"), &resize::fit(&img, Some(1000), None, false));
     }
-    let grid = combine(&[resize::resize(ui, 300, 190), resize::resize(ui, 200, 126), resize::resize(ui, 260, 164), resize::resize(ui, 180, 114)], Layout::Grid { cols: 2 }, 12, Align::Center, [20, 20, 24, 255]);
+    let grid = combine(
+        &[resize::resize(ui, 300, 190), resize::resize(ui, 200, 126), resize::resize(ui, 260, 164), resize::resize(ui, 180, 114)],
+        Layout::Grid { cols: 2 },
+        12,
+        Align::Center,
+        [20, 20, 24, 255],
+    );
     save(dir, "combine_grid.png", &grid);
 }
 
@@ -390,7 +462,15 @@ fn encode_stage(dir: &Path, ui: &RgbaImage) {
         match encode::encode_to_size(ui, fmt, target) {
             Ok((bytes, fit)) => {
                 let back = encode::decode(&bytes).unwrap();
-                println!("  to_size({target}) -> {} B scale {:.3} q {} ({}x{}) in {:?}", bytes.len(), fit.scale, fit.quality, back.width(), back.height(), t.elapsed());
+                println!(
+                    "  to_size({target}) -> {} B scale {:.3} q {} ({}x{}) in {:?}",
+                    bytes.len(),
+                    fit.scale,
+                    fit.quality,
+                    back.width(),
+                    back.height(),
+                    t.elapsed()
+                );
             }
             Err(e) => println!("  to_size({target}) failed: {e}"),
         }
@@ -398,7 +478,8 @@ fn encode_stage(dir: &Path, ui: &RgbaImage) {
     // JPEG tagged with EXIF orientation 6 (rotate 90 CW) must come back rotated.
     let jpeg = encode::encode(&image::imageops::crop_imm(ui, 0, 0, 400, 100).to_image(), ImageFormat::Jpeg, 90, false).unwrap();
     let exif: [u8; 36] = [
-        0xFF, 0xE1, 0x00, 0x22, b'E', b'x', b'i', b'f', 0, 0, b'M', b'M', 0, 42, 0, 0, 0, 8, 0, 1, 0x01, 0x12, 0, 3, 0, 0, 0, 1, 0, 6, 0, 0, 0, 0, 0, 0,
+        0xFF, 0xE1, 0x00, 0x22, b'E', b'x', b'i', b'f', 0, 0, b'M', b'M', 0, 42, 0, 0, 0, 8, 0, 1, 0x01, 0x12, 0, 3, 0, 0, 0, 1, 0, 6, 0,
+        0, 0, 0, 0, 0,
     ];
     let tagged = [&jpeg[..2], &exif[..], &jpeg[2..]].concat();
     let upright = encode::decode(&tagged).unwrap();
@@ -410,14 +491,7 @@ fn encode_stage(dir: &Path, ui: &RgbaImage) {
     println!("save/load {} -> {n} B, {}x{}, format {:?}", path.display(), loaded.width(), loaded.height(), encode::format_from_path(&path));
 
     for c in [[61, 90, 254, 255], [255, 255, 255, 255], [30, 32, 38, 128]] {
-        println!(
-            "color {} | {} | {} | {} | {}",
-            color::hex(c),
-            color::rgb(c),
-            color::hsl(c),
-            color::hsv(c),
-            color::oklch(c)
-        );
+        println!("color {} | {} | {} | {} | {}", color::hex(c), color::rgb(c), color::hsl(c), color::hsv(c), color::oklch(c));
     }
     println!(
         "contrast black/white {:.2}, accent/white {:.2} ({:?}), avg(ui sidebar) {:?}",

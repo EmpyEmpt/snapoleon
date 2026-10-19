@@ -67,13 +67,17 @@ pub(crate) fn build(spec: &SinkSpec) -> Result<Box<dyn Sink>> {
     match spec.format {
         VideoFormat::Gif => Ok(Box::new(GifSink::new(spec)?)),
         VideoFormat::Webp => Ok(Box::new(WebpSink::new(spec)?)),
-        VideoFormat::Mp4 if std::env::var("SNAP_RECORD_BACKEND").is_ok_and(|v| v.eq_ignore_ascii_case("ffmpeg")) => Ok(Box::new(FfmpegSink::new(spec)?)),
+        VideoFormat::Mp4 if std::env::var("SNAP_RECORD_BACKEND").is_ok_and(|v| v.eq_ignore_ascii_case("ffmpeg")) => {
+            Ok(Box::new(FfmpegSink::new(spec)?))
+        }
         VideoFormat::Mp4 => match platform::native_mp4_sink(spec) {
             Ok(sink) => Ok(sink),
             Err(native) => {
                 tracing::warn!("native MP4 encoder unavailable ({native}); trying ffmpeg");
                 // Report whichever failure is the more informative one.
-                FfmpegSink::new(spec).map(|s| Box::new(s) as Box<dyn Sink>).map_err(|e| if matches!(native, Error::Unsupported(_)) { e } else { native })
+                FfmpegSink::new(spec)
+                    .map(|s| Box::new(s) as Box<dyn Sink>)
+                    .map_err(|e| if matches!(native, Error::Unsupported(_)) { e } else { native })
             }
         },
     }

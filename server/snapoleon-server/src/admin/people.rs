@@ -1,5 +1,6 @@
 //! Admin: own account (password, API tokens) and user management.
 
+use crate::i18n::t;
 use axum::{
     Form, Router,
     extract::{Path, Query, State},
@@ -8,7 +9,6 @@ use axum::{
 };
 use maud::{Markup, html};
 use serde::Deserialize;
-use crate::i18n::t;
 
 use super::{Nav, NoticeQuery, checked_box, field, page, redirect_with, valid_username};
 use crate::{
@@ -55,12 +55,7 @@ fn token_table(tokens: &[Token], show_owner: bool) -> Markup {
     }
 }
 
-async fn account_page(
-    state: &AppState,
-    me: &Me,
-    notice: Markup,
-    new_token: Option<String>,
-) -> PageResult<Markup> {
+async fn account_page(state: &AppState, me: &Me, notice: Markup, new_token: Option<String>) -> PageResult<Markup> {
     let tokens = state.db.list_tokens(Some(me.user.id.clone())).await?;
     let local = me.user.password_hash.is_some();
     Ok(page(
@@ -100,11 +95,7 @@ async fn account_page(
     ))
 }
 
-async fn account(
-    State(state): State<AppState>,
-    me: Me,
-    Query(n): Query<NoticeQuery>,
-) -> PageResult<Markup> {
+async fn account(State(state): State<AppState>, me: Me, Query(n): Query<NoticeQuery>) -> PageResult<Markup> {
     account_page(&state, &me, n.render(), None).await
 }
 
@@ -113,11 +104,7 @@ struct TokenForm {
     name: String,
 }
 
-async fn create_token(
-    State(state): State<AppState>,
-    me: Me,
-    Form(form): Form<TokenForm>,
-) -> PageResult<Markup> {
+async fn create_token(State(state): State<AppState>, me: Me, Form(form): Form<TokenForm>) -> PageResult<Markup> {
     let name = form.name.trim().chars().take(60).collect::<String>();
     if name.is_empty() {
         return Err(AppError::bad_request(t("server.error.name_required").into_owned()).into());
@@ -126,17 +113,9 @@ async fn create_token(
     account_page(&state, &me, html! {}, Some(token)).await
 }
 
-async fn revoke_token(
-    State(state): State<AppState>,
-    me: Me,
-    Path(id): Path<String>,
-) -> PageResult<Response> {
+async fn revoke_token(State(state): State<AppState>, me: Me, Path(id): Path<String>) -> PageResult<Response> {
     // Admins may revoke anyone's token; everyone else only their own.
-    let owner = if me.is_admin() {
-        None
-    } else {
-        Some(me.user.id.clone())
-    };
+    let owner = if me.is_admin() { None } else { Some(me.user.id.clone()) };
     state.db.revoke_token(id, owner).await?;
     Ok(redirect_with("/admin/account", "deleted"))
 }
@@ -147,11 +126,7 @@ struct PasswordForm {
     password: String,
 }
 
-async fn change_password(
-    State(state): State<AppState>,
-    me: Me,
-    Form(form): Form<PasswordForm>,
-) -> PageResult<Response> {
+async fn change_password(State(state): State<AppState>, me: Me, Form(form): Form<PasswordForm>) -> PageResult<Response> {
     let Some(hash) = me.user.password_hash.clone() else {
         return Err(AppError::Forbidden.into());
     };
@@ -162,28 +137,17 @@ async fn change_password(
         return Err(AppError::bad_request(t("server.error.weak_password").into_owned()).into());
     }
     let new_hash = auth::hash_password(form.password).await?;
-    state
-        .db
-        .set_user_password(me.user.id.clone(), new_hash)
-        .await?;
+    state.db.set_user_password(me.user.id.clone(), new_hash).await?;
     Ok(redirect_with("/admin/account", "saved"))
 }
 
 // User management (instance admins only)
 
 fn require_admin(me: &Me) -> Result<(), AppError> {
-    if me.is_admin() {
-        Ok(())
-    } else {
-        Err(AppError::Forbidden)
-    }
+    if me.is_admin() { Ok(()) } else { Err(AppError::Forbidden) }
 }
 
-async fn users(
-    State(state): State<AppState>,
-    me: Me,
-    Query(n): Query<NoticeQuery>,
-) -> PageResult<Markup> {
+async fn users(State(state): State<AppState>, me: Me, Query(n): Query<NoticeQuery>) -> PageResult<Markup> {
     require_admin(&me)?;
     let users = state.db.list_users().await?;
     let workspaces = state.db.list_workspaces().await?;
@@ -255,11 +219,7 @@ struct CreateUserForm {
     is_admin: Option<String>,
 }
 
-async fn create_user(
-    State(state): State<AppState>,
-    me: Me,
-    Form(form): Form<CreateUserForm>,
-) -> PageResult<Response> {
+async fn create_user(State(state): State<AppState>, me: Me, Form(form): Form<CreateUserForm>) -> PageResult<Response> {
     require_admin(&me)?;
     let username = form.username.trim().to_string();
     if !valid_username(&username) {
@@ -268,11 +228,7 @@ async fn create_user(
     if form.password.chars().count() < 8 {
         return Err(AppError::bad_request(t("server.error.weak_password").into_owned()).into());
     }
-    let workspace = state
-        .db
-        .workspace(form.workspace)
-        .await?
-        .ok_or(AppError::NotFound)?;
+    let workspace = state.db.workspace(form.workspace).await?.ok_or(AppError::NotFound)?;
     let hash = auth::hash_password(form.password).await?;
     let created = state
         .db
@@ -285,12 +241,8 @@ async fn create_user(
             is_admin: form.is_admin.is_some(),
         })
         .await?;
-    let user = created
-        .ok_or_else(|| AppError::bad_request(t("server.error.username_taken").into_owned()))?;
-    state
-        .db
-        .set_member(workspace.id, user.id, Role::Member)
-        .await?;
+    let user = created.ok_or_else(|| AppError::bad_request(t("server.error.username_taken").into_owned()))?;
+    state.db.set_member(workspace.id, user.id, Role::Member).await?;
     Ok(redirect_with("/admin/users", "created"))
 }
 
@@ -299,12 +251,7 @@ struct ToggleForm {
     value: String,
 }
 
-async fn set_disabled(
-    State(state): State<AppState>,
-    me: Me,
-    Path(id): Path<String>,
-    Form(f): Form<ToggleForm>,
-) -> PageResult<Response> {
+async fn set_disabled(State(state): State<AppState>, me: Me, Path(id): Path<String>, Form(f): Form<ToggleForm>) -> PageResult<Response> {
     require_admin(&me)?;
     if id == me.user.id {
         return Err(AppError::Forbidden.into());
@@ -313,12 +260,7 @@ async fn set_disabled(
     Ok(redirect_with("/admin/users", "updated"))
 }
 
-async fn set_admin(
-    State(state): State<AppState>,
-    me: Me,
-    Path(id): Path<String>,
-    Form(f): Form<ToggleForm>,
-) -> PageResult<Response> {
+async fn set_admin(State(state): State<AppState>, me: Me, Path(id): Path<String>, Form(f): Form<ToggleForm>) -> PageResult<Response> {
     require_admin(&me)?;
     if id == me.user.id {
         return Err(AppError::Forbidden.into());

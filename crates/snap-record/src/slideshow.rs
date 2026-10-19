@@ -3,7 +3,10 @@
 use std::{path::Path, sync::Arc};
 
 use image::{RgbaImage, imageops::FilterType};
-use snap_core::{Error, Result, settings::{EncoderPref, VideoFormat}};
+use snap_core::{
+    Error, Result,
+    settings::{EncoderPref, VideoFormat},
+};
 
 use crate::{
     clock::{HNS_PER_SEC, Hns},

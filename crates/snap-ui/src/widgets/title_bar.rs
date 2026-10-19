@@ -4,10 +4,7 @@
 //! Controls sit on the right on Windows/Linux and as macOS-style circles on the left on macOS
 //! (see [`TitleBarActions::mac_style`]).
 
-use egui::{
-    Color32, Context, InnerResponse, Pos2, Rect, Response, Role, Sense, Stroke, Ui, UiBuilder,
-    Vec2, ViewportCommand, WidgetInfo,
-};
+use egui::{Color32, Context, InnerResponse, Pos2, Rect, Response, Role, Sense, Stroke, Ui, UiBuilder, Vec2, ViewportCommand, WidgetInfo};
 use snap_core::t;
 
 use super::util::{self, hover_anim, lerp_color};
@@ -88,20 +85,12 @@ pub fn title_bar(ui: &mut Ui, title: &str, actions: &mut TitleBarActions) -> Res
 }
 
 /// [`title_bar`] with a slot between the title and the window controls (e.g. the Library search field).
-pub fn title_bar_with<R>(
-    ui: &mut Ui,
-    title: &str,
-    actions: &mut TitleBarActions,
-    center: impl FnOnce(&mut Ui) -> R,
-) -> InnerResponse<R> {
+pub fn title_bar_with<R>(ui: &mut Ui, title: &str, actions: &mut TitleBarActions, center: impl FnOnce(&mut Ui) -> R) -> InnerResponse<R> {
     actions.reset();
     let p = Palette::of(ui);
     let mac = actions.mac_style;
     let focused = ui.input(|i| i.viewport().focused.unwrap_or(true));
-    let (rect, bar) = ui.allocate_exact_size(
-        Vec2::new(ui.available_width(), TITLE_BAR_HEIGHT),
-        Sense::click_and_drag(),
-    );
+    let (rect, bar) = ui.allocate_exact_size(Vec2::new(ui.available_width(), TITLE_BAR_HEIGHT), Sense::click_and_drag());
     bar.widget_info(|| WidgetInfo::labeled(Role::TitleBar, true, title));
     if bar.drag_started_by(egui::PointerButton::Primary) {
         actions.start_drag = true;
@@ -112,11 +101,7 @@ pub fn title_bar_with<R>(
 
     let painter = ui.painter();
     painter.rect_filled(rect, 0.0, p.bg);
-    painter.hline(
-        rect.x_range(),
-        rect.bottom() - 0.5,
-        Stroke::new(1.0, p.border),
-    );
+    painter.hline(rect.x_range(), rect.bottom() - 0.5, Stroke::new(1.0, p.border));
 
     let mut left = rect.left() + space::MD;
     let mut right = rect.right();
@@ -128,8 +113,7 @@ pub fn title_bar_with<R>(
 
     let text_color = if focused { p.text } else { p.text_dim };
     if actions.show_logo {
-        let logo =
-            Rect::from_center_size(Pos2::new(left + 9.0, rect.center().y), Vec2::splat(18.0));
+        let logo = Rect::from_center_size(Pos2::new(left + 9.0, rect.center().y), Vec2::splat(18.0));
         let logo_painter = ui.painter_at(logo);
         brand::logo_colored(&logo_painter, logo, brand::LogoColors::from_palette(&p));
         left += 18.0 + space::SM;
@@ -139,37 +123,17 @@ pub fn title_bar_with<R>(
     left += galley.size().x + space::LG;
     ui.painter().galley(util::snap(ui, pos), galley, text_color);
 
-    let slot = Rect::from_min_max(
-        Pos2::new(left, rect.top()),
-        Pos2::new((right - space::SM).max(left), rect.bottom()),
-    );
-    let mut slot_ui = ui.new_child(
-        UiBuilder::new()
-            .max_rect(slot)
-            .layout(egui::Layout::left_to_right(egui::Align::Center)),
-    );
+    let slot = Rect::from_min_max(Pos2::new(left, rect.top()), Pos2::new((right - space::SM).max(left), rect.bottom()));
+    let mut slot_ui = ui.new_child(UiBuilder::new().max_rect(slot).layout(egui::Layout::left_to_right(egui::Align::Center)));
     InnerResponse::new(center(&mut slot_ui), bar)
 }
 
 /// Windows/Linux caption buttons, flush right. Returns the width used.
-fn window_buttons(
-    ui: &mut Ui,
-    rect: Rect,
-    actions: &mut TitleBarActions,
-    focused: bool,
-    p: &Palette,
-) -> f32 {
+fn window_buttons(ui: &mut Ui, rect: Rect, actions: &mut TitleBarActions, focused: bool, p: &Palette) -> f32 {
     const W: f32 = 46.0;
     let kinds = [
         (actions.show_close, CaptionKind::Close),
-        (
-            actions.show_maximize,
-            if actions.maximized {
-                CaptionKind::Restore
-            } else {
-                CaptionKind::Maximize
-            },
-        ),
+        (actions.show_maximize, if actions.maximized { CaptionKind::Restore } else { CaptionKind::Maximize }),
         (actions.show_minimize, CaptionKind::Minimize),
     ];
     let mut x = rect.right();
@@ -179,11 +143,7 @@ fn window_buttons(
         }
         x -= W;
         let r = Rect::from_min_size(Pos2::new(x, rect.top()), Vec2::new(W, rect.height() - 1.0));
-        let resp = ui.interact(
-            r,
-            ui.scope_id().with(("caption", kind as u8)),
-            Sense::click(),
-        );
+        let resp = ui.interact(r, ui.scope_id().with(("caption", kind as u8)), Sense::click());
         resp.widget_info(|| WidgetInfo::labeled(Role::Button, true, kind.label()));
         let hover = hover_anim(ui, &resp);
         let danger = kind == CaptionKind::Close;
@@ -191,22 +151,10 @@ fn window_buttons(
         let wash = if danger { p.danger } else { p.hover() };
         painter.rect_filled(r, 0.0, wash.gamma_multiply(hover));
         if resp.is_pointer_button_down_on() {
-            painter.rect_filled(
-                r,
-                0.0,
-                if danger {
-                    p.danger.gamma_multiply(0.7)
-                } else {
-                    p.pressed()
-                },
-            );
+            painter.rect_filled(r, 0.0, if danger { p.danger.gamma_multiply(0.7) } else { p.pressed() });
         }
         let base = if focused { p.text } else { p.text_faint };
-        let color = if danger {
-            lerp_color(base, Color32::WHITE, hover)
-        } else {
-            base
-        };
+        let color = if danger { lerp_color(base, Color32::WHITE, hover) } else { base };
         paint_caption_glyph(ui, r.center(), kind, color);
         if resp.clicked() {
             match kind {
@@ -253,32 +201,15 @@ fn paint_caption_glyph(ui: &Ui, center: Pos2, kind: CaptionKind, color: Color32)
             painter.hline((c.x - h)..=(c.x + h), c.y, stroke);
         }
         CaptionKind::Maximize => {
-            painter.rect_stroke(
-                Rect::from_center_size(c, Vec2::splat(h * 2.0)),
-                1.5,
-                stroke,
-                egui::StrokeKind::Middle,
-            );
+            painter.rect_stroke(Rect::from_center_size(c, Vec2::splat(h * 2.0)), 1.5, stroke, egui::StrokeKind::Middle);
         }
         CaptionKind::Restore => {
             let front = Rect::from_center_size(c + Vec2::new(-1.0, 1.0), Vec2::splat(8.0));
             let back = front.translate(Vec2::new(2.0, -2.0));
             painter.rect_stroke(front, 1.5, stroke, egui::StrokeKind::Middle);
             // Only the exposed top and right edges of the rear window.
-            painter.line_segment(
-                [
-                    Pos2::new(back.left() + 2.0, back.top()),
-                    Pos2::new(back.right() - 1.5, back.top()),
-                ],
-                stroke,
-            );
-            painter.line_segment(
-                [
-                    Pos2::new(back.right(), back.top() + 1.5),
-                    Pos2::new(back.right(), back.bottom() - 2.0),
-                ],
-                stroke,
-            );
+            painter.line_segment([Pos2::new(back.left() + 2.0, back.top()), Pos2::new(back.right() - 1.5, back.top())], stroke);
+            painter.line_segment([Pos2::new(back.right(), back.top() + 1.5), Pos2::new(back.right(), back.bottom() - 2.0)], stroke);
         }
         CaptionKind::Close => {
             painter.line_segment([c + Vec2::new(-h, -h), c + Vec2::new(h, h)], stroke);
@@ -288,36 +219,15 @@ fn paint_caption_glyph(ui: &Ui, center: Pos2, kind: CaptionKind, color: Color32)
 }
 
 /// macOS-style traffic lights on the left. Returns the width used.
-fn window_lights(
-    ui: &mut Ui,
-    rect: Rect,
-    actions: &mut TitleBarActions,
-    focused: bool,
-    p: &Palette,
-) -> f32 {
+fn window_lights(ui: &mut Ui, rect: Rect, actions: &mut TitleBarActions, focused: bool, p: &Palette) -> f32 {
     const R: f32 = 6.0;
     const STEP: f32 = 20.0;
     let lights = [
-        (
-            actions.show_close,
-            CaptionKind::Close,
-            Color32::from_rgb(0xFF, 0x5F, 0x57),
-        ),
-        (
-            actions.show_minimize,
-            CaptionKind::Minimize,
-            Color32::from_rgb(0xFE, 0xBC, 0x2E),
-        ),
-        (
-            actions.show_maximize,
-            CaptionKind::Maximize,
-            Color32::from_rgb(0x28, 0xC8, 0x40),
-        ),
+        (actions.show_close, CaptionKind::Close, Color32::from_rgb(0xFF, 0x5F, 0x57)),
+        (actions.show_minimize, CaptionKind::Minimize, Color32::from_rgb(0xFE, 0xBC, 0x2E)),
+        (actions.show_maximize, CaptionKind::Maximize, Color32::from_rgb(0x28, 0xC8, 0x40)),
     ];
-    let group = Rect::from_min_size(
-        Pos2::new(rect.left() + space::MD - 4.0, rect.top()),
-        Vec2::new(STEP * 3.0, rect.height()),
-    );
+    let group = Rect::from_min_size(Pos2::new(rect.left() + space::MD - 4.0, rect.top()), Vec2::new(STEP * 3.0, rect.height()));
     let group_hover = ui.rect_contains_pointer(group);
     let mut x = rect.left() + space::MD + R;
     let mut used = 0.0;
@@ -327,24 +237,12 @@ fn window_lights(
         }
         let center = Pos2::new(x, rect.center().y);
         let hit = Rect::from_center_size(center, Vec2::splat(STEP - 2.0));
-        let resp = ui.interact(
-            hit,
-            ui.scope_id().with(("light", kind as u8)),
-            Sense::click(),
-        );
+        let resp = ui.interact(hit, ui.scope_id().with(("light", kind as u8)), Sense::click());
         resp.widget_info(|| WidgetInfo::labeled(Role::Button, true, kind.label()));
-        let fill = if focused || group_hover {
-            color
-        } else {
-            p.border_strong()
-        };
+        let fill = if focused || group_hover { color } else { p.border_strong() };
         let painter = ui.painter();
         painter.circle_filled(center, R, fill);
-        painter.circle_stroke(
-            center,
-            R - 0.5,
-            Stroke::new(1.0, Color32::from_black_alpha(48)),
-        );
+        painter.circle_stroke(center, R - 0.5, Stroke::new(1.0, Color32::from_black_alpha(48)));
         if resp.is_pointer_button_down_on() {
             painter.circle_filled(center, R, Color32::from_black_alpha(48));
         }
@@ -353,10 +251,8 @@ fn window_lights(
             match kind {
                 CaptionKind::Close => {
                     let d = 2.2;
-                    painter
-                        .line_segment([center + Vec2::new(-d, -d), center + Vec2::new(d, d)], ink);
-                    painter
-                        .line_segment([center + Vec2::new(-d, d), center + Vec2::new(d, -d)], ink);
+                    painter.line_segment([center + Vec2::new(-d, -d), center + Vec2::new(d, d)], ink);
+                    painter.line_segment([center + Vec2::new(-d, d), center + Vec2::new(d, -d)], ink);
                 }
                 CaptionKind::Minimize => {
                     painter.hline((center.x - 2.8)..=(center.x + 2.8), center.y, ink);

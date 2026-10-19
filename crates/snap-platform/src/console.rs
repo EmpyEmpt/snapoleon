@@ -39,7 +39,9 @@ mod imp {
                 return;
             }
             let (device, access) = if output { (w!("CONOUT$"), GENERIC_READ.0 | GENERIC_WRITE.0) } else { (w!("CONIN$"), GENERIC_READ.0) };
-            if let Ok(handle) = CreateFileW(device, access, FILE_SHARE_READ | FILE_SHARE_WRITE, None, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, None) {
+            if let Ok(handle) =
+                CreateFileW(device, access, FILE_SHARE_READ | FILE_SHARE_WRITE, None, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, None)
+            {
                 let _ = SetStdHandle(which, handle);
             }
         }

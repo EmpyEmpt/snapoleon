@@ -78,11 +78,7 @@ pub(crate) fn no_window(_: &mut Command) {}
 /// Run ffmpeg to completion with captured output; error text is the tail of stderr.
 pub(crate) fn run(ffmpeg: &Path, args: &[&std::ffi::OsStr]) -> Result<()> {
     let out = command(ffmpeg).args(args).stdin(Stdio::null()).output()?;
-    if out.status.success() {
-        Ok(())
-    } else {
-        Err(Error::Other(anyhow::anyhow!("ffmpeg failed: {}", tail(&out.stderr))))
-    }
+    if out.status.success() { Ok(()) } else { Err(Error::Other(anyhow::anyhow!("ffmpeg failed: {}", tail(&out.stderr)))) }
 }
 
 pub(crate) fn tail(stderr: &[u8]) -> String {
@@ -143,10 +139,24 @@ pub(crate) fn working_encoders(ffmpeg: &Path) -> &'static [H264Encoder] {
 
 fn test_encoder(ffmpeg: &Path, encoder: &str) -> bool {
     let mut c = Command::new(ffmpeg);
-    c.args(["-hide_banner", "-nostdin", "-loglevel", "error", "-f", "lavfi", "-i", "color=c=black:s=256x144:r=10:d=0.3", "-c:v", encoder, "-f", "null", "-"])
-        .stdin(Stdio::null())
-        .stdout(Stdio::null())
-        .stderr(Stdio::null());
+    c.args([
+        "-hide_banner",
+        "-nostdin",
+        "-loglevel",
+        "error",
+        "-f",
+        "lavfi",
+        "-i",
+        "color=c=black:s=256x144:r=10:d=0.3",
+        "-c:v",
+        encoder,
+        "-f",
+        "null",
+        "-",
+    ])
+    .stdin(Stdio::null())
+    .stdout(Stdio::null())
+    .stderr(Stdio::null());
     no_window(&mut c);
     c.status().map(|s| s.success()).unwrap_or(false)
 }

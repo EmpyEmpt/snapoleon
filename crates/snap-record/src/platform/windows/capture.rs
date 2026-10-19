@@ -23,8 +23,8 @@ use windows_capture::{
     graphics_capture_api::{GraphicsCaptureApi, InternalCaptureControl},
     monitor::Monitor,
     settings::{
-        ColorFormat, CursorCaptureSettings, DirtyRegionSettings, DrawBorderSettings, GraphicsCaptureItemType, MinimumUpdateIntervalSettings,
-        SecondaryWindowSettings, Settings,
+        ColorFormat, CursorCaptureSettings, DirtyRegionSettings, DrawBorderSettings, GraphicsCaptureItemType,
+        MinimumUpdateIntervalSettings, SecondaryWindowSettings, Settings,
     },
     window::Window,
 };
@@ -294,6 +294,7 @@ pub(crate) fn open_source(spec: &SourceSpec, slot: Arc<FrameSlot>) -> Result<Box
 fn window_origin(hwnd: HWND) -> Point {
     let mut r = RECT::default();
     // SAFETY: out-parameter of the exact size DWM expects.
-    let ok = unsafe { DwmGetWindowAttribute(hwnd, DWMWA_EXTENDED_FRAME_BOUNDS, (&mut r as *mut RECT).cast(), size_of::<RECT>() as u32) }.is_ok();
+    let ok =
+        unsafe { DwmGetWindowAttribute(hwnd, DWMWA_EXTENDED_FRAME_BOUNDS, (&mut r as *mut RECT).cast(), size_of::<RECT>() as u32) }.is_ok();
     if ok { Point::new(r.left, r.top) } else { Point::default() }
 }

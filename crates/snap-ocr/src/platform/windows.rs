@@ -156,7 +156,11 @@ fn run(engine: &OcrEngine, bitmap: &SoftwareBitmap) -> Result<OcrResult> {
         let mut words = Vec::new();
         for w in line.Words().map_err(win)? {
             let r = w.BoundingRect().map_err(win)?;
-            words.push(OcrWord { text: w.Text().map_err(win)?.to_string(), rect: RectF::new(r.X, r.Y, r.Width, r.Height), confidence: 1.0 });
+            words.push(OcrWord {
+                text: w.Text().map_err(win)?.to_string(),
+                rect: RectF::new(r.X, r.Y, r.Width, r.Height),
+                confidence: 1.0,
+            });
         }
         let Some(rect) = words.iter().map(|w| w.rect).reduce(union) else { continue };
         lines.push(OcrLine { text: line.Text().map_err(win)?.to_string(), rect, words });

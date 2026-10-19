@@ -12,11 +12,22 @@ use snap_core::{Error, Result};
 
 #[derive(Debug, Clone)]
 pub(crate) enum InputEvent {
-    Move { x: f64, y: f64 },
-    ButtonDown { button: Button, x: f64, y: f64 },
+    Move {
+        x: f64,
+        y: f64,
+    },
+    ButtonDown {
+        button: Button,
+        x: f64,
+        y: f64,
+    },
     ButtonUp,
     /// A non-modifier key went down. `text` is the character it produced (layout aware).
-    KeyDown { key: Key, text: Option<String>, mods: Mods },
+    KeyDown {
+        key: Key,
+        text: Option<String>,
+        mods: Mods,
+    },
 }
 
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
@@ -196,7 +207,16 @@ pub(crate) fn format_shortcut(mods: Mods, key: Key) -> String {
         parts.push("Shift".into());
     }
     if mods.meta {
-        parts.push(if cfg!(target_os = "macos") { "Cmd" } else if cfg!(windows) { "Win" } else { "Super" }.into());
+        parts.push(
+            if cfg!(target_os = "macos") {
+                "Cmd"
+            } else if cfg!(windows) {
+                "Win"
+            } else {
+                "Super"
+            }
+            .into(),
+        );
     }
     parts.push(key_label(key));
     parts.join(" + ")

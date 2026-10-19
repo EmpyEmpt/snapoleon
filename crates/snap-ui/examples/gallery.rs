@@ -109,14 +109,8 @@ impl Gallery {
         let mut toasts = Toasts::new();
         if std::env::var("GALLERY_TOASTS").is_ok() {
             toasts.push(ToastKind::Success, "Screenshot copied to clipboard");
-            toasts.push_toast(
-                snap_ui::Toast::new(ToastKind::Info, "Saved to Pictures/Snapoleon")
-                    .action("Open", "open"),
-            );
-            toasts.push(
-                ToastKind::Error,
-                "Upload failed: the server did not respond in time",
-            );
+            toasts.push_toast(snap_ui::Toast::new(ToastKind::Info, "Saved to Pictures/Snapoleon").action("Open", "open"));
+            toasts.push(ToastKind::Error, "Upload failed: the server did not respond in time");
         }
         Self {
             panels: [PanelState::new(true), PanelState::new(false)],
@@ -125,17 +119,10 @@ impl Gallery {
             frame: 0,
             frame_hint: 0,
             shot: std::env::var("GALLERY_SHOT").ok(),
-            scroll: std::env::var("GALLERY_SCROLL")
-                .ok()
-                .and_then(|s| s.parse().ok())
-                .unwrap_or(0.0),
+            scroll: std::env::var("GALLERY_SCROLL").ok().and_then(|s| s.parse().ok()).unwrap_or(0.0),
             hover: env_pos("GALLERY_HOVER"),
-            clicks: std::env::var("GALLERY_CLICK")
-                .map(|v| v.split(';').filter_map(parse_pos).collect())
-                .unwrap_or_default(),
-            shot_frame: std::env::var("GALLERY_SHOT_FRAME")
-                .ok()
-                .and_then(|s| s.parse().ok()),
+            clicks: std::env::var("GALLERY_CLICK").map(|v| v.split(';').filter_map(parse_pos).collect()).unwrap_or_default(),
+            shot_frame: std::env::var("GALLERY_SHOT_FRAME").ok().and_then(|s| s.parse().ok()),
         }
     }
 }
@@ -185,13 +172,7 @@ impl eframe::App for Gallery {
                     }
                 }
                 if let Some(key) = key {
-                    raw.events.push(egui::Event::Key {
-                        key,
-                        physical_key: Some(key),
-                        pressed: true,
-                        repeat: false,
-                        modifiers: mods,
-                    });
+                    raw.events.push(egui::Event::Key { key, physical_key: Some(key), pressed: true, repeat: false, modifiers: mods });
                 }
             }
         }
@@ -227,83 +208,45 @@ impl eframe::App for Gallery {
             widgets::title_bar_with(ui, "Snapoleon UI gallery", &mut self.chrome, |ui| {
                 ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
                     if widgets::primary_button(ui, "Show toast").clicked() {
-                        self.toasts
-                            .push(ToastKind::Success, "Screenshot copied to clipboard");
+                        self.toasts.push(ToastKind::Success, "Screenshot copied to clipboard");
                     }
                 });
             });
         });
         self.chrome.apply(&ctx);
 
-        let body = Rect::from_min_max(
-            pos2(ui.max_rect().left(), bar_rect.bottom()),
-            ui.max_rect().max,
-        );
+        let body = Rect::from_min_max(pos2(ui.max_rect().left(), bar_rect.bottom()), ui.max_rect().max);
         let half = body.width() / 2.0;
         for (i, state) in self.panels.iter_mut().enumerate() {
-            let rect = Rect::from_min_size(
-                pos2(body.left() + half * i as f32, body.top()),
-                vec2(half, body.height()),
-            );
+            let rect = Rect::from_min_size(pos2(body.left() + half * i as f32, body.top()), vec2(half, body.height()));
             ui.scope_builder(UiBuilder::new().id_salt(i).max_rect(rect), |ui| {
-                ui.set_style(style_for(
-                    state.dark,
-                    ThemeSpec::brand(state.dark).accent,
-                    false,
-                ));
+                ui.set_style(style_for(state.dark, ThemeSpec::brand(state.dark).accent, false));
                 let p = Palette::of(ui);
                 ui.painter().rect_filled(rect, 0.0, p.bg);
-                ScrollArea::vertical()
-                    .id_salt(i)
-                    .auto_shrink([false, false])
-                    .vertical_scroll_offset(self.scroll)
-                    .show(ui, |ui| {
-                        ui.add_space(20.0);
-                        egui::Frame::new()
-                            .inner_margin(egui::Margin::symmetric(24, 0))
-                            .show(ui, |ui| {
-                                panel(ui, state);
-                            });
-                        ui.add_space(24.0);
+                ScrollArea::vertical().id_salt(i).auto_shrink([false, false]).vertical_scroll_offset(self.scroll).show(ui, |ui| {
+                    ui.add_space(20.0);
+                    egui::Frame::new().inner_margin(egui::Margin::symmetric(24, 0)).show(ui, |ui| {
+                        panel(ui, state);
                     });
+                    ui.add_space(24.0);
+                });
             });
         }
 
         if std::env::var("GALLERY_FLOAT").is_ok() {
             // A fake capture selection near the bottom edge: the toolbar must flip above it.
             let screen = ctx.content_rect();
-            let selection = Rect::from_min_size(
-                pos2(screen.center().x - 160.0, screen.bottom() - 220.0),
-                vec2(320.0, 190.0),
-            );
-            let painter = ctx.layer_painter(egui::LayerId::new(
-                egui::Order::Middle,
-                egui::Id::unique("fake-selection"),
-            ));
-            painter.rect_stroke(
-                selection,
-                0.0,
-                egui::Stroke::new(1.0, snap_ui::palette(&ctx).accent),
-                egui::StrokeKind::Inside,
-            );
-            widgets::floating_toolbar_anchored(
-                &ctx,
-                egui::Id::unique("float"),
-                selection,
-                screen,
-                |ui| {
-                    for (ic, tip) in [
-                        (icon::COPY, "Copy"),
-                        (icon::FLOPPY_DISK, "Save"),
-                        (icon::PENCIL_SIMPLE, "Edit"),
-                        (icon::PUSH_PIN, "Pin"),
-                    ] {
-                        widgets::icon_button(ui, ic, tip, None);
-                    }
-                    widgets::toolbar_separator(ui);
-                    widgets::icon_button(ui, icon::X, "Cancel", Some("Esc"));
-                },
-            );
+            let selection = Rect::from_min_size(pos2(screen.center().x - 160.0, screen.bottom() - 220.0), vec2(320.0, 190.0));
+            let painter = ctx.layer_painter(egui::LayerId::new(egui::Order::Middle, egui::Id::unique("fake-selection")));
+            painter.rect_stroke(selection, 0.0, egui::Stroke::new(1.0, snap_ui::palette(&ctx).accent), egui::StrokeKind::Inside);
+            widgets::floating_toolbar_anchored(&ctx, egui::Id::unique("float"), selection, screen, |ui| {
+                for (ic, tip) in [(icon::COPY, "Copy"), (icon::FLOPPY_DISK, "Save"), (icon::PENCIL_SIMPLE, "Edit"), (icon::PUSH_PIN, "Pin")]
+                {
+                    widgets::icon_button(ui, ic, tip, None);
+                }
+                widgets::toolbar_separator(ui);
+                widgets::icon_button(ui, icon::X, "Cancel", Some("Esc"));
+            });
         }
 
         let activated = self.toasts.show(&ctx);
@@ -320,19 +263,11 @@ fn panel(ui: &mut egui::Ui, s: &mut PanelState) {
     // Brand + type scale.
     ui.horizontal(|ui| {
         let (rect, _) = ui.allocate_exact_size(vec2(56.0, 56.0), Sense::hover());
-        snap_ui::logo_colored(
-            &ui.painter_at(rect),
-            rect,
-            snap_ui::LogoColors::from_palette(&p),
-        );
+        snap_ui::logo_colored(&ui.painter_at(rect), rect, snap_ui::LogoColors::from_palette(&p));
         ui.vertical(|ui| {
             ui.add_space(4.0);
             ui.label(snap_ui::text::headline("Snapoleon"));
-            ui.label(snap_ui::text::caption(if s.dark {
-                "Dark theme"
-            } else {
-                "Light theme"
-            }));
+            ui.label(snap_ui::text::caption(if s.dark { "Dark theme" } else { "Light theme" }));
         });
         ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
             for c in [p.accent, p.gold, p.success, p.warning, p.danger] {
@@ -361,11 +296,7 @@ fn panel(ui: &mut egui::Ui, s: &mut PanelState) {
             widgets::secondary_button(ui, "Save");
             widgets::ghost_button(ui, "Cancel");
             widgets::danger_button(ui, "Delete");
-            ui.add(
-                widgets::Button::new("Upload")
-                    .kind(ButtonKind::Primary)
-                    .icon(icon::UPLOAD_SIMPLE),
-            );
+            ui.add(widgets::Button::new("Upload").kind(ButtonKind::Primary).icon(icon::UPLOAD_SIMPLE));
             ui.add(widgets::Button::new("Pin").icon(icon::PUSH_PIN));
             ui.add_enabled(false, widgets::Button::new("Disabled"));
         });
@@ -392,9 +323,7 @@ fn panel(ui: &mut egui::Ui, s: &mut PanelState) {
             .into_iter()
             .enumerate()
             {
-                if widgets::tool_button(ui, ic, tip, Some(&(i + 1).to_string()), s.tool == i)
-                    .clicked()
-                {
+                if widgets::tool_button(ui, ic, tip, Some(&(i + 1).to_string()), s.tool == i).clicked() {
                     s.tool = i;
                 }
             }
@@ -419,45 +348,23 @@ fn panel(ui: &mut egui::Ui, s: &mut PanelState) {
     });
 
     widgets::section(ui, "Controls", |ui| {
-        widgets::setting_row(
-            ui,
-            "Show notifications",
-            "A toast appears after every capture.",
-            |ui| {
-                widgets::toggle(ui, &mut s.toggle_a);
-            },
-        );
+        widgets::setting_row(ui, "Show notifications", "A toast appears after every capture.", |ui| {
+            widgets::toggle(ui, &mut s.toggle_a);
+        });
         widgets::setting_row(ui, "Play shutter sound", "", |ui| {
             widgets::toggle(ui, &mut s.toggle_b);
         });
         widgets::setting_row(ui, "Format", "Used when saving to disk.", |ui| {
-            widgets::segmented(
+            widgets::segmented(ui, &mut s.segmented, &[(Format::Png, "PNG"), (Format::Jpeg, "JPEG"), (Format::Webp, "WebP")]);
+        });
+        widgets::setting_row(ui, "After capture", "What happens right after you release the mouse.", |ui| {
+            widgets::dropdown(
                 ui,
-                &mut s.segmented,
-                &[
-                    (Format::Png, "PNG"),
-                    (Format::Jpeg, "JPEG"),
-                    (Format::Webp, "WebP"),
-                ],
+                "after",
+                &mut s.dropdown,
+                &[("clipboard".to_owned(), "Copy to clipboard"), ("editor".to_owned(), "Open editor"), ("file".to_owned(), "Save to file")],
             );
         });
-        widgets::setting_row(
-            ui,
-            "After capture",
-            "What happens right after you release the mouse.",
-            |ui| {
-                widgets::dropdown(
-                    ui,
-                    "after",
-                    &mut s.dropdown,
-                    &[
-                        ("clipboard".to_owned(), "Copy to clipboard"),
-                        ("editor".to_owned(), "Open editor"),
-                        ("file".to_owned(), "Save to file"),
-                    ],
-                );
-            },
-        );
         widgets::setting_row(ui, "JPEG quality", "", |ui| {
             widgets::slider(ui, &mut s.slider, 1.0..=100.0);
         });
@@ -467,14 +374,9 @@ fn panel(ui: &mut egui::Ui, s: &mut PanelState) {
         widgets::setting_row(ui, "Recent items", "", |ui| {
             widgets::number_field(ui, &mut s.count, 0..=500, "");
         });
-        widgets::setting_row(
-            ui,
-            "Capture hotkey",
-            "Press the combination you want.",
-            |ui| {
-                widgets::hotkey_recorder(ui, &mut s.accel, &mut s.recorder);
-            },
-        );
+        widgets::setting_row(ui, "Capture hotkey", "Press the combination you want.", |ui| {
+            widgets::hotkey_recorder(ui, &mut s.accel, &mut s.recorder);
+        });
     });
 
     widgets::section(ui, "Annotation", |ui| {
@@ -496,19 +398,9 @@ fn panel(ui: &mut egui::Ui, s: &mut PanelState) {
         widgets::search_field(ui, &mut s.search, "Search captures, text, apps…");
         ui.horizontal(|ui| {
             ui.add(widgets::TextField::new(&mut s.name).mono(true).width(220.0));
-            ui.add(
-                widgets::TextField::new(&mut s.token)
-                    .password(true)
-                    .hint("Token")
-                    .width(160.0),
-            );
+            ui.add(widgets::TextField::new(&mut s.token).password(true).hint("Token").width(160.0));
         });
-        ui.add(
-            widgets::TextField::new(&mut s.notes)
-                .hint("Notes")
-                .rows(3)
-                .width(ui.available_width()),
-        );
+        ui.add(widgets::TextField::new(&mut s.notes).hint("Notes").rows(3).width(ui.available_width()));
         ui.add_space(12.0);
     });
 
@@ -547,11 +439,7 @@ fn panel(ui: &mut egui::Ui, s: &mut PanelState) {
             widgets::icon_button(ui, ic, tip, None);
         }
         widgets::toolbar_separator(ui);
-        for (ic, tip) in [
-            (icon::TEXT_AA, "Text"),
-            (icon::QR_CODE, "QR"),
-            (icon::EYE_SLASH, "Redact"),
-        ] {
+        for (ic, tip) in [(icon::TEXT_AA, "Text"), (icon::QR_CODE, "QR"), (icon::EYE_SLASH, "Redact")] {
             widgets::icon_button(ui, ic, tip, None);
         }
         widgets::toolbar_separator(ui);
@@ -575,18 +463,12 @@ fn panel(ui: &mut egui::Ui, s: &mut PanelState) {
     ui.label(snap_ui::text::body_strong("Window chrome"));
     ui.add_space(4.0);
     for mac_style in [false, true] {
-        let mut chrome = TitleBarActions {
-            mac_style,
-            ..Default::default()
-        };
-        egui::Frame::new()
-            .stroke(egui::Stroke::new(1.0, p.border))
-            .corner_radius(10)
-            .show(ui, |ui| {
-                widgets::title_bar_with(ui, "Editor", &mut chrome, |ui| {
-                    widgets::search_field(ui, &mut s.search, "Search");
-                });
+        let mut chrome = TitleBarActions { mac_style, ..Default::default() };
+        egui::Frame::new().stroke(egui::Stroke::new(1.0, p.border)).corner_radius(10).show(ui, |ui| {
+            widgets::title_bar_with(ui, "Editor", &mut chrome, |ui| {
+                widgets::search_field(ui, &mut s.search, "Search");
             });
+        });
         ui.add_space(8.0);
     }
     ui.add_space(16.0);
@@ -599,12 +481,10 @@ fn panel(ui: &mut egui::Ui, s: &mut PanelState) {
         ui.checkbox(&mut s.toggle_a, "Stock checkbox");
         ui.radio_value(&mut s.nav, 0, "Radio A");
         ui.radio_value(&mut s.nav, 1, "Radio B");
-        egui::ComboBox::from_label("Combo")
-            .selected_text("Option")
-            .show_ui(ui, |ui| {
-                ui.selectable_value(&mut s.nav, 0, "Option");
-                ui.selectable_value(&mut s.nav, 2, "Other");
-            });
+        egui::ComboBox::from_label("Combo").selected_text("Option").show_ui(ui, |ui| {
+            ui.selectable_value(&mut s.nav, 0, "Option");
+            ui.selectable_value(&mut s.nav, 2, "Other");
+        });
         ui.collapsing("Collapsing header", |ui| {
             ui.label("Hidden content");
         });
@@ -616,23 +496,13 @@ fn panel(ui: &mut egui::Ui, s: &mut PanelState) {
     ui.add_space(24.0);
 
     widgets::card(ui, |ui| {
-        widgets::empty_state_brand(
-            ui,
-            "Nothing here yet",
-            "Press PrintScreen to take your first shot.",
-            |ui| {
-                widgets::primary_button(ui, "Capture now");
-            },
-        );
+        widgets::empty_state_brand(ui, "Nothing here yet", "Press PrintScreen to take your first shot.", |ui| {
+            widgets::primary_button(ui, "Capture now");
+        });
     });
     ui.add_space(16.0);
     widgets::card(ui, |ui| {
-        widgets::empty_state(
-            ui,
-            icon::MAGNIFYING_GLASS,
-            "No results",
-            "Try a different word or clear the filters.",
-        );
+        widgets::empty_state(ui, icon::MAGNIFYING_GLASS, "No results", "Try a different word or clear the filters.");
     });
 }
 
@@ -653,9 +523,5 @@ fn main() -> eframe::Result {
             .with_position([40.0, 40.0]),
         ..Default::default()
     };
-    eframe::run_native(
-        "Snapoleon UI gallery",
-        options,
-        Box::new(|cc| Ok(Box::new(Gallery::new(cc)))),
-    )
+    eframe::run_native("Snapoleon UI gallery", options, Box::new(|cc| Ok(Box::new(Gallery::new(cc)))))
 }

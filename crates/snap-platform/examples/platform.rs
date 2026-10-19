@@ -63,7 +63,9 @@ fn pump(duration: Duration) {
 /// Press and release a chord with SendInput (Windows only).
 #[cfg(windows)]
 fn press_chord(keys: &[u16]) {
-    use windows::Win32::UI::Input::KeyboardAndMouse::{INPUT, INPUT_0, INPUT_KEYBOARD, KEYBD_EVENT_FLAGS, KEYBDINPUT, KEYEVENTF_KEYUP, SendInput, VIRTUAL_KEY};
+    use windows::Win32::UI::Input::KeyboardAndMouse::{
+        INPUT, INPUT_0, INPUT_KEYBOARD, KEYBD_EVENT_FLAGS, KEYBDINPUT, KEYEVENTF_KEYUP, SendInput, VIRTUAL_KEY,
+    };
     let make = |vk: u16, flags: KEYBD_EVENT_FLAGS| INPUT {
         r#type: INPUT_KEYBOARD,
         Anonymous: INPUT_0 { ki: KEYBDINPUT { wVk: VIRTUAL_KEY(vk), wScan: 0, dwFlags: flags, time: 0, dwExtraInfo: 0 } },
@@ -84,15 +86,21 @@ fn main() {
     console::attach();
     #[cfg(windows)]
     {
-        use windows::Win32::UI::HiDpi::{AreDpiAwarenessContextsEqual, DPI_AWARENESS_CONTEXT_PER_MONITOR_AWARE_V2, GetThreadDpiAwarenessContext};
+        use windows::Win32::UI::HiDpi::{
+            AreDpiAwarenessContextsEqual, DPI_AWARENESS_CONTEXT_PER_MONITOR_AWARE_V2, GetThreadDpiAwarenessContext,
+        };
         // SAFETY: plain queries, no pointers.
-        let per_monitor_v2 = unsafe { AreDpiAwarenessContextsEqual(GetThreadDpiAwarenessContext(), DPI_AWARENESS_CONTEXT_PER_MONITOR_AWARE_V2).as_bool() };
+        let per_monitor_v2 =
+            unsafe { AreDpiAwarenessContextsEqual(GetThreadDpiAwarenessContext(), DPI_AWARENESS_CONTEXT_PER_MONITOR_AWARE_V2).as_bool() };
         step("dpi", if per_monitor_v2 { Ok("per-monitor v2".into()) } else { Err("not per-monitor v2".into()) });
     }
     #[cfg(feature = "egui")]
     {
         let m = egui::Modifiers { ctrl: true, shift: true, ..egui::Modifiers::NONE };
-        step("from_egui", Ok(format!("{:?} / {:?}", hotkeys::from_egui(m, egui::Key::Num4), hotkeys::from_egui(egui::Modifiers::NONE, egui::Key::F9))));
+        step(
+            "from_egui",
+            Ok(format!("{:?} / {:?}", hotkeys::from_egui(m, egui::Key::Num4), hotkeys::from_egui(egui::Modifiers::NONE, egui::Key::F9))),
+        );
     }
 
     // hotkey parsing / display, in English and Russian
@@ -133,7 +141,10 @@ fn main() {
                     HotkeyBinding { accel: "Ctrl+Bogus".into(), action: Action::OpenLibrary, pipeline: None, enabled: true },
                 ];
                 for (i, r) in mgr.register(&bindings) {
-                    step(&format!("hotkey register #{i} ({})", bindings[i].accel), r.map(|_| "registered".into()).map_err(|e| e.to_string()));
+                    step(
+                        &format!("hotkey register #{i} ({})", bindings[i].accel),
+                        r.map(|_| "registered".into()).map_err(|e| e.to_string()),
+                    );
                 }
                 #[cfg(windows)]
                 {
@@ -162,11 +173,14 @@ fn main() {
             tray::TrayItem::new("capture", "Capture region"),
             tray::TrayItem::new("rec", "Recording").checked(true),
             tray::TrayItem::separator(),
-            tray::TrayItem::submenu("More & settings", vec![
-                tray::TrayItem::new("lib", "Library"),
-                tray::TrayItem::new("off", "Disabled item").disabled(),
-                tray::TrayItem::submenu("Deep", vec![tray::TrayItem::new("deep", "Nested")]),
-            ]),
+            tray::TrayItem::submenu(
+                "More & settings",
+                vec![
+                    tray::TrayItem::new("lib", "Library"),
+                    tray::TrayItem::new("off", "Disabled item").disabled(),
+                    tray::TrayItem::submenu("Deep", vec![tray::TrayItem::new("deep", "Nested")]),
+                ],
+            ),
             tray::TrayItem::new("quit", "Quit"),
         ];
         tray::Tray::new("Snapoleon smoke", &test_image(), items, move |_| {
@@ -186,29 +200,51 @@ fn main() {
     }
 
     // clipboard
-    step("clipboard text", clipboard::set_text("Snapoleon привет").map_err(|e| e.to_string()).and_then(|_| {
-        clipboard::get_text().filter(|t| t == "Snapoleon привет").map(|t| format!("round trip {t:?}")).ok_or("read back mismatch".into())
-    }));
+    step(
+        "clipboard text",
+        clipboard::set_text("Snapoleon привет").map_err(|e| e.to_string()).and_then(|_| {
+            clipboard::get_text()
+                .filter(|t| t == "Snapoleon привет")
+                .map(|t| format!("round trip {t:?}"))
+                .ok_or("read back mismatch".into())
+        }),
+    );
     let img = test_image();
-    step("clipboard image", clipboard::set_image(&img).map_err(|e| e.to_string()).and_then(|_| {
-        let back = clipboard::get_image().ok_or("no image on clipboard")?;
-        back.save(dir.join("clipboard-roundtrip.png")).map_err(|e| e.to_string())?;
-        let exact = back.dimensions() == img.dimensions() && back.pixels().zip(img.pixels()).all(|(a, b)| a == b);
-        Ok(format!("{}x{} read back, pixel-exact incl. alpha: {exact}", back.width(), back.height()))
-    }));
-    step("clipboard html", clipboard::set_html("<b>Snapoleon</b> <i>html</i>", "Snapoleon html").map(|_| "set with plain-text alternative".into()).map_err(|e| e.to_string()));
+    step(
+        "clipboard image",
+        clipboard::set_image(&img).map_err(|e| e.to_string()).and_then(|_| {
+            let back = clipboard::get_image().ok_or("no image on clipboard")?;
+            back.save(dir.join("clipboard-roundtrip.png")).map_err(|e| e.to_string())?;
+            let exact = back.dimensions() == img.dimensions() && back.pixels().zip(img.pixels()).all(|(a, b)| a == b);
+            Ok(format!("{}x{} read back, pixel-exact incl. alpha: {exact}", back.width(), back.height()))
+        }),
+    );
+    step(
+        "clipboard html",
+        clipboard::set_html("<b>Snapoleon</b> <i>html</i>", "Snapoleon html")
+            .map(|_| "set with plain-text alternative".into())
+            .map_err(|e| e.to_string()),
+    );
     let file = dir.join("copied-file.txt");
     std::fs::write(&file, "file on the clipboard").expect("write file");
-    step("clipboard files", clipboard::set_files(std::slice::from_ref(&file)).map_err(|e| e.to_string()).and_then(|_| {
-        let listed = arboard::Clipboard::new().and_then(|mut c| c.get().file_list()).map_err(|e| e.to_string())?;
-        Ok(format!("file list on clipboard: {listed:?}"))
-    }));
+    step(
+        "clipboard files",
+        clipboard::set_files(std::slice::from_ref(&file)).map_err(|e| e.to_string()).and_then(|_| {
+            let listed = arboard::Clipboard::new().and_then(|mut c| c.get().file_list()).map_err(|e| e.to_string())?;
+            Ok(format!("file list on clipboard: {listed:?}"))
+        }),
+    );
 
     // notification
     let icon_png = dir.join("toast-image.png");
     img.save(&icon_png).expect("save image");
     step("notify app icon", notify::set_app_icon(&img).map(|_| "registered".into()).map_err(|e| e.to_string()));
-    step("notify toast", notify::show("Snapoleon smoke test", "Screenshot saved \u{2714}", Some(&icon_png)).map(|_| "toast handed to the OS".into()).map_err(|e| e.to_string()));
+    step(
+        "notify toast",
+        notify::show("Snapoleon smoke test", "Screenshot saved \u{2714}", Some(&icon_png))
+            .map(|_| "toast handed to the OS".into())
+            .map_err(|e| e.to_string()),
+    );
 
     // ipc: serve, ping ourselves, single-instance check
     match ipc::serve(|req| match req {
@@ -219,44 +255,63 @@ fn main() {
         Ok(server) => {
             step("ipc ping", ipc::send(&Request::Ping).map(|r| format!("{r:?}")).map_err(|e| e.to_string()));
             step("ipc instance_running", if ipc::instance_running() { Ok("true".into()) } else { Err("false".into()) });
-            step("ipc second server", match ipc::serve(|_| Response::ok()) {
-                Err(e) if ipc::is_already_running(&e) => Ok(format!("rejected as expected: {e}")),
-                Err(e) => Err(format!("wrong error: {e}")),
-                Ok(_) => Err("second server started".into()),
-            });
+            step(
+                "ipc second server",
+                match ipc::serve(|_| Response::ok()) {
+                    Err(e) if ipc::is_already_running(&e) => Ok(format!("rejected as expected: {e}")),
+                    Err(e) => Err(format!("wrong error: {e}")),
+                    Ok(_) => Err("second server started".into()),
+                },
+            );
             let parallel: Vec<_> = (0..8).map(|_| std::thread::spawn(|| ipc::send(&Request::Ping).is_ok_and(|r| r.ok))).collect();
             let ok = parallel.into_iter().map(|h| h.join().unwrap_or(false)).filter(|ok| *ok).count();
             step("ipc 8 parallel pings", if ok == 8 { Ok("8/8".into()) } else { Err(format!("{ok}/8")) });
             drop(server);
             step("ipc after shutdown", if ipc::instance_running() { Err("still running".into()) } else { Ok("endpoint released".into()) });
-            step("ipc send without server", match ipc::send(&Request::Ping) {
-                Err(snap_core::Error::NotFound(m)) => Ok(format!("NotFound({m})")),
-                other => Err(format!("{other:?}")),
-            });
+            step(
+                "ipc send without server",
+                match ipc::send(&Request::Ping) {
+                    Err(snap_core::Error::NotFound(m)) => Ok(format!("NotFound({m})")),
+                    other => Err(format!("{other:?}")),
+                },
+            );
         }
     }
 
     // secrets
     let store = secrets::store();
-    step("secrets round trip", (|| {
-        store.set("smoke:key", "s3cr\u{e9}t \u{2603}").map_err(|e| e.to_string())?;
-        let got = store.get("smoke:key");
-        if got.as_deref() != Some("s3cr\u{e9}t \u{2603}") {
-            return Err(format!("get returned {got:?}"));
-        }
-        store.delete("smoke:key").map_err(|e| e.to_string())?;
-        if store.get("smoke:key").is_some() {
-            return Err("still present after delete".into());
-        }
-        store.delete("smoke:key").map_err(|e| format!("second delete failed: {e}"))?;
-        Ok("set/get/delete ok (OS credential store)".into())
-    })());
+    step(
+        "secrets round trip",
+        (|| {
+            store.set("smoke:key", "s3cr\u{e9}t \u{2603}").map_err(|e| e.to_string())?;
+            let got = store.get("smoke:key");
+            if got.as_deref() != Some("s3cr\u{e9}t \u{2603}") {
+                return Err(format!("get returned {got:?}"));
+            }
+            store.delete("smoke:key").map_err(|e| e.to_string())?;
+            if store.get("smoke:key").is_some() {
+                return Err("still present after delete".into());
+            }
+            store.delete("smoke:key").map_err(|e| format!("second delete failed: {e}"))?;
+            Ok("set/get/delete ok (OS credential store)".into())
+        })(),
+    );
     step("secrets backend", secrets::KeyringStore::new().map(|_| "KeyringStore available".into()).map_err(|e| e.to_string()));
 
     // autostart
     let before = autostart::get();
-    step("autostart on", autostart::set(true).map_err(|e| e.to_string()).and_then(|_| if autostart::get() { Ok("enabled".into()) } else { Err("get() is false".into()) }));
-    step("autostart off", autostart::set(false).map_err(|e| e.to_string()).and_then(|_| if !autostart::get() { Ok("disabled".into()) } else { Err("get() is true".into()) }));
+    step(
+        "autostart on",
+        autostart::set(true)
+            .map_err(|e| e.to_string())
+            .and_then(|_| if autostart::get() { Ok("enabled".into()) } else { Err("get() is false".into()) }),
+    );
+    step(
+        "autostart off",
+        autostart::set(false)
+            .map_err(|e| e.to_string())
+            .and_then(|_| if !autostart::get() { Ok("disabled".into()) } else { Err("get() is true".into()) }),
+    );
     if before {
         let _ = autostart::set(true);
     }
@@ -270,10 +325,13 @@ fn main() {
     step("permissions", Ok(format!("{perms:?}")));
 
     // open
-    step("open url (rejects file:)", match open::url("file:///C:/Windows/System32/calc.exe") {
-        Err(snap_core::Error::Invalid(m)) => Ok(m),
-        other => Err(format!("{other:?}")),
-    });
+    step(
+        "open url (rejects file:)",
+        match open::url("file:///C:/Windows/System32/calc.exe") {
+            Err(snap_core::Error::Invalid(m)) => Ok(m),
+            other => Err(format!("{other:?}")),
+        },
+    );
     if with_reveal {
         step("open reveal", open::reveal(&file).map(|_| "explorer asked to select the file".into()).map_err(|e| e.to_string()));
     }

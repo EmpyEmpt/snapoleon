@@ -60,10 +60,8 @@ pub fn sign(
     service: &str,
     amz_date: &str,
 ) -> Signed {
-    let mut norm: Vec<(String, String)> = headers
-        .iter()
-        .map(|(k, v)| (k.trim().to_ascii_lowercase(), v.split_whitespace().collect::<Vec<_>>().join(" ")))
-        .collect();
+    let mut norm: Vec<(String, String)> =
+        headers.iter().map(|(k, v)| (k.trim().to_ascii_lowercase(), v.split_whitespace().collect::<Vec<_>>().join(" "))).collect();
     norm.sort_by(|a, b| a.0.cmp(&b.0));
 
     let canonical_headers: String = norm.iter().map(|(k, v)| format!("{k}:{v}\n")).collect();
@@ -80,6 +78,7 @@ pub fn sign(
     let k_signing = hmac(&k_service, b"aws4_request");
     let signature = hex::encode(hmac(&k_signing, string_to_sign.as_bytes()));
 
-    let authorization = format!("AWS4-HMAC-SHA256 Credential={}/{scope},SignedHeaders={signed_headers},Signature={signature}", creds.access_key);
+    let authorization =
+        format!("AWS4-HMAC-SHA256 Credential={}/{scope},SignedHeaders={signed_headers},Signature={signature}", creds.access_key);
     Signed { canonical_request, string_to_sign, signature, signed_headers, authorization }
 }

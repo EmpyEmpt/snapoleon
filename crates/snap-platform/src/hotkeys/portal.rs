@@ -12,10 +12,10 @@ use std::thread::JoinHandle;
 use std::time::Duration;
 
 use snap_core::{Error, Result, t};
+use zbus::MatchRule;
 use zbus::blocking::{Connection, MessageIterator};
 use zbus::message::{Message, Type};
 use zbus::zvariant::{OwnedObjectPath, OwnedValue, Value};
-use zbus::MatchRule;
 
 use super::accel::{Accel, xdg_trigger};
 use super::{HotkeyEvent, Routes, wayland_unsupported};
@@ -40,14 +40,8 @@ impl Portal {
     pub fn new(on_event: impl Fn(HotkeyEvent) + Send + 'static, routes: Arc<Routes>) -> Result<Self> {
         let unsupported = |e: &dyn std::fmt::Display| wayland_unsupported(&format!("GlobalShortcuts portal unavailable ({e})."));
         let conn = Connection::session().map_err(|e| unsupported(&e))?;
-        conn.call_method(
-            Some(PORTAL),
-            PORTAL_PATH,
-            Some("org.freedesktop.DBus.Properties"),
-            "Get",
-            &(SHORTCUTS, "version"),
-        )
-        .map_err(|e| unsupported(&e))?;
+        conn.call_method(Some(PORTAL), PORTAL_PATH, Some("org.freedesktop.DBus.Properties"), "Get", &(SHORTCUTS, "version"))
+            .map_err(|e| unsupported(&e))?;
 
         let token = Arc::new(AtomicU32::new(0));
         let session_token = format!("snapoleon_session_{}", std::process::id());
@@ -121,13 +115,7 @@ impl Portal {
 
 impl Drop for Portal {
     fn drop(&mut self) {
-        let _ = self.conn.call_method(
-            Some(PORTAL),
-            self.session.as_str(),
-            Some("org.freedesktop.portal.Session"),
-            "Close",
-            &(),
-        );
+        let _ = self.conn.call_method(Some(PORTAL), self.session.as_str(), Some("org.freedesktop.portal.Session"), "Close", &());
         // Closing the connection ends the listener's message iterator.
         let _ = self.conn.clone().close();
         if let Some(t) = self.listener.take() {
@@ -142,19 +130,13 @@ fn next_token(counter: &AtomicU32) -> String {
 
 /// Run a portal method that answers asynchronously through `Request::Response`
 /// and return the response's result dictionary.
-fn request(
-    conn: &Connection,
-    token: &str,
-    call: impl FnOnce(&str) -> zbus::Result<Message>,
-) -> zbus::Result<HashMap<String, OwnedValue>> {
+fn request(conn: &Connection, token: &str, call: impl FnOnce(&str) -> zbus::Result<Message>) -> zbus::Result<HashMap<String, OwnedValue>> {
     let sender = conn.unique_name().map(|n| n.as_str().trim_start_matches(':').replace('.', "_")).unwrap_or_default();
     let path = format!("{PORTAL_PATH}/request/{sender}/{token}");
     let rule = MatchRule::builder().msg_type(Type::Signal).interface(REQUEST)?.member("Response")?.path(path)?.build();
     let mut responses = MessageIterator::for_match_rule(rule, conn, Some(4))?;
     call(token)?;
-    let msg = responses
-        .next()
-        .ok_or_else(|| zbus::Error::Failure("connection closed while waiting for the portal".into()))??;
+    let msg = responses.next().ok_or_else(|| zbus::Error::Failure("connection closed while waiting for the portal".into()))??;
     let (code, results): (u32, HashMap<String, OwnedValue>) = msg.body().deserialize()?;
     match code {
         0 => Ok(results),
@@ -186,7 +168,8 @@ fn spawn_listener(
                     Some("Deactivated") => false,
                     _ => continue,
                 };
-                let Ok((handle, id, _ts, _opts)) = msg.body().deserialize::<(OwnedObjectPath, String, u64, HashMap<String, OwnedValue>)>() else {
+                let Ok((handle, id, _ts, _opts)) = msg.body().deserialize::<(OwnedObjectPath, String, u64, HashMap<String, OwnedValue>)>()
+                else {
                     continue;
                 };
                 if handle != session || routes.paused.load(Ordering::SeqCst) {

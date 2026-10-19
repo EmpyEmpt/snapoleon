@@ -9,7 +9,7 @@ use std::{
 use snap_core::{Error, Result, tf};
 
 use crate::{
-    Uploader, UploadRequest, UploadResult,
+    UploadRequest, UploadResult, Uploader,
     util::{join_url, pct_path, safe_relative_path, split_ext},
 };
 
@@ -53,7 +53,8 @@ impl Uploader for LocalFolder {
         }
         file.sync_all()?;
 
-        let url = if self.public_base_url.trim().is_empty() { file_url(&path)? } else { join_url(self.public_base_url.trim(), &pct_path(&rel)) };
+        let url =
+            if self.public_base_url.trim().is_empty() { file_url(&path)? } else { join_url(self.public_base_url.trim(), &pct_path(&rel)) };
         Ok(UploadResult { url, thumbnail_url: None, delete_url: None, provider: "Local folder".into() })
     }
 

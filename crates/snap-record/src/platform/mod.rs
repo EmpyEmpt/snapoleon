@@ -18,12 +18,12 @@ mod macos;
 #[cfg(windows)]
 pub(crate) mod windows;
 
+#[cfg(windows)]
+use self::windows as imp;
 #[cfg(target_os = "linux")]
 use linux as imp;
 #[cfg(target_os = "macos")]
 use macos as imp;
-#[cfg(windows)]
-use self::windows as imp;
 
 /// Where sources publish their newest frame.
 #[derive(Default)]

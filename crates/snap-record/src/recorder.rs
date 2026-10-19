@@ -158,7 +158,14 @@ pub(crate) fn start(o: RecordOptions) -> Result<Recorder> {
     let want_audio = o.format == VideoFormat::Mp4 && (o.system_audio || o.microphone);
     let slot = Arc::new(FrameSlot::default());
     let source = platform::open_source(
-        &SourceSpec { target: &o.target, show_cursor: o.show_cursor, exclude_windows: &o.exclude_windows, system_audio: want_audio && o.system_audio, fps, ffmpeg: o.ffmpeg.as_deref() },
+        &SourceSpec {
+            target: &o.target,
+            show_cursor: o.show_cursor,
+            exclude_windows: &o.exclude_windows,
+            system_audio: want_audio && o.system_audio,
+            fps,
+            ffmpeg: o.ffmpeg.as_deref(),
+        },
         slot.clone(),
     )?;
     let (w, h) = source.size();
@@ -243,7 +250,11 @@ pub(crate) fn start(o: RecordOptions) -> Result<Recorder> {
         None
     };
     let overlay = if o.show_cursor && o.highlight_clicks || o.show_keystrokes {
-        let cfg = OverlayConfig { highlight: o.show_cursor && o.highlight_clicks, keystrokes: o.show_keystrokes, input_scale: source.input_scale() };
+        let cfg = OverlayConfig {
+            highlight: o.show_cursor && o.highlight_clicks,
+            keystrokes: o.show_keystrokes,
+            input_scale: source.input_scale(),
+        };
         match Overlay::new(cfg, platform::cursor_position()) {
             Ok(ov) => Some(ov),
             Err(e) => {

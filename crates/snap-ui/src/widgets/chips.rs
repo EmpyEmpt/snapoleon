@@ -33,11 +33,7 @@ fn chip_impl(ui: &mut Ui, icon: Option<&str>, label: &str, selected: bool) -> Re
         let hover = hover_anim(ui, &resp);
         let round = height / 2.0;
         let fill = lerp_color(with_alpha(p.surface_2, hover), p.accent_soft, sel);
-        let stroke = lerp_color(
-            lerp_color(p.border, p.border_strong(), hover),
-            with_alpha(p.accent, 0.45),
-            sel,
-        );
+        let stroke = lerp_color(lerp_color(p.border, p.border_strong(), hover), with_alpha(p.accent, 0.45), sel);
         let fg = lerp_color(lerp_color(p.text_dim, p.text, hover), p.accent, sel);
         let painter = ui.painter();
         painter.rect_filled(rect, round, fill);
@@ -57,12 +53,7 @@ fn chip_impl(ui: &mut Ui, icon: Option<&str>, label: &str, selected: bool) -> Re
 
 /// Splits an accelerator like `Ctrl+Shift+4` into display labels, using symbols on macOS.
 pub fn accel_parts(accel: &str) -> Vec<String> {
-    accel
-        .split('+')
-        .map(str::trim)
-        .filter(|k| !k.is_empty())
-        .map(key_label)
-        .collect()
+    accel.split('+').map(str::trim).filter(|k| !k.is_empty()).map(key_label).collect()
 }
 
 fn key_label(key: &str) -> String {
@@ -101,10 +92,7 @@ fn key_label(key: &str) -> String {
 /// Keyboard shortcut rendered as a row of keycaps.
 pub fn kbd(ui: &mut Ui, accel: &str) -> Response {
     let parts = accel_parts(accel);
-    let (rect, resp) = ui.allocate_exact_size(
-        Vec2::new(keycaps_width(ui, &parts), KEYCAP_H),
-        Sense::hover(),
-    );
+    let (rect, resp) = ui.allocate_exact_size(Vec2::new(keycaps_width(ui, &parts), KEYCAP_H), Sense::hover());
     if ui.is_rect_visible(rect) {
         paint_keycaps(ui, rect.left_center(), &parts, false);
     }
@@ -120,32 +108,18 @@ fn keycap_galley(ui: &Ui, label: &str, color: egui::Color32) -> std::sync::Arc<e
 }
 
 fn keycap_width(ui: &Ui, label: &str) -> f32 {
-    (keycap_galley(ui, label, egui::Color32::PLACEHOLDER)
-        .size()
-        .x
-        + 10.0)
-        .max(20.0)
+    (keycap_galley(ui, label, egui::Color32::PLACEHOLDER).size().x + 10.0).max(20.0)
 }
 
 pub(crate) fn keycaps_width(ui: &Ui, parts: &[String]) -> f32 {
-    parts.iter().map(|k| keycap_width(ui, k)).sum::<f32>()
-        + KEYCAP_GAP * parts.len().saturating_sub(1) as f32
+    parts.iter().map(|k| keycap_width(ui, k)).sum::<f32>() + KEYCAP_GAP * parts.len().saturating_sub(1) as f32
 }
 
 /// Paints keycaps left to right starting at `left_center`; `active` tints them with the accent.
 /// Returns the total width painted.
-pub(crate) fn paint_keycaps(
-    ui: &Ui,
-    left_center: egui::Pos2,
-    parts: &[String],
-    active: bool,
-) -> f32 {
+pub(crate) fn paint_keycaps(ui: &Ui, left_center: egui::Pos2, parts: &[String], active: bool) -> f32 {
     let p = Palette::of(ui);
-    let (fg, edge, face) = if active {
-        (p.accent, with_alpha(p.accent, 0.5), p.accent_soft)
-    } else {
-        (p.text_dim, p.border, p.surface_2)
-    };
+    let (fg, edge, face) = if active { (p.accent, with_alpha(p.accent, 0.5), p.accent_soft) } else { (p.text_dim, p.border, p.surface_2) };
     let mut x = left_center.x;
     for part in parts {
         let galley = keycap_galley(ui, part, fg);
@@ -170,11 +144,7 @@ pub(crate) fn paint_keycaps(
 pub fn badge(ui: &mut Ui, label: &str, tone: Tone) -> Response {
     let p = Palette::of(ui);
     let font = egui::FontId::new(11.0, fonts::semibold());
-    let fg = if tone == Tone::Neutral {
-        p.text_dim
-    } else {
-        p.tone(tone)
-    };
+    let fg = if tone == Tone::Neutral { p.text_dim } else { p.tone(tone) };
     let galley = ui.painter().layout_no_wrap(label.to_owned(), font, fg);
     let size = Vec2::new((galley.size().x + 12.0).max(20.0), 20.0);
     let (rect, resp) = ui.allocate_exact_size(size, Sense::hover());
@@ -183,12 +153,7 @@ pub fn badge(ui: &mut Ui, label: &str, tone: Tone) -> Response {
         let fill = p.tone_soft(tone);
         painter.rect_filled(rect, rect.height() / 2.0, fill);
         if tone == Tone::Neutral {
-            painter.rect_stroke(
-                rect,
-                rect.height() / 2.0,
-                Stroke::new(1.0, p.border),
-                StrokeKind::Inside,
-            );
+            painter.rect_stroke(rect, rect.height() / 2.0, Stroke::new(1.0, p.border), StrokeKind::Inside);
         }
         util::paint_centered(ui, rect.center(), galley, fg);
     }
