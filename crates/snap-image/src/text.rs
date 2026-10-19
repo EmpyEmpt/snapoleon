@@ -5,7 +5,7 @@ use std::sync::OnceLock;
 use ab_glyph::{Font, FontRef, PxScale, ScaleFont, point};
 use tiny_skia::Pixmap;
 
-static INTER_REGULAR: &[u8] = include_bytes!("../../../assets/fonts/Inter-Regular.ttf");
+use snap_core::fonts::INTER_REGULAR;
 
 fn font() -> &'static FontRef<'static> {
     static FONT: OnceLock<FontRef<'static>> = OnceLock::new();

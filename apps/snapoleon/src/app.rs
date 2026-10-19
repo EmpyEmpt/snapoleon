@@ -214,6 +214,10 @@ impl App {
         if old.general.launch_at_login != self.settings.general.launch_at_login {
             self.sync_autostart();
         }
+        if old.general.instant_overlay != self.settings.general.instant_overlay && self.dev.is_none() && self.tray.is_some() {
+            let on = self.settings.general.instant_overlay;
+            self.open_with(sh, |cx| views::overlay::set_instant(cx, on));
+        }
         self.refresh_tray();
     }
 
@@ -303,7 +307,7 @@ impl App {
             self.handle_request(sh, request, None);
         }
         self.flush(sh);
-        if !dev && self.tray.is_some() {
+        if !dev && self.tray.is_some() && self.settings.general.instant_overlay {
             // Last, so the first window the user asked for is not kept waiting for the GPU: the overlay's covers
             // open hidden now, and the first PrintScreen is as fast as every later one. Without a tray the app ends
             // with its last window, which hidden covers would prevent.

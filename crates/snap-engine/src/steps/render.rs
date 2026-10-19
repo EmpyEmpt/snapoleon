@@ -4,9 +4,7 @@ use ab_glyph::{Font, FontRef, PxScale, ScaleFont, point};
 use snap_core::{Point, RgbaImage};
 use tiny_skia::{Color, FillRule, Paint, Path, PathBuilder, Pixmap, Stroke, Transform};
 
-const INTER_REGULAR: &[u8] = include_bytes!("../../../../assets/fonts/Inter-Regular.ttf");
-const INTER_SEMIBOLD: &[u8] = include_bytes!("../../../../assets/fonts/Inter-SemiBold.ttf");
-const INTER_BOLD: &[u8] = include_bytes!("../../../../assets/fonts/Inter-Bold.ttf");
+use snap_core::fonts::{INTER_BOLD, INTER_REGULAR, INTER_SEMIBOLD};
 
 /// Imperial blue from the design tokens, readable on both light and dark screenshots.
 const ACCENT: [u8; 3] = [0x3D, 0x5A, 0xFE];

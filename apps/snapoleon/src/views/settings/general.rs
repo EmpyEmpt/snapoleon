@@ -58,6 +58,7 @@ pub fn show(ui: &mut Ui, rc: &mut Rows, st: &mut State, cx: &mut ViewCx, set: &m
         rc.row(ui, if portable { "general.launch_portable" } else { "general.launch_at_login" }, |ui| {
             ui.add_enabled_ui(!portable, |ui| widgets::toggle(ui, &mut g.launch_at_login));
         });
+        rc.toggle(ui, "general.instant_overlay", &mut g.instant_overlay);
         rc.choice(ui, "general.tray_click", &mut g.tray_click, &tray_actions);
         rc.toggle(ui, "general.show_notifications", &mut g.show_notifications);
         rc.toggle(ui, "general.play_sounds", &mut g.play_sounds);

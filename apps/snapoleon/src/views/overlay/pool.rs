@@ -54,6 +54,23 @@ pub fn enable() {
     POOL.with_borrow_mut(|pool| pool.enabled = true);
 }
 
+/// Stop keeping covers: the resting ones are closed now (their GPU surfaces and textures go with them), and a
+/// session that is running closes its own when it ends.
+pub fn disable(cx: &mut OpenCx) {
+    let resting = POOL.with_borrow_mut(|pool| {
+        pool.enabled = false;
+        if pool.active { Vec::new() } else { std::mem::take(&mut pool.covers) }
+    });
+    for cover in resting {
+        cx.shell.close(cover.key);
+    }
+}
+
+/// Whether this window is one of the pooled covers (and so rests hidden instead of closing).
+pub fn holds(key: WindowKey) -> bool {
+    POOL.with_borrow(|pool| pool.covers.iter().any(|c| c.key == key))
+}
+
 pub fn enabled() -> bool {
     POOL.with_borrow(|pool| pool.enabled)
 }

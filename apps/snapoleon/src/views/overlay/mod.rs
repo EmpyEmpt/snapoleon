@@ -136,6 +136,15 @@ pub fn prewarm(cx: &mut OpenCx) {
     }
 }
 
+/// Follow `general.instant_overlay` while the app runs: create the pool now, or release it.
+pub fn set_instant(cx: &mut OpenCx, on: bool) {
+    if on && !pool::enabled() {
+        prewarm(cx);
+    } else if !on && pool::enabled() {
+        pool::disable(cx);
+    }
+}
+
 /// Freezes the screen and puts a cover window over every monitor. Ignored while an overlay is already open.
 pub fn open(cx: &mut OpenCx, request: OverlayRequest) {
     if pool::active() {
@@ -264,7 +273,7 @@ impl OverlayView {
         drop(session);
         pool::release(shared);
         for win in windows {
-            if pool::enabled() {
+            if pool::enabled() && pool::holds(win) {
                 // Back to resting: hidden, with one more pass to hand the snapshot texture back.
                 cx.shell.set_visible(win, false);
                 cx.shell.refresh_hidden(win);
