@@ -38,7 +38,8 @@ saved = "Saved as {name}"
 link_copied = "Link copied"
 text_copied = "{n} characters copied"
 code_copied = "Code copied"
-nothing_found = "Nothing found"
+no_text = "No text found"
+no_codes = "No codes found"
 redacted = "{n} items hidden"
 
 [engine.progress]

@@ -23,7 +23,7 @@ impl App {
     /// the rest capture right away on a worker thread.
     pub(crate) fn start_action(&mut self, sh: &mut Shell<AppEvent>, action: Action, pipeline: Option<String>) {
         // A capture now would photograph the overlay that is already up.
-        if action.is_capture() && !sh.windows_with_tag(overlay::TAG).is_empty() {
+        if action.is_capture() && overlay::active() {
             return;
         }
         let settings = &self.settings;
@@ -122,7 +122,7 @@ pub fn mode_work(mode: OverlayMode, pipeline: Option<String>, settings: &Setting
             Some(Work::Pipeline(pipeline.unwrap_or_else(|| settings.default_pipeline.clone())))
         }
         OverlayMode::Ocr => Some(named("ocr", vec![Step::Ocr { copy: true, as_markdown_table: false }, Step::Notify])),
-        OverlayMode::Codes => Some(Work::Steps(vec![Step::DecodeCodes { copy: true }, Step::Notify])),
+        OverlayMode::Codes => Some(Work::Steps(vec![Step::DecodeCodes { copy: false }, Step::Notify])),
         OverlayMode::Translate => {
             Some(Work::Steps(vec![Step::Ocr { copy: false, as_markdown_table: false }, Step::Translate { target_lang: None }]))
         }
@@ -152,7 +152,7 @@ pub fn overlay_commands(result: OverlayResult, request: &OverlayRequest, setting
                 steps(capture, vec![Step::Upload { destination: None }, Step::CopyLink { format: None }, Step::Notify])
             }
             OverlayAction::Text => steps(capture, vec![Step::Ocr { copy: false, as_markdown_table: false }]),
-            OverlayAction::Qr => steps(capture, vec![Step::DecodeCodes { copy: true }, Step::Notify]),
+            OverlayAction::Qr => steps(capture, vec![Step::DecodeCodes { copy: false }, Step::Notify]),
             OverlayAction::Redact => steps(capture, vec![Step::AutoRedact { kinds: Vec::new(), style: None }, Step::Annotate]),
             OverlayAction::Record => {
                 vec![Command::StartRecording { target: RecordTarget::Region(capture.screen_rect), format: settings.recording.format }]

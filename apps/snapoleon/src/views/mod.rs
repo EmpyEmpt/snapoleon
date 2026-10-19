@@ -182,11 +182,6 @@ impl OpenCx<'_, '_> {
     pub fn notify(&self, notice: Notice) {
         self.proxy.send(AppEvent::Notice(notice));
     }
-
-    /// Windows opened through this context so far, in order.
-    pub fn opened(&self) -> &[WindowKey] {
-        &self.opened
-    }
 }
 
 /// The app icon every window carries.
@@ -219,30 +214,18 @@ type CenterSlot<'a> = Box<dyn FnOnce(&mut Ui) + 'a>;
 /// ```
 pub struct Chrome<'a> {
     title: &'a str,
-    minimize: bool,
     maximize: bool,
-    logo: bool,
     center: Option<CenterSlot<'a>>,
 }
 
 impl<'a> Chrome<'a> {
     pub fn new(title: &'a str) -> Self {
-        Self { title, minimize: true, maximize: true, logo: true, center: None }
+        Self { title, maximize: true, center: None }
     }
 
     /// For dialog-like windows: no maximize button.
     pub fn no_maximize(mut self) -> Self {
         self.maximize = false;
-        self
-    }
-
-    pub fn no_minimize(mut self) -> Self {
-        self.minimize = false;
-        self
-    }
-
-    pub fn no_logo(mut self) -> Self {
-        self.logo = false;
         self
     }
 
@@ -255,9 +238,7 @@ impl<'a> Chrome<'a> {
     pub fn show<R>(self, cx: &mut ViewCx, ctx: &Context, body: impl FnOnce(&mut Ui, &mut ViewCx) -> R) -> R {
         let mut actions = TitleBarActions {
             maximized: ctx.input(|i| i.viewport().maximized).unwrap_or(false),
-            show_minimize: self.minimize,
             show_maximize: self.maximize,
-            show_logo: self.logo,
             ..TitleBarActions::default()
         };
         let center = self.center;

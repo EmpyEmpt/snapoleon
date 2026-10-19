@@ -53,6 +53,7 @@ enum Done {
     TextCopied(usize),
     CodeCopied,
     NoText,
+    NoCodes,
     Redacted(usize),
 }
 
@@ -268,15 +269,14 @@ impl<'a> Run<'a> {
     fn decode_codes(&mut self, copy: bool) -> Result<()> {
         self.codes = self.engine.decode_codes(&self.cap.image);
         let Some(first) = self.codes.first() else {
-            self.done.push(Done::NoText);
+            self.done.push(Done::NoCodes);
             return Ok(());
         };
         if copy {
             snap_platform::clipboard::set_text(&first.text)?;
             self.done.push(Done::CodeCopied);
         } else {
-            let all: Vec<&str> = self.codes.iter().map(|c| c.text.as_str()).collect();
-            self.ui.show_text(&t("engine.text.codes"), &all.join("\n"));
+            self.ui.show_codes(&t("engine.text.codes"), &self.codes);
         }
         Ok(())
     }
@@ -383,7 +383,10 @@ impl<'a> Run<'a> {
         if !self.settings.general.show_notifications {
             return;
         }
-        let nothing_found = self.done.iter().any(|d| matches!(d, Done::NoText));
+        if self.done.is_empty() {
+            return;
+        }
+        let nothing_found = self.done.iter().any(|d| matches!(d, Done::NoText | Done::NoCodes));
         let has = |f: fn(&Done) -> bool| self.done.iter().any(f);
         let title = if has(|d| matches!(d, Done::LinkCopied)) {
             t("engine.notice.link_copied")
@@ -415,7 +418,8 @@ impl<'a> Run<'a> {
                 Done::LinkCopied => t("engine.notice.part.link_copied").into_owned(),
                 Done::TextCopied(n) => tf("engine.notice.part.text_copied", &[("n", &n.to_string())]),
                 Done::CodeCopied => t("engine.notice.part.code_copied").into_owned(),
-                Done::NoText => t("engine.notice.part.nothing_found").into_owned(),
+                Done::NoText => t("engine.notice.part.no_text").into_owned(),
+                Done::NoCodes => t("engine.notice.part.no_codes").into_owned(),
                 Done::Redacted(n) => tf("engine.notice.part.redacted", &[("n", &n.to_string())]),
             })
             .collect();
@@ -516,7 +520,10 @@ impl<'a> Run<'a> {
             entry.links = std::iter::once(link.url.as_str()).chain(link.short_url.as_deref()).map(record).collect();
         }
         match history.add(&entry) {
-            Ok(()) => Some(id),
+            Ok(()) => {
+                self.engine.history_changed();
+                Some(id)
+            }
             Err(e) => {
                 tracing::warn!("cannot add the capture to history: {e}");
                 None
@@ -532,10 +539,11 @@ impl<'a> Run<'a> {
             match engine.ocr(&image) {
                 Ok(result) => {
                     let text = result.text();
-                    if !text.trim().is_empty()
-                        && let Err(e) = history.set_text(&id, &text)
-                    {
-                        tracing::debug!("cannot store indexed text: {e}");
+                    if !text.trim().is_empty() {
+                        match history.set_text(&id, &text) {
+                            Ok(()) => engine.history_changed(),
+                            Err(e) => tracing::debug!("cannot store indexed text: {e}"),
+                        }
                     }
                 }
                 Err(e) => tracing::debug!("text indexing skipped: {e}"),

@@ -4,7 +4,10 @@
 //!
 //! Exit codes: 0 success, 1 failure, 2 usage error (bad arguments).
 
-use std::path::PathBuf;
+use std::{
+    ffi::OsString,
+    path::{Path, PathBuf},
+};
 
 use clap::{Args, CommandFactory, FromArgMatches, Parser, Subcommand, ValueEnum};
 use snap_core::{
@@ -40,6 +43,8 @@ pub enum Command {
     Pin { path: String },
     /// Open settings.
     Settings,
+    /// Quit the running app.
+    Quit,
     /// Run the MCP server on stdio.
     Mcp,
     /// Take a screenshot. Without a target the selection overlay opens.
@@ -286,6 +291,7 @@ pub fn dispatch(cli: &Cli) -> Dispatch {
         Some(Command::Edit { path }) => Dispatch::Gui(Some(Request::Edit { path: path.clone() })),
         Some(Command::Pin { path }) => Dispatch::Gui(Some(Request::Pin { path: path.clone() })),
         Some(Command::Settings) => Dispatch::Gui(Some(Request::ShowWindow { window: AppWindow::Settings })),
+        Some(Command::Quit) => Dispatch::Gui(Some(Request::Quit)),
         Some(Command::Capture(a)) => capture_dispatch(a),
         Some(Command::Record(a)) => record_dispatch(a),
         Some(
@@ -348,8 +354,9 @@ pub fn command() -> clap::Command {
 }
 
 /// Parse `std::env::args` with localised help and usage errors; exits on `--help`, `--version` and bad input (code 2).
+/// A bare URL or file path works without a subcommand, see [`normalize`].
 pub fn parse() -> Cli {
-    let matches = command().get_matches();
+    let matches = command().get_matches_from(normalize(std::env::args_os()));
     Cli::from_arg_matches(&matches).unwrap_or_else(|e| e.exit())
 }
 
@@ -357,10 +364,38 @@ pub fn parse() -> Cli {
 pub fn parse_from<I, T>(args: I) -> std::result::Result<Cli, clap::Error>
 where
     I: IntoIterator<Item = T>,
-    T: Into<std::ffi::OsString> + Clone,
+    T: Into<OsString> + Clone,
 {
-    let matches = command().try_get_matches_from(args)?;
+    let matches = command().try_get_matches_from(normalize(args.into_iter().map(Into::into)))?;
     Cli::from_arg_matches(&matches)
+}
+
+/// Desktop launchers hand over the thing that was opened as a bare argument (`snapoleon %U` in the Linux desktop
+/// entry, a file dropped on the executable). A first operand that is not a subcommand becomes `url <operand>` when
+/// it is a `snapoleon://` URL and `edit <operand>` when it names an existing path; further operands are dropped, since the app opens one
+/// thing per launch.
+fn normalize(args: impl IntoIterator<Item = OsString>) -> Vec<OsString> {
+    let mut args: Vec<OsString> = args.into_iter().collect();
+    let Some(at) = args.iter().skip(1).position(|a| !a.to_string_lossy().starts_with('-')).map(|p| p + 1) else {
+        return args;
+    };
+    let word = args[at].to_string_lossy().into_owned();
+    let command = command();
+    if word == "help" || command.get_subcommands().any(|s| s.get_name() == word || s.get_all_aliases().any(|a| a == word)) {
+        return args;
+    }
+    let scheme = format!("{}:", snap_core::URL_SCHEME);
+    let subcommand = if word.get(..scheme.len()).is_some_and(|start| start.eq_ignore_ascii_case(&scheme)) {
+        "url"
+    } else if Path::new(&word).exists() {
+        "edit"
+    } else {
+        // Not ours to guess: clap reports the unknown subcommand.
+        return args;
+    };
+    args.truncate(at + 1);
+    args.insert(at, subcommand.into());
+    args
 }
 
 fn lookup(key: &str) -> Option<String> {

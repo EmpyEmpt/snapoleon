@@ -168,17 +168,9 @@ impl<E: Send + 'static> Shell<'_, E> {
         let ctx = egui::Context::default();
         (self.core.theme_init)(&ctx);
         let proxy = self.core.proxy.clone();
-        ctx.set_request_repaint_callback(move |info| {
-            proxy.repaint_at(key, Instant::now() + info.delay)
-        });
+        ctx.set_request_repaint_callback(move |info| proxy.repaint_at(key, Instant::now() + info.delay));
 
-        let setup = Setup {
-            tool_style: spec.is_tool(),
-            tag: spec.tag,
-            cover: spec.cover,
-            want_visible: spec.visible,
-            opened_at,
-        };
+        let setup = Setup { tool_style: spec.is_tool(), tag: spec.tag, cover: spec.cover, want_visible: spec.visible, opened_at };
         let state = WindowState::new(&gpu, window.clone(), surface, setup, ctx)?;
         self.core.ids.insert(window.id(), key);
         self.core.windows.insert(key, state);
@@ -211,6 +203,26 @@ impl<E: Send + 'static> Shell<'_, E> {
             state.window.request_redraw();
         }
         platform::refresh(&state.window, state.tool_style);
+    }
+
+    /// Show a hidden window again with a fresh frame: it renders while still hidden and appears with that frame, so
+    /// whatever it showed last never flashes. The window counts as newly opened:
+    /// [`first_frame_time`](Self::first_frame_time) measures from this call. Pre-opened windows that are shown on demand
+    /// (the selection overlay) use it instead of [`set_visible`](Self::set_visible).
+    pub fn present(&mut self, w: WindowKey) {
+        let Some(state) = self.core.windows.get_mut(&w) else { return };
+        state.want_visible = true;
+        state.shown = false;
+        state.first_pass_done = false;
+        state.opened_at = Instant::now();
+        state.first_frame = None;
+    }
+
+    /// Run one pass of a hidden window without showing it, so a view can release what it held while it was visible.
+    pub fn refresh_hidden(&mut self, w: WindowKey) {
+        if let Some(state) = self.core.windows.get_mut(&w) {
+            state.first_pass_done = false;
+        }
     }
 
     pub fn focus(&mut self, w: WindowKey) {

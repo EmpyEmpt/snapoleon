@@ -45,7 +45,21 @@ impl App {
             Command::EditFile(path) => {
                 load_in_background(sh, path, |path| views::editor::EditorInput::from_file(&path).map(Command::OpenEditor))
             }
-            Command::OpenPin { image, origin } => self.open_with(sh, |cx| views::pin::open(cx, image, origin)),
+            Command::OpenPin { image, origin } => {
+                let opened = self.open_windows(sh, |cx| views::pin::open(cx, image, origin));
+                self.pins.extend(opened);
+                self.refresh_tray();
+            }
+            Command::ClosePins => {
+                for win in sh.windows_with_tag(views::pin::TAG) {
+                    sh.close(win);
+                }
+            }
+            Command::UnlockPins => {
+                for win in sh.windows_with_tag(views::pin::TAG) {
+                    sh.proxy().send(AppEvent::ViewMsg { win, msg: Box::new(views::pin::Unlock) });
+                }
+            }
             Command::PinFile(path) => load_in_background(sh, path, |path| {
                 let image = snap_image::encode::load(&path)?;
                 Ok(Command::OpenPin { image, origin: None })
@@ -55,6 +69,7 @@ impl App {
             Command::OpenOnboarding => self.open_with(sh, views::onboarding::open),
             Command::OpenAbout => self.open_with(sh, views::about::open),
             Command::ShowText { title, text } => self.open_with(sh, |cx| views::text::open(cx, title, text)),
+            Command::ShowCodes { title, text, codes } => self.open_with(sh, |cx| views::text::open_with_codes(cx, title, text, codes)),
             Command::StartRecording { target, format } => self.start_recording(sh, target, format),
             Command::StopRecording => {
                 for win in sh.windows_with_tag(views::recorder::TAG) {
@@ -70,11 +85,7 @@ impl App {
             Command::OpenCombine { images } => self.open_with(sh, |cx| views::combine::open(cx, images)),
             Command::OpenDiff { a, b } => self.open_with(sh, |cx| views::diff::open(cx, a, b)),
             Command::OpenColorTool(input) => self.open_with(sh, |cx| views::colors::open(cx, input)),
-            Command::PauseHotkeys(paused) => {
-                if let Some(hotkeys) = &mut self.hotkeys {
-                    hotkeys.pause(paused);
-                }
-            }
+            Command::PauseHotkeys(paused) => self.pause_hotkeys(sh, paused),
             Command::CopyText(text) => {
                 if let Err(e) = snap_platform::clipboard::set_text(&text) {
                     self.report_error(sh, &e);

@@ -9,7 +9,7 @@ use snap_platform::{
 };
 use snap_shell::{Proxy, Shell};
 
-use crate::{app::App, commands::Command, events::AppEvent};
+use crate::{app::App, commands::Command, events::AppEvent, views::colors::ColorToolInput};
 
 const ICON_SIZE: u32 = 32;
 const RECENT_LIMIT: usize = 8;
@@ -21,6 +21,11 @@ pub enum MenuAction {
     Recent(String),
     Library,
     Settings,
+    ClosePins,
+    UnlockPins,
+    Combine,
+    Compare,
+    Colors,
     Quit,
 }
 
@@ -29,6 +34,11 @@ impl MenuAction {
         match id {
             "library" => Some(MenuAction::Library),
             "settings" => Some(MenuAction::Settings),
+            "close_pins" => Some(MenuAction::ClosePins),
+            "unlock_pins" => Some(MenuAction::UnlockPins),
+            "combine" => Some(MenuAction::Combine),
+            "compare" => Some(MenuAction::Compare),
+            "colors" => Some(MenuAction::Colors),
             "quit" => Some(MenuAction::Quit),
             _ => match id.split_once(':')? {
                 ("action", key) => Action::from_key(key).map(MenuAction::Action),
@@ -39,11 +49,20 @@ impl MenuAction {
     }
 }
 
-pub fn create(proxy: Proxy<AppEvent>, settings: &Settings, recent: &[Entry], recording: bool) -> Result<Tray> {
+/// What the tray menu depends on besides the settings.
+#[derive(Clone, Copy)]
+pub struct State<'a> {
+    pub recent: &'a [Entry],
+    pub recording: bool,
+    /// At least one pin is open.
+    pub pins: bool,
+}
+
+pub fn create(proxy: Proxy<AppEvent>, settings: &Settings, state: State) -> Result<Tray> {
     Tray::new(
-        &tooltip(recording),
-        &snap_ui::tray_icon_rgba(ICON_SIZE, recording),
-        menu(settings, recent, recording),
+        &tooltip(state.recording),
+        &snap_ui::tray_icon_rgba(ICON_SIZE, state.recording),
+        menu(settings, state),
         move |event: TrayEvent| {
             proxy.send(AppEvent::Tray(event));
         },
@@ -51,10 +70,10 @@ pub fn create(proxy: Proxy<AppEvent>, settings: &Settings, recent: &[Entry], rec
 }
 
 /// Rebuild after settings, history or the recording state changed.
-pub fn refresh(tray: &mut Tray, settings: &Settings, recent: &[Entry], recording: bool) {
-    tray.set_items(menu(settings, recent, recording));
-    tray.set_icon(&snap_ui::tray_icon_rgba(ICON_SIZE, recording));
-    tray.set_tooltip(&tooltip(recording));
+pub fn refresh(tray: &mut Tray, settings: &Settings, state: State) {
+    tray.set_items(menu(settings, state));
+    tray.set_icon(&snap_ui::tray_icon_rgba(ICON_SIZE, state.recording));
+    tray.set_tooltip(&tooltip(state.recording));
 }
 
 pub fn tooltip(recording: bool) -> String {
@@ -65,7 +84,7 @@ pub fn recent_limit() -> usize {
     RECENT_LIMIT
 }
 
-fn menu(settings: &Settings, recent: &[Entry], recording: bool) -> Vec<TrayItem> {
+fn menu(settings: &Settings, State { recent, recording, pins }: State) -> Vec<TrayItem> {
     let action = |a: Action| {
         let label = t(&format!("action.{}", a.key()));
         TrayItem::new(format!("action:{}", a.key()), with_accelerator(settings, a, &label))
@@ -90,7 +109,14 @@ fn menu(settings: &Settings, recent: &[Entry], recording: bool) -> Vec<TrayItem>
         action(Action::DecodeCodesRegion),
         action(Action::ColorPicker),
         action(Action::PinRegion),
+        tools_menu(&action),
         TrayItem::separator(),
+    ]);
+    if pins {
+        items.extend([TrayItem::new("close_pins", t("app.tray.close_pins")), TrayItem::new("unlock_pins", t("app.tray.unlock_pins"))]);
+        items.push(TrayItem::separator());
+    }
+    items.extend([
         recent_menu(recent),
         TrayItem::new("library", t("action.open_library")),
         TrayItem::new("settings", t("action.open_settings")),
@@ -98,6 +124,22 @@ fn menu(settings: &Settings, recent: &[Entry], recording: bool) -> Vec<TrayItem>
         TrayItem::new("quit", t("app.tray.quit")),
     ]);
     items
+}
+
+fn tools_menu(action: &dyn Fn(Action) -> TrayItem) -> TrayItem {
+    TrayItem::submenu(
+        t("app.tray.tools"),
+        vec![
+            action(Action::Measure),
+            TrayItem::new("colors", t("app.tray.colors")),
+            action(Action::StepCaptureToggle),
+            TrayItem::separator(),
+            action(Action::OpenEditorFromClipboard),
+            action(Action::PinClipboard),
+            TrayItem::new("combine", t("app.tray.combine")),
+            TrayItem::new("compare", t("app.tray.compare")),
+        ],
+    )
 }
 
 fn recent_menu(recent: &[Entry]) -> TrayItem {
@@ -152,8 +194,9 @@ impl App {
             return;
         }
         let recent = self.recent();
+        let state = State { recent: &recent, recording: self.recording, pins: !self.pins.is_empty() };
         if let Some(tray) = &mut self.tray {
-            refresh(tray, &self.settings, &recent, self.recording);
+            refresh(tray, &self.settings, state);
         }
     }
 
@@ -169,6 +212,11 @@ impl App {
                 Some(MenuAction::Recent(id)) => self.open_recent(&id),
                 Some(MenuAction::Library) => self.cmds.push(Command::OpenLibrary),
                 Some(MenuAction::Settings) => self.cmds.push(Command::OpenSettings { page: None }),
+                Some(MenuAction::ClosePins) => self.cmds.push(Command::ClosePins),
+                Some(MenuAction::UnlockPins) => self.cmds.push(Command::UnlockPins),
+                Some(MenuAction::Combine) => self.cmds.push(Command::OpenCombine { images: Vec::new() }),
+                Some(MenuAction::Compare) => self.cmds.push(Command::OpenDiff { a: None, b: None }),
+                Some(MenuAction::Colors) => self.cmds.push(Command::OpenColorTool(ColorToolInput::Open)),
                 Some(MenuAction::Quit) => self.cmds.push(Command::Quit),
                 None => tracing::debug!("unknown tray item {id}"),
             },
@@ -191,7 +239,7 @@ impl App {
 
     pub(crate) fn start_tray(&mut self, sh: &mut Shell<AppEvent>) {
         let recent = self.recent();
-        match create(sh.proxy(), &self.settings, &recent, self.recording) {
+        match create(sh.proxy(), &self.settings, State { recent: &recent, recording: self.recording, pins: false }) {
             Ok(tray) => {
                 self.tray = Some(tray);
                 tracing::info!("tray ready");

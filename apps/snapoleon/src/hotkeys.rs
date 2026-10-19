@@ -39,17 +39,8 @@ impl Hotkeys {
     /// Replace every registration. Returns the bindings that could not be registered.
     pub fn apply(&mut self, bindings: &[HotkeyBinding]) -> Vec<Conflict> {
         self.bindings = bindings.to_vec();
-        self.manager
-            .register(bindings)
-            .into_iter()
-            .filter_map(|(index, result)| {
-                let reason = match result.err()? {
-                    Error::Invalid(reason) => reason,
-                    other => other.to_string(),
-                };
-                Some(Conflict { accel: bindings[index].accel.clone(), reason })
-            })
-            .collect()
+        let refused = self.manager.register(bindings).into_iter().filter_map(|(index, result)| Some((index, result.err()?)));
+        conflicts(bindings, refused)
     }
 
     pub fn binding(&self, index: usize) -> Option<&HotkeyBinding> {
@@ -61,10 +52,24 @@ impl Hotkeys {
         self.bindings == bindings
     }
 
-    /// Pause while a hotkey recorder field is focused.
-    pub fn pause(&mut self, paused: bool) {
-        self.manager.pause(paused);
+    /// Pause while a hotkey recorder field is focused. Bindings changed while paused are registered when it ends;
+    /// the ones the OS then refuses are returned.
+    pub fn pause(&mut self, paused: bool) -> Vec<Conflict> {
+        conflicts(&self.bindings, self.manager.pause(paused))
     }
+}
+
+fn conflicts(bindings: &[HotkeyBinding], refused: impl IntoIterator<Item = (usize, Error)>) -> Vec<Conflict> {
+    refused
+        .into_iter()
+        .map(|(index, error)| {
+            let reason = match error {
+                Error::Invalid(reason) => reason,
+                other => other.to_string(),
+            };
+            Conflict { accel: bindings[index].accel.clone(), reason }
+        })
+        .collect()
 }
 
 impl App {
@@ -73,7 +78,18 @@ impl App {
         if hotkeys.is_current(&self.settings.hotkeys) {
             return;
         }
-        for conflict in hotkeys.apply(&self.settings.hotkeys) {
+        let conflicts = hotkeys.apply(&self.settings.hotkeys);
+        self.report_conflicts(sh, conflicts);
+    }
+
+    pub(crate) fn pause_hotkeys(&mut self, sh: &mut Shell<AppEvent>, paused: bool) {
+        let Some(hotkeys) = &mut self.hotkeys else { return };
+        let conflicts = hotkeys.pause(paused);
+        self.report_conflicts(sh, conflicts);
+    }
+
+    fn report_conflicts(&mut self, sh: &mut Shell<AppEvent>, conflicts: Vec<Conflict>) {
+        for conflict in conflicts {
             tracing::warn!("hotkey {} not registered: {}", conflict.accel, conflict.reason);
             let notice = Notice {
                 kind: NoticeKind::Warning,

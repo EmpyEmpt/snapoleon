@@ -6,7 +6,7 @@ use std::path::PathBuf;
 
 use crossbeam_channel::Sender;
 use snap_core::{Capture, Rect, RgbaImage, hotkey::Action, ipc::Response, pipeline::Step, settings::VideoFormat};
-use snap_engine::{CaptureRequest, RecordTarget};
+use snap_engine::{CaptureRequest, Code, RecordTarget};
 
 use crate::views::{OpenCx, colors::ColorToolInput, editor::EditorInput, overlay::OverlayRequest, settings::SettingsPage};
 
@@ -64,6 +64,10 @@ pub enum Command {
         image: RgbaImage,
         origin: Option<Rect>,
     },
+    /// Close every pin (tray item).
+    ClosePins,
+    /// Make every click-through pin take mouse input again (tray item).
+    UnlockPins,
     /// Load an image from disk (worker thread), then pin it.
     PinFile(PathBuf),
     OpenLibrary,
@@ -76,6 +80,12 @@ pub enum Command {
     ShowText {
         title: String,
         text: String,
+    },
+    /// Decoded QR codes and barcodes; `text` is their text, one per line.
+    ShowCodes {
+        title: String,
+        text: String,
+        codes: Vec<Code>,
     },
     StartRecording {
         target: RecordTarget,
@@ -100,6 +110,8 @@ pub enum Command {
     OpenCombine {
         images: Vec<RgbaImage>,
     },
+    /// `None` for an image leaves that side for the tool's own picker (tray: "Compare images"; a view that has the
+    /// two images, like a two-card selection in the Library, passes them).
     OpenDiff {
         a: Option<RgbaImage>,
         b: Option<RgbaImage>,

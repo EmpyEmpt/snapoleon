@@ -67,6 +67,8 @@ pub struct Session {
     pub windows: Vec<WindowKey>,
     pub done: bool,
     pub opened: Instant,
+    /// When the cover windows were asked to show this session.
+    pub presented: Instant,
     pub bounds: PxRect,
     pub lines: SnapLines,
     pub opts: Opts,
@@ -110,6 +112,7 @@ impl Session {
             windows: Vec::new(),
             done: false,
             opened,
+            presented: opened,
             sel: Selection::new(),
             cursor,
             targets: Targets::default(),

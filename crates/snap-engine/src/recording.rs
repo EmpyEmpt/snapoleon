@@ -71,6 +71,7 @@ pub(crate) fn add_recording(engine: &Engine, rec: &Recording, context: CaptureCo
     let Some(history) = engine.history().filter(|_| s.history.enabled) else { return Ok(id) };
     let entry = recording_entry(&id, &rec.path, rec.duration_ms, (rec.width, rec.height), rec.bytes, context, &s);
     history.add(&entry)?;
+    engine.history_changed();
     Ok(id)
 }
 

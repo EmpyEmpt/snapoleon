@@ -17,6 +17,11 @@ const MAX_HEIGHT: u32 = 30_000;
 const MAX_FRAMES: u32 = 400;
 /// Time for the content to settle after a wheel event (smooth scrolling, lazy-loaded images).
 const SETTLE: Duration = Duration::from_millis(220);
+/// How long a late look waits when the content seems to have stopped: a slow app may still be working through the
+/// wheel events it was sent, and stopping too early would cut the page short.
+const LATE_SETTLE: Duration = Duration::from_millis(700);
+/// Late looks before the content is declared to have stopped.
+const LATE_LOOKS: u32 = 1;
 /// Wheel notches for the first scroll, before we know how far a notch moves this particular content.
 const PROBE_NOTCHES: i32 = 2;
 const MAX_NOTCHES: i32 = 40;
@@ -40,6 +45,10 @@ pub(crate) fn scrolling(engine: &Engine, rect: Rect, cancel: &AtomicBool, on_pro
             None => Ok(snap_capture::capture_rect(rect, &opts)?.image),
         },
         |notches| {
+            if notches == 0 {
+                std::thread::sleep(LATE_SETTLE);
+                return Ok(());
+            }
             snap_capture::scroll_at(centre, notches)?;
             std::thread::sleep(SETTLE);
             Ok(())
@@ -57,7 +66,8 @@ pub(crate) fn scrolling(engine: &Engine, rect: Rect, cancel: &AtomicBool, on_pro
 /// The scroll-and-stitch loop behind [`Engine::scrolling`](crate::Engine::scrolling), independent of the screen:
 /// `grab` returns the current viewport (the first call must return the unscrolled view), `scroll(n)` moves the
 /// content down by `n` wheel notches and returns once it has settled. Stops when the content stops moving, on
-/// `cancel`, after too many unmatched frames, or at the height cap.
+/// `cancel`, after too many unmatched frames, or at the height cap. `scroll(0)` means "wait for the content to catch
+/// up, without scrolling".
 pub fn stitch_scroll(
     viewport_h: u32,
     mut grab: impl FnMut() -> Result<RgbaImage>,
@@ -110,7 +120,25 @@ pub fn stitch_scroll(
                 calibrate = false;
                 still += 1;
                 if still >= 2 {
-                    break;
+                    // Slow apps lag behind the wheel: look again after a longer pause before calling it the end.
+                    let mut caught_up = false;
+                    for _ in 0..LATE_LOOKS {
+                        if cancel.load(Ordering::Relaxed) {
+                            break;
+                        }
+                        scroll(0)?;
+                        let frame = grab()?;
+                        frames += 1;
+                        if let PushOutcome::Appended { .. } = stitcher.push(&frame) {
+                            caught_up = true;
+                            report(&stitcher, frames);
+                            break;
+                        }
+                    }
+                    if !caught_up {
+                        break;
+                    }
+                    still = 0;
                 }
             }
             PushOutcome::NoOverlap => {

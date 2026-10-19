@@ -1,5 +1,6 @@
 # Strings owned by the app shell (apps/snapoleon: tray, jobs, notices, routing).
 # Each view owns its own file; nothing under [app]
+[app]
 countdown = "Capturing in {n}"
 
 [app.tray]
@@ -7,6 +8,12 @@ tooltip = "Snapoleon"
 tooltip_recording = "Snapoleon: recording"
 recent = "Recent captures"
 no_recent = "No captures yet"
+tools = "More tools"
+colors = "Colors and measurements"
+combine = "Combine images"
+compare = "Compare images"
+close_pins = "Close all pins"
+unlock_pins = "Unlock pins"
 quit = "Quit Snapoleon"
 
 [app.job]

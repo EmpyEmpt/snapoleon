@@ -211,11 +211,7 @@ impl HotkeyManager {
             Backend::Native(native) => {
                 for (i, a) in parsed {
                     let hk = a.hotkey();
-                    let r = if self.paused {
-                        Ok(())
-                    } else {
-                        native.manager.register(hk).map_err(|e| native_error(a, e))
-                    };
+                    let r = if self.paused { Ok(()) } else { native.manager.register(hk).map_err(|e| native_error(a, e)) };
                     if r.is_ok() {
                         self.routes.ids.lock().insert(hk.id(), i);
                         self.bound.push((hk, i));
@@ -255,19 +251,26 @@ impl HotkeyManager {
 
     /// Suspend (or resume) all hotkeys, e.g. while the hotkey recorder has focus.
     /// On native backends the OS registrations are released while paused so the
-    /// keys reach the focused window.
-    pub fn pause(&mut self, paused: bool) {
+    /// keys reach the focused window. Registrations made while paused are only
+    /// attempted on resume: the bindings the OS refuses then are returned by
+    /// their index in the slice given to [`HotkeyManager::register`].
+    pub fn pause(&mut self, paused: bool) -> Vec<(usize, Error)> {
+        let mut refused = Vec::new();
         if self.paused == paused {
-            return;
+            return refused;
         }
         self.paused = paused;
         self.routes.paused.store(paused, Ordering::SeqCst);
         match &self.backend {
             Backend::Native(native) => {
-                for (hk, _) in &self.bound {
-                    let r = if paused { native.manager.unregister(*hk) } else { native.manager.register(*hk) };
-                    if let Err(e) = r {
-                        tracing::warn!("{} hotkey {hk}: {e}", if paused { "unregistering" } else { "re-registering" });
+                for (hk, index) in &self.bound {
+                    if paused {
+                        if let Err(e) = native.manager.unregister(*hk) {
+                            tracing::warn!("unregistering hotkey {hk}: {e}");
+                        }
+                    } else if let Err(e) = native.manager.register(*hk) {
+                        tracing::warn!("re-registering hotkey {hk}: {e}");
+                        refused.push((*index, native_error(Accel { mods: hk.mods, key: hk.key }, e)));
                     }
                 }
             }
@@ -275,6 +278,7 @@ impl HotkeyManager {
             #[cfg(all(target_os = "linux", feature = "wayland-portal"))]
             Backend::Portal(_) => {}
         }
+        refused
     }
 }
 
@@ -302,11 +306,7 @@ fn native_error(a: Accel, e: global_hotkey::Error) -> Error {
     }
 }
 
-fn spawn_poller(
-    on_event: impl Fn(HotkeyEvent) + Send + 'static,
-    routes: Arc<Routes>,
-    stop: Arc<AtomicBool>,
-) -> Result<JoinHandle<()>> {
+fn spawn_poller(on_event: impl Fn(HotkeyEvent) + Send + 'static, routes: Arc<Routes>, stop: Arc<AtomicBool>) -> Result<JoinHandle<()>> {
     std::thread::Builder::new()
         .name("snap-hotkeys".into())
         .spawn(move || {

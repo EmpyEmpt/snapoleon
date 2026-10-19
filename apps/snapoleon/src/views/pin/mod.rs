@@ -98,6 +98,9 @@ fn scaled(width: u32, height: u32, zoom: f32) -> (u32, u32) {
     (((width as f32 * zoom).round() as u32).max(MIN_SIDE), ((height as f32 * zoom).round() as u32).max(MIN_SIDE))
 }
 
+/// Message for a pin window: leave click-through mode (the tray's "Unlock pins").
+pub struct Unlock;
+
 /// What the menu (and the keyboard) can ask a pin to do.
 enum PinAction {
     Copy,
@@ -327,7 +330,8 @@ impl PinView {
         let pressed = |key: Key, command: bool| ctx.input(|i| i.key_pressed(key) && i.modifiers.command == command);
         let action = if pressed(Key::Escape, false) {
             Some(PinAction::Close)
-        } else if pressed(Key::C, true) {
+        } else if ctx.input(|i| i.events.contains(&egui::Event::Copy)) {
+            // egui-winit turns Ctrl+C into this event and swallows the key press itself.
             Some(PinAction::Copy)
         } else if pressed(Key::S, true) {
             Some(PinAction::SaveAs)
@@ -405,6 +409,10 @@ impl View for PinView {
     }
 
     fn on_msg(&mut self, cx: &mut ViewCx, msg: Box<dyn Any + Send>) {
+        let msg = match msg.downcast::<Unlock>() {
+            Ok(_) => return self.set_click_through(cx, false),
+            Err(msg) => msg,
+        };
         let msg = match msg.downcast::<PinAction>() {
             Ok(action) => return self.apply(cx, *action),
             Err(msg) => msg,

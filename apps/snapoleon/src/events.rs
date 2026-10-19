@@ -36,9 +36,17 @@ pub enum AppEvent {
         win: WindowKey,
         msg: Box<dyn Any + Send>,
     },
+    /// A capture, recording or imported file was added to (or changed in) the history. The app refreshes the tray's recent
+    /// list and delivers [`HistoryChanged`] to every open window's `View::on_msg`.
+    HistoryChanged,
     /// Dev harness: the screenshot delay elapsed.
     DevShot,
 }
+
+/// The message every open window gets in `View::on_msg` after [`AppEvent::HistoryChanged`]. The Library reloads on it.
+/// Views that write to the history themselves send the event with `cx.proxy.send(AppEvent::HistoryChanged)`.
+#[derive(Debug, Clone, Copy)]
+pub struct HistoryChanged;
 
 pub struct JobDone {
     pub label: String,

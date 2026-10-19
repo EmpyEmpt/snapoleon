@@ -38,7 +38,8 @@ saved = "Сохранено как {name}"
 link_copied = "Ссылка скопирована"
 text_copied = "Скопировано символов: {n}"
 code_copied = "Код скопирован"
-nothing_found = "Ничего не найдено"
+no_text = "Текст не найден"
+no_codes = "Коды не найдены"
 redacted = "Скрыто объектов: {n}"
 
 [engine.progress]

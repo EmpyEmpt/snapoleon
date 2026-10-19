@@ -1,4 +1,4 @@
-//! Logging: stderr plus a size-capped file in `paths::logs_dir()`.
+//! Logging: stderr, plus a size-capped file in `paths::logs_dir()` for the running app.
 
 use std::{fs::File, io::Write, path::PathBuf, sync::Mutex};
 
@@ -6,12 +6,27 @@ use snap_core::paths;
 use tracing_subscriber::{EnvFilter, Layer, fmt, layer::SubscriberExt, util::SubscriberInitExt};
 
 const MAX_LOG_BYTES: u64 = 4 * 1024 * 1024;
-const DEFAULT_FILTER: &str = "info,wgpu_core=warn,wgpu_hal=warn,naga=warn,egui_wgpu=warn";
+const APP_FILTER: &str = "info,wgpu_core=warn,wgpu_hal=warn,naga=warn,egui_wgpu=warn";
+const CONSOLE_FILTER: &str = "warn";
 
-pub fn init() {
-    let filter = || EnvFilter::try_from_default_env().unwrap_or_else(|_| EnvFilter::new(DEFAULT_FILTER));
+/// Where a process's log goes.
+#[derive(Clone, Copy, PartialEq, Eq)]
+pub enum Sink {
+    /// The running tray app: stderr and the log file.
+    Application,
+    /// A command line invocation (a headless command, or a launch that hands over to the running app): warnings on
+    /// stderr only. Nothing is written to standard output and no log file is touched.
+    Console,
+}
+
+pub fn init(sink: Sink) {
+    let default = if sink == Sink::Application { APP_FILTER } else { CONSOLE_FILTER };
+    let filter = || EnvFilter::try_from_default_env().unwrap_or_else(|_| EnvFilter::new(default));
     let stderr = fmt::layer().with_writer(std::io::stderr).with_target(false).with_filter(filter());
-    let file = open_log_file().map(|file| fmt::layer().with_writer(Mutex::new(file)).with_ansi(false).with_filter(filter()));
+    let file = (sink == Sink::Application)
+        .then(open_log_file)
+        .flatten()
+        .map(|file| fmt::layer().with_writer(Mutex::new(file)).with_ansi(false).with_filter(filter()));
     tracing_subscriber::registry().with(stderr).with(file).init();
     std::panic::set_hook(Box::new(|info| tracing::error!("panic: {info}")));
 }

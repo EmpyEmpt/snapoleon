@@ -275,8 +275,9 @@ fn record_link(engine: &Engine, id: &CaptureId, link: &Link) {
     };
     for url in std::iter::once(link.url.as_str()).chain(link.short_url.as_deref()) {
         match history.add_link(id, &record(url)) {
+            Ok(()) => engine.history_changed(),
             // The capture has no history row (history off, or not recorded yet): nothing to attach the link to.
-            Ok(()) | Err(Error::NotFound(_)) => {}
+            Err(Error::NotFound(_)) => {}
             Err(e) => tracing::warn!("cannot record link in history: {e}"),
         }
     }

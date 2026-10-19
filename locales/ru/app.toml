@@ -1,5 +1,6 @@
 # Строки оболочки приложения (apps/snapoleon: трей, задачи, уведомления, маршрутизация).
 # У каждого окна свой файл; всё в [app]
+[app]
 countdown = "Снимок через {n}"
 
 [app.tray]
@@ -7,6 +8,12 @@ tooltip = "Snapoleon"
 tooltip_recording = "Snapoleon: идёт запись"
 recent = "Недавние снимки"
 no_recent = "Снимков пока нет"
+tools = "Другие инструменты"
+colors = "Цвета и замеры"
+combine = "Склеить изображения"
+compare = "Сравнить изображения"
+close_pins = "Закрыть закреплённые снимки"
+unlock_pins = "Вернуть клики закреплённым снимкам"
 quit = "Выйти из Snapoleon"
 
 [app.job]

@@ -276,6 +276,6 @@ Read your screenshots (the Read tool shows PNGs) and fix what looks off before y
 (`ipc::instance_running`) or start the shell. In `App::init` (first callback, after the event
 loop started): serve IPC (a lost race forwards and exits), register hotkeys (conflicts become
 notices), create the tray, sync autostart, set the toast icon, purge history by retention on a
-thread; on first run register the URL scheme and open onboarding; a plain non-background launch
+thread, make sure the URL scheme points at this executable, and on first run open onboarding; a plain non-background launch
 opens the Library; `--background` (autostart) stays in the tray. Portable installs never register
 autostart or the URL scheme.

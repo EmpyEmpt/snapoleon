@@ -25,6 +25,7 @@ output appears in `cmd` and PowerShell.
 | `snapoleon pipeline` | List and run configured pipelines. |
 | `snapoleon mcp` | Run the MCP server on stdio. |
 | `snapoleon settings` | Open the Settings window. |
+| `snapoleon quit` | Quit the running app (does nothing when it is not running). |
 | `snapoleon url <snapoleon://...>` | Handle a `snapoleon://` URL (used by the OS URL scheme registration). |
 
 ## MCP

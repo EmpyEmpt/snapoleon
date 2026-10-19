@@ -7,7 +7,7 @@ use std::sync::atomic::{AtomicBool, Ordering};
 
 use crossbeam_channel::Sender;
 use snap_core::{Capture, Error, Result, RgbaImage, ipc::Response, t};
-use snap_engine::{Annotated, Engine, Notice, Outcome, PipelineUi};
+use snap_engine::{Annotated, Code, Engine, Notice, Outcome, PipelineUi};
 use snap_shell::Proxy;
 
 use crate::{
@@ -34,6 +34,8 @@ impl PipelineUi for GuiPipelineUi {
     fn annotate(&self, cap: &Capture) -> Result<Option<Annotated>> {
         let (reply, answer) = crossbeam_channel::bounded(1);
         let input = EditorInput { reply: Some(reply), ..EditorInput::from_capture(cap.clone()) };
+        // The user is editing, not waiting for work: no "Working" pill while the editor is open.
+        self.progress("", None);
         self.proxy.send(AppEvent::Command(Command::OpenEditor(input)));
         // A dropped sender (window closed without answering, app quitting) counts as a discard.
         Ok(answer.recv().unwrap_or(None))
@@ -54,6 +56,15 @@ impl PipelineUi for GuiPipelineUi {
     fn show_text(&self, title: &str, text: &str) {
         self.text_shown.store(true, Ordering::Relaxed);
         self.proxy.send(AppEvent::Command(Command::ShowText { title: title.to_string(), text: text.to_string() }));
+    }
+
+    fn show_codes(&self, title: &str, codes: &[Code]) {
+        self.text_shown.store(true, Ordering::Relaxed);
+        let text = codes.iter().map(|c| c.text.as_str()).collect::<Vec<_>>().join(
+            "
+",
+        );
+        self.proxy.send(AppEvent::Command(Command::ShowCodes { title: title.to_string(), text, codes: codes.to_vec() }));
     }
 }
 

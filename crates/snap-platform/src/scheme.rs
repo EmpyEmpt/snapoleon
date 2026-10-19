@@ -3,13 +3,15 @@
 //!
 //! - Windows: `HKCU\Software\Classes`; URLs run `"<exe>" url "%1"`, projects `"<exe>" edit "%1"`.
 //! - Linux: desktop entries in `~/.local/share/applications` plus a shared-mime-info
-//!   definition for `application/x-snapoleon`; `xdg-mime default` is run best-effort.
+//!   definition for `application/vnd.snapoleon.project+zip` (the type the packaged desktop file declares);
+//!   `xdg-mime default` is run best-effort.
 //! - macOS: nothing to do at runtime - the scheme and document type come from the
 //!   app bundle's `Info.plist`.
 
 use snap_core::Result;
 
-/// Register the handlers for the current executable. Safe to call on every start.
+/// Register the handlers for the current executable. Safe to call on every start: nothing is written (and the
+/// shell is not told to refresh) when they already point at this executable.
 pub fn register() -> Result<()> {
     imp::register()
 }
@@ -29,18 +31,26 @@ mod imp {
         let exe = exe_path()?;
         let exe = exe.display();
         let classes = RegKey::predef(HKEY_CURRENT_USER).create_subkey(r"Software\Classes")?.0;
+        let (open_url, open_project) = (format!("\"{exe}\" url \"%1\""), format!("\"{exe}\" edit \"%1\""));
+
+        // Already pointing at this executable (the app calls this on every start): leave the shell alone.
+        let registered =
+            |key: &str| classes.open_subkey(format!(r"{key}\shell\open\command")).and_then(|k| k.get_value::<String, _>("")).ok();
+        if registered(URL_SCHEME).as_deref() == Some(open_url.as_str()) && registered(PROG_ID).as_deref() == Some(open_project.as_str()) {
+            return Ok(());
+        }
 
         let scheme = classes.create_subkey(URL_SCHEME)?.0;
         scheme.set_value("", &format!("URL:{APP_NAME}"))?;
         scheme.set_value("URL Protocol", &"")?;
         scheme.create_subkey("DefaultIcon")?.0.set_value("", &format!("\"{exe}\",0"))?;
-        scheme.create_subkey(r"shell\open\command")?.0.set_value("", &format!("\"{exe}\" url \"%1\""))?;
+        scheme.create_subkey(r"shell\open\command")?.0.set_value("", &open_url)?;
 
         classes.create_subkey(format!(".{PROJECT_EXT}"))?.0.set_value("", &PROG_ID)?;
         let prog = classes.create_subkey(PROG_ID)?.0;
         prog.set_value("", &format!("{APP_NAME} project"))?;
         prog.create_subkey("DefaultIcon")?.0.set_value("", &format!("\"{exe}\",0"))?;
-        prog.create_subkey(r"shell\open\command")?.0.set_value("", &format!("\"{exe}\" edit \"%1\""))?;
+        prog.create_subkey(r"shell\open\command")?.0.set_value("", &open_project)?;
 
         // SAFETY: plain notification to the shell, no pointers are passed.
         unsafe { SHChangeNotify(SHCNE_ASSOCCHANGED, SHCNF_IDLIST, None, None) };
@@ -66,7 +76,7 @@ mod imp {
 
     use crate::util::{desktop_quote, exe_path, run_quiet};
 
-    const MIME: &str = "application/x-snapoleon";
+    const MIME: &str = "application/vnd.snapoleon.project+zip";
     const SCHEME_ENTRY: &str = "snapoleon.desktop";
     const PROJECT_ENTRY: &str = "snapoleon-project.desktop";
 

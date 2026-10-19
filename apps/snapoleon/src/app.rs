@@ -3,7 +3,10 @@
 //! Everything here runs on the UI thread. Worker threads, the tray, hotkeys and the IPC server
 //! reach it through `AppEvent`s; views reach it through `Command`s.
 
-use std::{any::Any, collections::HashMap};
+use std::{
+    any::Any,
+    collections::{HashMap, HashSet},
+};
 
 use egui::Context;
 use snap_core::{Settings, paths, policy::Policy};
@@ -15,7 +18,7 @@ use snap_ui::Toasts;
 use crate::{
     commands::Command,
     dev::Dev,
-    events::AppEvent,
+    events::{AppEvent, HistoryChanged},
     hotkeys::Hotkeys,
     ipc,
     notices::Progress,
@@ -84,6 +87,8 @@ pub struct App {
     pub(crate) host: Option<WindowKey>,
     pub(crate) progress: Option<Progress>,
     pub(crate) jobs_running: usize,
+    /// The pin windows, for the tray's pin items.
+    pub(crate) pins: HashSet<WindowKey>,
     pub(crate) hotkeys: Option<Hotkeys>,
     pub(crate) tray: Option<Tray>,
     pub(crate) ipc: Option<snap_platform::ipc::Server>,
@@ -108,6 +113,7 @@ impl App {
             host: None,
             progress: None,
             jobs_running: 0,
+            pins: HashSet::new(),
             hotkeys: None,
             tray: None,
             ipc: None,
@@ -233,6 +239,10 @@ impl App {
         let proxy = sh.proxy();
         let dev = startup.dev.is_some();
         self.quit_when_empty = dev;
+        self.engine.set_history_listener({
+            let proxy = proxy.clone();
+            move || proxy.send(AppEvent::HistoryChanged)
+        });
 
         // Single instance: the first process to bind the IPC endpoint is the app.
         if !dev {
@@ -254,18 +264,20 @@ impl App {
                 tracing::debug!("notification icon: {e}");
             }
             self.purge_history();
-        }
-
-        if dev {
-            self.dev_start(sh);
-        } else if !self.settings.general.first_run_done {
             if !paths::is_portable() {
+                // Every start, not just the first: the executable may have moved since (an update, a new install
+                // folder). Nothing is written when the registration is already right.
                 std::thread::spawn(|| {
                     if let Err(e) = snap_platform::scheme::register() {
                         tracing::warn!("url scheme: {e}");
                     }
                 });
             }
+        }
+
+        if dev {
+            self.dev_start(sh);
+        } else if !self.settings.general.first_run_done {
             self.cmds.push(Command::OpenOnboarding);
         } else if startup.request.is_none() && !startup.background {
             self.cmds.push(Command::OpenLibrary);
@@ -274,6 +286,11 @@ impl App {
             self.handle_request(sh, request, None);
         }
         self.flush(sh);
+        if !dev {
+            // Last, so the first window the user asked for is not kept waiting for the GPU: the overlay's covers
+            // open hidden now, and the first PrintScreen is as fast as every later one.
+            self.open_with(sh, views::overlay::prewarm);
+        }
     }
 
     /// Apply the retention policy off the UI thread.
@@ -312,6 +329,7 @@ impl ShellApp<AppEvent> for App {
             AppEvent::JobDone(done) => self.on_job_done(sh, done),
             AppEvent::Notice(notice) => self.notice(sh, notice),
             AppEvent::SettingsChanged => self.reload_settings(sh),
+            AppEvent::HistoryChanged => self.history_changed(sh),
             AppEvent::ViewMsg { win, msg } => self.deliver(sh, win, msg),
             AppEvent::DevShot => self.dev_shot(sh),
         }
@@ -361,6 +379,9 @@ impl ShellApp<AppEvent> for App {
         if self.host == Some(win) {
             self.host = None;
         }
+        if self.pins.remove(&win) {
+            self.refresh_tray();
+        }
         if let Some(mut slot) = self.slots.remove(&win)
             && let Some(mut view) = slot.view.take()
         {
@@ -387,6 +408,14 @@ impl App {
     fn deliver(&mut self, sh: &mut Shell<AppEvent>, win: WindowKey, msg: Box<dyn Any + Send>) {
         if self.with_view(sh, win, |view, cx| view.on_msg(cx, msg)).is_some() {
             sh.repaint(win);
+        }
+    }
+
+    /// Something landed in the history: the tray's recent list and every open window (the Library) catch up.
+    pub(crate) fn history_changed(&mut self, sh: &mut Shell<AppEvent>) {
+        self.refresh_tray();
+        for win in self.slots.keys().copied().collect::<Vec<_>>() {
+            self.deliver(sh, win, Box::new(HistoryChanged));
         }
     }
 }

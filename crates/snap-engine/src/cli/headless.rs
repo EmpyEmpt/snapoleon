@@ -61,7 +61,7 @@ fn execute(command: Command, settings: Settings) -> Result<i32> {
             crate::mcp::serve_stdio(Engine::new(settings))?;
             Ok(0)
         }
-        Command::Url { .. } | Command::Edit { .. } | Command::Pin { .. } | Command::Settings => {
+        Command::Url { .. } | Command::Edit { .. } | Command::Pin { .. } | Command::Settings | Command::Quit => {
             eprintln!("{}", error_line(&Error::unsupported(t("cli.error.needs_app").into_owned())));
             Ok(1)
         }

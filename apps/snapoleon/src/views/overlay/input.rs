@@ -46,6 +46,8 @@ impl Input {
                             _ => {}
                         }
                     }
+                    // egui-winit turns Ctrl+C into this event and swallows the key press itself.
+                    Event::Copy => keys.push(Key::C),
                     Event::MouseWheel { unit, delta, .. } => {
                         wheel += delta.y
                             * match unit {

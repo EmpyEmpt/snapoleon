@@ -106,6 +106,17 @@ pub trait PipelineUi: Sync {
     fn progress(&self, label: &str, frac: Option<f32>);
     /// Show recognised/translated text in a result window (GUI) or stdout (CLI).
     fn show_text(&self, _title: &str, _text: &str) {}
+    /// Show decoded QR codes and barcodes (GUI: a window with an action per code). The default lists their text.
+    fn show_codes(&self, title: &str, codes: &[Code]) {
+        let lines: Vec<&str> = codes.iter().map(|c| c.text.as_str()).collect();
+        self.show_text(
+            title,
+            &lines.join(
+                "
+",
+            ),
+        );
+    }
 }
 
 /// For CLI/MCP: annotate passes the capture through, pin is a no-op, notices go to stderr.
@@ -191,9 +202,13 @@ struct Inner {
     policy: parking_lot::RwLock<Policy>,
     secrets: Arc<dyn SecretStore>,
     history: parking_lot::RwLock<Option<Arc<History>>>,
+    /// Told whenever the engine changes the history (see [`Engine::set_history_listener`]).
+    history_listener: parking_lot::RwLock<Option<HistoryListener>>,
     /// Feeds the `{n}` naming token; counts saves in this process.
     counter: AtomicU32,
 }
+
+type HistoryListener = Arc<dyn Fn() + Send + Sync>;
 
 impl Engine {
     /// Uses the OS keyring and the default history database. Loads the managed policy.
@@ -215,6 +230,7 @@ impl Engine {
             policy: parking_lot::RwLock::new(Policy::load()),
             secrets,
             history: parking_lot::RwLock::new(history),
+            history_listener: parking_lot::RwLock::new(None),
             counter: AtomicU32::new(0),
         };
         Self { inner: Arc::new(inner) }
@@ -245,6 +261,20 @@ impl Engine {
 
     pub fn history(&self) -> Option<Arc<History>> {
         self.inner.history.read().clone()
+    }
+
+    /// Call `listener` whenever the engine adds to the history or changes an entry it added: a finished pipeline, a
+    /// recording, a new link, text found by the background indexing. It runs on whichever thread did the work, so it
+    /// should only hand the news on (the GUI sends an event to its UI thread). Replaces an earlier listener.
+    pub fn set_history_listener(&self, listener: impl Fn() + Send + Sync + 'static) {
+        *self.inner.history_listener.write() = Some(Arc::new(listener));
+    }
+
+    pub(crate) fn history_changed(&self) {
+        let listener = self.inner.history_listener.read().clone();
+        if let Some(listener) = listener {
+            listener();
+        }
     }
 
     pub fn ai(&self) -> snap_ai::Ai {

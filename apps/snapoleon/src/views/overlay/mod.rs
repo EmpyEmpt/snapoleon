@@ -3,6 +3,7 @@
 //!
 //! - `session`: the shared state; `flow`: what input does to it; `input`: one frame of input.
 //! - `selection`: the rectangle and its drag/resize/move logic; `targets`: windows and UI elements to snap to.
+//! - `pool`: the cover windows that stay open, hidden, between sessions so the overlay appears at once.
 //! - `paint`, `loupe`, `bars`, `measure`: drawing, the magnifier, the floating bars, the ruler.
 //!
 //! Everything is expressed in physical pixels of the virtual desktop; `space` converts to and from each
@@ -16,23 +17,29 @@ mod input;
 mod loupe;
 mod measure;
 mod paint;
+mod pool;
 mod selection;
 mod session;
 mod space;
 mod targets;
 
-use std::{any::Any, cell::RefCell, rc::Rc, time::Instant};
+use std::{
+    any::Any,
+    cell::RefCell,
+    rc::{Rc, Weak},
+    time::Instant,
+};
 
 use egui::{Color32, ColorImage, Context, CursorIcon, LayerId, Rect, TextureHandle, TextureId, TextureOptions, pos2};
 use snap_capture::CaptureOptions;
 use snap_core::{Capture, Rect as PxRect, settings::VideoFormat, t};
 use snap_engine::{Notice, NoticeKind};
-use snap_shell::WindowSpec;
 use snap_ui::palette;
 
 use self::{
     input::Input,
     loupe::{Loupe, Readout},
+    pool::{Seat, Slot},
     selection::{Edges, Hit},
     session::{BarKind, Finish, Session, Shared},
     space::{Space, pixel_at, rect_f},
@@ -45,6 +52,11 @@ use super::{
 use crate::actions;
 
 pub const TAG: &str = "overlay";
+
+/// Whether an overlay session is running (the covers that rest hidden between sessions do not count).
+pub fn active() -> bool {
+    pool::active()
+}
 
 /// What the overlay is for. The mode decides the default toolbar and what a finished selection means.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -109,9 +121,22 @@ pub enum OverlayResult {
     Cancelled,
 }
 
-/// Freezes the screen and opens a cover window per monitor. Ignored while an overlay is already open.
+/// Keep the cover windows open, hidden, between sessions, and open them now. The tray app calls this once at
+/// start-up; the first overlay is then as fast as every later one.
+pub fn prewarm(cx: &mut OpenCx) {
+    pool::enable();
+    match snap_capture::monitors() {
+        Ok(monitors) => {
+            let rects: Vec<snap_core::Rect> = monitors.iter().map(|m| m.rect).collect();
+            pool::covers(cx, &rects, false);
+        }
+        Err(e) => tracing::warn!("overlay covers not pre-opened: {e}"),
+    }
+}
+
+/// Freezes the screen and puts a cover window over every monitor. Ignored while an overlay is already open.
 pub fn open(cx: &mut OpenCx, request: OverlayRequest) {
-    if !cx.shell.windows_with_tag(TAG).is_empty() {
+    if pool::active() {
         return;
     }
     let started = Instant::now();
@@ -131,19 +156,26 @@ pub fn open(cx: &mut OpenCx, request: OverlayRequest) {
     let rects: Vec<snap_core::Rect> = frozen.monitors.iter().map(|(m, _)| m.rect).collect();
     let cursor = frozen.cursor;
     let mode = request.mode;
+    let resting = pool::ready_for(&rects);
     let session: Shared = Rc::new(RefCell::new(Session::new(frozen, request, cx.settings, started)));
+    let covers = pool::covers(cx, &rects, true);
+    if !covers.iter().any(|c| cx.shell.exists(c.key)) {
+        // The OS refused every window (the app already said so); there is nothing to select on.
+        return;
+    }
+    pool::set_active(true);
     let mut focus = None;
-    for (monitor, rect) in rects.into_iter().enumerate() {
-        // Excluded from captures so a recording or scrolling capture started from here never sees the overlay.
-        let spec =
-            WindowSpec { title: t("overlay.title").into_owned(), tag: TAG.into(), exclude_from_capture: true, ..WindowSpec::cover(rect) };
-        let key =
-            cx.open(spec, OverlayView { session: session.clone(), monitor, texture: None, loupe: Loupe::default(), had_pointer: false });
-        session.borrow_mut().windows.push(key);
-        if rect.contains(cursor) {
-            focus = Some(key);
+    for (monitor, cover) in covers.iter().enumerate() {
+        *cover.slot.borrow_mut() = Some(Seat { session: session.clone(), monitor });
+        session.borrow_mut().windows.push(cover.key);
+        if resting {
+            cx.shell.present(cover.key);
+        }
+        if cover.rect.contains(cursor) {
+            focus = Some(cover.key);
         }
     }
+    session.borrow_mut().presented = Instant::now();
     // Key presses go to the window with focus: the one under the cursor.
     if let Some(key) = focus.or_else(|| session.borrow().windows.first().copied()) {
         cx.shell.focus(key);
@@ -155,12 +187,32 @@ pub fn open(cx: &mut OpenCx, request: OverlayRequest) {
 }
 
 struct OverlayView {
-    session: Shared,
+    /// The session this window is part of right now; `None` while the cover rests hidden in the pool.
+    seat: Slot,
+    /// The session the texture and loupe below belong to.
+    bound: Weak<RefCell<Session>>,
     monitor: usize,
     texture: Option<TextureHandle>,
     loupe: Loupe,
     /// The pointer was in this window last frame (to hand over keyboard focus when it arrives).
     had_pointer: bool,
+}
+
+impl OverlayView {
+    fn new(seat: Slot) -> Self {
+        Self { seat, bound: Weak::new(), monitor: 0, texture: None, loupe: Loupe::default(), had_pointer: false }
+    }
+
+    /// A resting cover paints nothing and gives its snapshot texture back.
+    fn rest(&mut self, ctx: &Context) {
+        self.texture = None;
+        self.bound = Weak::new();
+        self.loupe = Loupe::default();
+        self.had_pointer = false;
+        ctx.root_ui(|ui| {
+            egui::CentralPanel::default().frame(egui::Frame::new().fill(Color32::BLACK)).show(ui, |_| {});
+        });
+    }
 }
 
 /// The monitor's snapshot as a texture. Alpha is forced opaque: a screen has none. The conversion of a few
@@ -184,8 +236,8 @@ fn upload(ctx: &Context, image: &snap_core::RgbaImage) -> TextureHandle {
 }
 
 impl OverlayView {
-    fn finish(&self, cx: &mut ViewCx, finish: Finish) {
-        let mut session = self.session.borrow_mut();
+    fn finish(&self, cx: &mut ViewCx, shared: &Shared, finish: Finish) {
+        let mut session = shared.borrow_mut();
         if std::mem::replace(&mut session.done, true) {
             return;
         }
@@ -206,8 +258,17 @@ impl OverlayView {
         if let Some(rect) = region {
             cx.update_settings(|s| s.capture.last_region = Some(rect));
         }
-        for &win in &session.windows {
-            cx.shell.close(win);
+        let windows = session.windows.clone();
+        drop(session);
+        pool::release(shared);
+        for win in windows {
+            if pool::enabled() {
+                // Back to resting: hidden, with one more pass to hand the snapshot texture back.
+                cx.shell.set_visible(win, false);
+                cx.shell.refresh_hidden(win);
+            } else {
+                cx.shell.close(win);
+            }
         }
     }
 
@@ -355,11 +416,19 @@ fn hint_text(mode: OverlayMode) -> String {
 
 impl View for OverlayView {
     fn ui(&mut self, cx: &mut ViewCx, ctx: &Context) {
-        let session = self.session.clone();
+        let Some(Seat { session, monitor }) = self.seat.borrow().clone() else { return self.rest(ctx) };
         let mut s = session.borrow_mut();
         if s.done {
             return;
         }
+        if !self.bound.ptr_eq(&Rc::downgrade(&session)) {
+            // A new session on a cover that was resting: nothing of the last one may show.
+            self.bound = Rc::downgrade(&session);
+            self.texture = None;
+            self.loupe = Loupe::default();
+            self.had_pointer = false;
+        }
+        self.monitor = monitor;
         let tex = self.texture.get_or_insert_with(|| {
             ctx.all_styles_mut(|style| style.interaction.tooltip_delay = 0.25);
             let began = Instant::now();
@@ -397,17 +466,19 @@ impl View for OverlayView {
             && let Some(shown) = cx.shell.first_frame_time(win)
         {
             s.ready_logged = true;
-            tracing::info!("overlay ready {} ms after the hotkey ({} ms to render)", s.opened.elapsed().as_millis(), shown.as_millis());
+            let ready = s.presented.saturating_duration_since(s.opened) + shown;
+            tracing::info!("overlay ready {} ms after the hotkey ({} ms to render)", ready.as_millis(), shown.as_millis());
         }
         drop(s);
         if let Some(finish) = finish {
-            self.finish(cx, finish);
+            self.finish(cx, &session, finish);
         }
     }
 
     fn on_msg(&mut self, cx: &mut ViewCx, msg: Box<dyn Any + Send>) {
+        let Some(seat) = self.seat.borrow().clone() else { return };
         if let Ok(reply) = msg.downcast::<ElementsReply>() {
-            let mut s = self.session.borrow_mut();
+            let mut s = seat.session.borrow_mut();
             s.targets.apply(*reply);
             for &win in &s.windows {
                 cx.shell.repaint(win);
@@ -415,8 +486,21 @@ impl View for OverlayView {
         }
     }
 
+    fn close_requested(&mut self, cx: &mut ViewCx) -> bool {
+        // Alt+F4 on a cover ends the session; a pooled cover is only hidden, never destroyed.
+        let seat = self.seat.borrow().clone();
+        if let Some(seat) = seat {
+            self.finish(cx, &seat.session, Finish::Cancel);
+        }
+        !pool::enabled()
+    }
+
     fn closed(&mut self, cx: &mut ViewCx) {
-        // Closed by the OS (Alt+F4): take the sibling windows down with it.
-        self.finish(cx, Finish::Cancel);
+        pool::forget(cx.win);
+        // Destroyed by the OS: take the sibling windows down with the session.
+        let seat = self.seat.borrow().clone();
+        if let Some(seat) = seat {
+            self.finish(cx, &seat.session, Finish::Cancel);
+        }
     }
 }

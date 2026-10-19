@@ -23,7 +23,6 @@ mod views;
 
 use std::process::ExitCode;
 
-use clap::Parser;
 use snap_core::{APP_ID, Settings, i18n, policy::Policy};
 use snap_engine::{
     Engine,
@@ -38,17 +37,20 @@ fn main() -> ExitCode {
     dev::prepare();
     snap_platform::dpi::init();
     snap_platform::console::attach();
-    logging::init();
 
-    let cli = Cli::parse();
+    // The language comes from the settings and decides the help text, so they are read before the arguments.
+    let settings = load_settings();
+    let cli = cli::parse();
     match cli::dispatch(&cli) {
         Dispatch::Headless => run_headless(cli),
-        Dispatch::Gui(request) => run_gui(request, cli.background),
+        Dispatch::Gui(request) => run_gui(request, cli.background, settings),
     }
 }
 
 fn run_headless(cli: Cli) -> ExitCode {
-    load_settings();
+    // Standard error carries warnings only: `snapoleon mcp` keeps standard output for the protocol, and the other
+    // commands print their result there.
+    logging::init(logging::Sink::Console);
     match cli::run(cli) {
         Ok(code) => ExitCode::from(code.clamp(0, 255) as u8),
         Err(e) => {
@@ -58,14 +60,20 @@ fn run_headless(cli: Cli) -> ExitCode {
     }
 }
 
-fn run_gui(request: Option<snap_core::ipc::Request>, background: bool) -> ExitCode {
+fn run_gui(request: Option<snap_core::ipc::Request>, background: bool, mut settings: Settings) -> ExitCode {
     let dev = dev::Dev::from_env();
     // The dev harness never talks to (or replaces) the installed app.
     if dev.is_none() && snap_platform::ipc::instance_running() {
+        logging::init(logging::Sink::Console);
         return if ipc::forward(request, background) { ExitCode::SUCCESS } else { ExitCode::FAILURE };
     }
+    // Nothing runs that could be told to quit: do not start the app only to end it.
+    if dev.is_none() && request == Some(snap_core::ipc::Request::Quit) {
+        return ExitCode::SUCCESS;
+    }
+    logging::init(logging::Sink::Application);
 
-    let (mut settings, policy) = (load_settings(), Policy::load());
+    let policy = Policy::load();
     if let Some(dev) = &dev {
         dev::apply_overrides(&mut settings, dev);
         i18n::set_language(&settings.general.language);

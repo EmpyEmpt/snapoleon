@@ -49,7 +49,7 @@ impl Gpu {
 
         let (device, queue) = pollster::block_on(adapter.request_device(&wgpu::DeviceDescriptor {
             label: Some("snap-shell"),
-            required_limits: adapter.limits(),
+            required_limits: wgpu::Limits::default().using_resolution(adapter.limits()).using_alignment(adapter.limits()),
             memory_hints: wgpu::MemoryHints::MemoryUsage,
             ..Default::default()
         }))

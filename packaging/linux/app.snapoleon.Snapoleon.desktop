@@ -17,7 +17,7 @@ Actions=Capture;Record;
 
 [Desktop Action Capture]
 Name=Capture region
-Exec=snapoleon capture region
+Exec=snapoleon capture
 
 [Desktop Action Record]
 Name=Record screen
