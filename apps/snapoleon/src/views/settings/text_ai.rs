@@ -209,6 +209,7 @@ fn ai(ui: &mut Ui, rc: &mut Rows, st: &mut State, cx: &mut ViewCx, a: &mut AiSet
     ui.add_enabled_ui(!locked, |ui| {
         rc.section(ui, &s("text_ai.section.ai"), |ui, rc| {
             rc.toggle(ui, "text_ai.ai_enabled", &mut a.enabled);
+            rc.toggle(ui, "text_ai.smart_names", &mut a.smart_names);
             rc.text(ui, "text_ai.endpoint", &mut a.endpoint, "http://127.0.0.1:11434/v1", true, 320.0);
             rc.text(ui, "text_ai.model", &mut a.model, "qwen3:8b", true, 220.0);
             rc.text(ui, "text_ai.vision_model", &mut a.vision_model, "qwen2.5vl:7b", true, 220.0);

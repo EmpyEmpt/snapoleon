@@ -42,6 +42,8 @@ pub enum Event {
     Click(Modifiers),
     Open,
     Context(Pos2),
+    /// The card was dragged away from the pointer position: start an OS drag with its file.
+    Drag(Pos2),
     /// A quick action; the rect is the button, for anchoring a menu.
     Quick(Quick, Rect),
 }
@@ -58,7 +60,8 @@ pub struct Look {
 pub fn show(ui: &mut Ui, rect: Rect, entry: &Entry, tex: Option<&TextureHandle>, look: &Look) -> Event {
     let p = Palette::of(ui);
     let id = ui.scope_id().with(("library-card", &entry.id.0));
-    let resp = ui.interact(rect, id, Sense::CLICK);
+    let sense = if snap_platform::drag::SUPPORTED { Sense::click_and_drag() } else { Sense::CLICK };
+    let resp = ui.interact(rect, id, sense);
     let hover = util::hover_anim(ui, &resp);
     let sel = util::anim(ui.ctx(), id.with("sel"), look.selected, util::Motion::HOVER);
     let pointer_inside = resp.contains_pointer() || look.pinned_actions;
@@ -109,7 +112,9 @@ pub fn show(ui: &mut Ui, rect: Rect, entry: &Entry, tex: Option<&TextureHandle>,
     }
 
     let mut event = Event::None;
-    if resp.double_clicked() {
+    if resp.drag_started() {
+        event = Event::Drag(resp.interact_pointer_pos().unwrap_or(rect.center()));
+    } else if resp.double_clicked() {
         event = Event::Open;
     } else if resp.clicked() {
         event = Event::Click(ui.input(|i| i.modifiers));

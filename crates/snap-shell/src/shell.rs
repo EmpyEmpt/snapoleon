@@ -285,6 +285,14 @@ impl<E: Send + 'static> Shell<'_, E> {
         platform::set_exclude_from_capture(&state.window, on)
     }
 
+    /// Queue an input event for the window's next frame. For input the OS consumed itself, such as the button
+    /// release that ended a modal drag-and-drop loop, which egui would otherwise never see.
+    pub fn push_input_event(&mut self, w: WindowKey, event: egui::Event) {
+        if let Some(state) = self.core.windows.get_mut(&w) {
+            state.egui_state.egui_input_mut().events.push(event);
+        }
+    }
+
     /// Start an OS-driven window move; call from a pointer-press handler.
     pub fn drag_window(&mut self, w: WindowKey) {
         if let Some(state) = self.core.windows.get(&w)

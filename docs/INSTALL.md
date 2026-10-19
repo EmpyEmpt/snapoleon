@@ -111,6 +111,19 @@ sudo apt install tesseract-ocr tesseract-ocr-eng ffmpeg      # Debian / Ubuntu
 sudo pacman -S tesseract tesseract-data-eng ffmpeg           # Arch
 ```
 
+### What works differently on Linux
+
+- **Element capture and the browser address** use AT-SPI over D-Bus. Applications only publish their widgets when
+  desktop accessibility is on (GNOME: Settings, Accessibility, "Always show accessibility menu" or
+  `gsettings set org.gnome.desktop.interface toolkit-accessibility true`; KDE: System Settings, Accessibility). Qt and
+  GTK apps then work after they are restarted. Chromium-based browsers show their page only when started with
+  `--force-renderer-accessibility` (or after opening `chrome://accessibility` once), so without that no page address is
+  recorded for them; Firefox needs nothing extra. Without the AT-SPI service, `capture --element` and the overlay's
+  element mode report that elements are unsupported.
+- **Hide desktop icons** does nothing: desktops here have no common icon layer to hide.
+- **Dragging a capture out of the Library** into another program is not available; use Reveal, or Copy file and paste.
+- **Play sounds** uses `pw-play`, `paplay` or `aplay`, whichever is installed.
+
 ### Building on Linux
 
 Tested on Ubuntu 24.04 (x86_64). Ubuntu 22.04 is too old: its PipeWire is 0.3.48 and the capture backend (`xcap`)

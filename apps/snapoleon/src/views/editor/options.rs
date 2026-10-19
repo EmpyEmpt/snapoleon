@@ -21,7 +21,8 @@ use super::{
 
 /// Something the bar asks the editor to do.
 pub enum Request {
-    AutoRedact,
+    /// Cover personal data; `smart` also asks the AI endpoint for what patterns miss.
+    AutoRedact { smart: bool },
 }
 
 pub struct OptionsCx<'a> {
@@ -32,6 +33,8 @@ pub struct OptionsCx<'a> {
     pub ui_scale: f32,
     /// An auto-redact search is running.
     pub searching: bool,
+    /// AI is on: the redact bar offers the smart search.
+    pub ai: bool,
 }
 
 /// Tools that draw with the same stroke width.
@@ -178,9 +181,16 @@ fn bar(ui: &mut Ui, cx: &mut OptionsCx) -> Option<Request> {
             let label = if cx.searching { t("editor.redact.searching") } else { t("editor.redact.auto") };
             let button = ui.add_enabled(!cx.searching, snap_ui::widgets::Button::new(&label).icon(icon::SHIELD_CHECK));
             if button.clicked() {
-                request = Some(Request::AutoRedact);
+                request = Some(Request::AutoRedact { smart: false });
             }
             tooltip(button, &t("editor.redact.auto_tip"), None);
+            if cx.ai {
+                let smart = ui.add_enabled(!cx.searching, snap_ui::widgets::Button::new(&t("editor.redact.smart")).icon(icon::MAGIC_WAND));
+                if smart.clicked() {
+                    request = Some(Request::AutoRedact { smart: true });
+                }
+                tooltip(smart, &t("editor.redact.smart_tip"), None);
+            }
             if cx.searching {
                 snap_ui::widgets::spinner(ui);
             }

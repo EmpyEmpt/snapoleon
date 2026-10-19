@@ -116,6 +116,20 @@ pub fn mode_work(mode: OverlayMode, pipeline: Option<String>, settings: &Setting
 
 /// The commands that follow an overlay session. The overlay view pushes these when it finishes.
 pub fn overlay_commands(result: OverlayResult, request: &OverlayRequest, settings: &Settings) -> Vec<Command> {
+    // A recording starts a video; everything else that ends a selection has taken a picture.
+    let shutter = match &result {
+        OverlayResult::Selected(_) => !matches!(request.mode, OverlayMode::Record(_)),
+        OverlayResult::Action(action, _) => *action != OverlayAction::Record,
+        _ => false,
+    };
+    let mut commands = next_commands(result, request, settings);
+    if shutter {
+        commands.insert(0, Command::Shutter);
+    }
+    commands
+}
+
+fn next_commands(result: OverlayResult, request: &OverlayRequest, settings: &Settings) -> Vec<Command> {
     let steps = |capture, steps: Vec<Step>| vec![Command::RunSteps { capture, steps }];
     match result {
         OverlayResult::Cancelled => Vec::new(),

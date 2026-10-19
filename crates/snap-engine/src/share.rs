@@ -16,7 +16,7 @@ use snap_core::{
 use snap_history::LinkRecord;
 use snap_upload::UploadRequest;
 
-use crate::{Document, Engine, Link, SaveOptions, meta, recording};
+use crate::{Document, Engine, Link, LinkAccess, SaveOptions, meta, recording, smart};
 
 /// File names stop here; the OS limit is 255 bytes and we leave room for `" (99).webp"`.
 const MAX_NAME_CHARS: usize = 150;
@@ -110,7 +110,7 @@ pub(crate) fn save(engine: &Engine, img: &RgbaImage, cap: &Capture, opts: &SaveO
             let fmt = opts.format.unwrap_or(s.capture.format);
             let dir = opts.dir.clone().unwrap_or_else(|| paths::save_dir(&s.capture.save_dir));
             let template = opts.template.as_deref().unwrap_or(&s.capture.filename_template);
-            (unique_path(&dir, &file_stem(engine, template, cap), fmt), fmt)
+            (unique_path(&dir, &file_stem(engine, template, cap, smart::title(engine, img, cap).as_deref()), fmt), fmt)
         }
     };
     snap_image::encode::save(img, &path, fmt, quality(&s, fmt), s.capture.optimize_png)?;
@@ -123,10 +123,10 @@ fn with_appended_ext(path: &Path, fmt: ImageFormat) -> PathBuf {
     PathBuf::from(name)
 }
 
-/// Expand the naming template for `cap`; never empty and safe as a file name on every OS.
-fn file_stem(engine: &Engine, template: &str, cap: &Capture) -> String {
+/// Expand the naming template for `cap`, or take the AI `title` instead; never empty and safe as a file name on every OS.
+fn file_stem(engine: &Engine, template: &str, cap: &Capture, title: Option<&str>) -> String {
     let n = engine.inner.counter.fetch_add(1, Ordering::Relaxed) + 1;
-    let name = naming::expand(template, &NameContext::for_capture(cap, n));
+    let name = title.map_or_else(|| naming::expand(template, &NameContext::for_capture(cap, n)), str::to_owned);
     let name: String = name.chars().take(MAX_NAME_CHARS).collect();
     // Windows silently drops trailing dots and spaces, which would make the exists() check below lie.
     let name = name.trim_end_matches(['.', ' ']);
@@ -174,6 +174,18 @@ pub(crate) fn upload_file(
     progress: &dyn Fn(u64, u64),
     shorten: bool,
 ) -> Result<Link> {
+    upload_file_with(engine, path, dest, id, &LinkAccess::default(), progress, shorten)
+}
+
+pub(crate) fn upload_file_with(
+    engine: &Engine,
+    path: &Path,
+    dest: Option<&str>,
+    id: Option<&CaptureId>,
+    access: &LinkAccess,
+    progress: &dyn Fn(u64, u64),
+    shorten: bool,
+) -> Result<Link> {
     let bytes = std::fs::read(path).map_err(|e| match e.kind() {
         std::io::ErrorKind::NotFound => Error::NotFound(path.display().to_string()),
         _ => Error::Io(e),
@@ -181,7 +193,7 @@ pub(crate) fn upload_file(
     let ext = path.extension().map(|e| e.to_string_lossy().into_owned()).unwrap_or_default();
     let bytes = if engine.settings().privacy.strip_metadata { meta::strip(&ext, bytes) } else { bytes };
     let name = path.file_name().map_or_else(|| "file".to_string(), |n| n.to_string_lossy().into_owned());
-    finish_upload(engine, &bytes, &name, mime_for(&ext), None, dest, id, progress, shorten)
+    finish_upload(engine, &bytes, &name, mime_for(&ext), None, dest, id, access, progress, shorten)
 }
 
 pub(crate) fn upload_image(
@@ -195,8 +207,10 @@ pub(crate) fn upload_image(
     let s = engine.settings();
     let fmt = s.capture.format;
     let bytes = snap_image::encode::encode(img, fmt, quality(&s, fmt), s.capture.optimize_png)?;
-    let name = format!("{}.{}", file_stem(engine, &s.capture.filename_template, cap), fmt.ext());
-    finish_upload(engine, &bytes, &name, fmt.mime(), cap.context.window_title.as_deref(), dest, Some(&cap.id), progress, shorten)
+    let ai_title = smart::title(engine, img, cap);
+    let name = format!("{}.{}", file_stem(engine, &s.capture.filename_template, cap, ai_title.as_deref()), fmt.ext());
+    let title = cap.context.window_title.as_deref().or(ai_title.as_deref());
+    finish_upload(engine, &bytes, &name, fmt.mime(), title, dest, Some(&cap.id), &LinkAccess::default(), progress, shorten)
 }
 
 #[allow(clippy::too_many_arguments)]
@@ -208,13 +222,21 @@ fn finish_upload(
     title: Option<&str>,
     dest: Option<&str>,
     id: Option<&CaptureId>,
+    access: &LinkAccess,
     progress: &dyn Fn(u64, u64),
     shorten: bool,
 ) -> Result<Link> {
     let destination = resolve_destination(engine, dest)?;
-    let expiry = engine.settings().links.expiry_hours;
+    let expiry = access.expiry_hours.unwrap_or(engine.settings().links.expiry_hours);
     let uploader = snap_upload::uploader_for(&destination, &*engine.secrets())?;
-    let req = UploadRequest { data, file_name: name, mime, title, expiry_hours: (expiry > 0).then_some(expiry), password: None };
+    let req = UploadRequest {
+        data,
+        file_name: name,
+        mime,
+        title,
+        expiry_hours: (expiry > 0).then_some(expiry),
+        password: access.password.as_deref(),
+    };
     let done = uploader.upload(&req, progress)?;
     let mut link = Link {
         url: done.url,

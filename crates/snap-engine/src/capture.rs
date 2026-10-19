@@ -49,12 +49,19 @@ pub(crate) fn capture(engine: &Engine, req: &CaptureRequest) -> Result<Capture> 
     }
 }
 
-/// Grab pixels straight off the desktop, with the icons out of the way when the user asked for that.
-fn on_desktop(settings: &Settings, grab: impl FnOnce() -> Result<Capture>) -> Result<Capture> {
+/// Hide the desktop icons when the user asked for that, and wait for the shell to repaint. They come back when the
+/// guard is dropped. Every way of looking at the desktop takes this first.
+pub fn icons_hidden(settings: &Settings) -> Option<snap_capture::DesktopIconsGuard> {
     let icons = settings.capture.hide_desktop_icons.then(snap_capture::hide_desktop_icons).flatten();
     if icons.is_some() {
         std::thread::sleep(ICONS_SETTLE);
     }
+    icons
+}
+
+/// Grab pixels straight off the desktop, with the icons out of the way when the user asked for that.
+pub(crate) fn on_desktop(settings: &Settings, grab: impl FnOnce() -> Result<Capture>) -> Result<Capture> {
+    let _icons = icons_hidden(settings);
     grab()
 }
 

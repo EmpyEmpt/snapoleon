@@ -344,13 +344,16 @@ impl EditorView {
         cx.toast(ToastKind::Success, tf("editor.redact.found", &[("n", &count)]));
     }
 
-    pub(super) fn auto_redact(&mut self, cx: &mut ViewCx) {
+    /// `smart` also sends the recognised text to the AI endpoint, to find what no pattern matches.
+    pub(super) fn auto_redact(&mut self, cx: &mut ViewCx, smart: bool) {
         if self.searching {
             return;
         }
         self.searching = true;
         let (engine, base) = (cx.engine.clone(), self.s.doc.base.clone());
-        cx.spawn(move || Msg::Redactions(engine.find_redactions(&base, &[])));
+        cx.spawn(move || {
+            Msg::Redactions(if smart { engine.find_redactions_smart(&base, &[]) } else { engine.find_redactions(&base, &[]) })
+        });
     }
 }
 

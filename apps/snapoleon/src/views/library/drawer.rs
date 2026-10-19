@@ -5,12 +5,14 @@ use egui::{
     UiBuilder, Vec2,
 };
 use snap_core::{CaptureKind, t};
+use snap_engine::LinkAccess;
 use snap_history::{Entry, LinkRecord};
 use snap_ui::{
     Palette, Tone, icon,
     text::{self, body_strong_style, body_style, caption_style},
     widgets::{self, Button, ButtonKind, TextField, badge, divider, icon_button, spinner, tooltip, util},
 };
+use snap_upload::server::RemoteItem;
 
 use super::{Act, format, paint};
 
@@ -24,6 +26,43 @@ pub struct State {
     pub delete_files: bool,
     /// The capture whose details are on screen; a different one starts at the top.
     shown: Option<snap_core::CaptureId>,
+    /// The sharing options of one of the capture's team-server links, while they are open.
+    pub manage: Option<Manage>,
+}
+
+/// What the server says about a link.
+pub enum Remote {
+    Loading,
+    Found(RemoteItem),
+    /// The server does not list it: deleted there, or a short link.
+    Missing,
+    Failed(String),
+}
+
+/// The sharing options of one link on a team server.
+pub struct Manage {
+    /// The capture the link belongs to.
+    pub entry: String,
+    /// Index into the capture's links.
+    pub link: usize,
+    pub remote: Remote,
+    pub password: String,
+    /// Hours; empty = never.
+    pub expiry: String,
+    pub confirm_delete: bool,
+}
+
+impl Manage {
+    pub fn new(entry: &str, link: usize, expiry_hours: u32) -> Self {
+        Self {
+            entry: entry.to_owned(),
+            link,
+            remote: Remote::Loading,
+            password: String::new(),
+            expiry: if expiry_hours > 0 { expiry_hours.to_string() } else { String::new() },
+            confirm_delete: false,
+        }
+    }
 }
 
 pub struct Props<'a> {
@@ -46,6 +85,15 @@ pub enum Out {
     ShowText,
     /// The "copy as" menu of the link at this index, anchored to the button.
     LinkMenu(usize, Rect),
+    /// The "more" menu of the link at this index, anchored to the button.
+    LinkMore(usize, Rect),
+    /// Share the capture again as a new link with this password and expiry.
+    ShareAgain(LinkAccess),
+    /// Delete the item on the server, for the link at this index.
+    DeleteRemote {
+        item: String,
+        link: usize,
+    },
     MoreMenu(Rect),
     SetTags(Vec<String>),
     /// The user confirmed; whether to remove the files too is in the drawer state.
@@ -65,6 +113,7 @@ pub fn show(ui: &mut Ui, state: &mut State, props: &Props) -> Vec<Out> {
     let mut scroll = ScrollArea::vertical().id_salt("library-drawer").auto_shrink([false, false]);
     if state.shown.as_ref() != Some(&props.entry.id) {
         state.shown = Some(props.entry.id.clone());
+        state.manage = None;
         scroll = scroll.vertical_scroll_offset(0.0);
     }
     scroll.show(&mut body, |ui| {
@@ -127,7 +176,7 @@ fn content(ui: &mut Ui, p: &Palette, state: &mut State, props: &Props, out: &mut
         ui.add_space(4.0);
         divider(ui);
         ui.add_space(4.0);
-        links(ui, p, entry, out);
+        links(ui, p, state, props, out);
     }
     ui.add_space(4.0);
     divider(ui);
@@ -352,12 +401,105 @@ fn text_block(ui: &mut Ui, p: &Palette, props: &Props, out: &mut Vec<Out>) {
     }
 }
 
-fn links(ui: &mut Ui, p: &Palette, entry: &Entry, out: &mut Vec<Out>) {
+fn links(ui: &mut Ui, p: &Palette, state: &mut State, props: &Props, out: &mut Vec<Out>) {
+    let entry = props.entry;
     section_header(ui, p, &t("library.links.title"), |ui| {
         badge(ui, &entry.links.len().to_string(), Tone::Neutral);
     });
     for (n, link) in entry.links.iter().enumerate() {
         link_row(ui, p, n, link, out);
+    }
+    if let Some(manage) = &mut state.manage
+        && !manage_panel(ui, p, manage, props.file_ok, out)
+    {
+        state.manage = None;
+    }
+}
+
+/// The sharing options of a team-server link: what the server knows, a new link with a password and expiry, and
+/// deleting it there. The server fixes password and expiry when a file arrives, so changing them means a new link.
+/// False once the user closes the panel.
+fn manage_panel(ui: &mut Ui, p: &Palette, m: &mut Manage, file_ok: bool, out: &mut Vec<Out>) -> bool {
+    let mut open = true;
+    egui::Frame::new().fill(p.surface_2).corner_radius(10).inner_margin(Margin::same(12)).show(ui, |ui| {
+        ui.set_width(ui.available_width());
+        ui.horizontal(|ui| {
+            ui.label(RichText::new(t("library.remote.title")).text_style(body_strong_style()).color(p.text));
+            ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
+                if icon_button(ui, icon::X, &t("library.drawer.close"), None).clicked() {
+                    open = false;
+                }
+            });
+        });
+        match &m.remote {
+            Remote::Loading => {
+                ui.horizontal(|ui| {
+                    spinner(ui);
+                    ui.label(text::dim(t("library.remote.loading")));
+                });
+            }
+            Remote::Failed(message) => {
+                ui.add(egui::Label::new(RichText::new(message).color(p.warning).size(12.0)).wrap());
+            }
+            Remote::Missing => {
+                ui.add(egui::Label::new(text::caption(t("library.remote.missing"))).wrap());
+            }
+            Remote::Found(item) => remote_facts(ui, p, item),
+        }
+
+        ui.add_space(4.0);
+        ui.label(text::caption(t("library.remote.password")));
+        let hint = t("library.remote.password_hint");
+        ui.add(TextField::new(&mut m.password).hint(&hint).icon(icon::LOCK).password(true).width(ui.available_width()));
+        ui.label(text::caption(t("library.remote.expiry")));
+        let hint = t("library.remote.expiry_hint");
+        ui.add(TextField::new(&mut m.expiry).hint(&hint).icon(icon::CLOCK).width(ui.available_width()));
+        m.expiry.retain(|c| c.is_ascii_digit());
+        let share = ui.add_enabled(file_ok, Button::new(&t("library.remote.share_again")).icon(icon::CLOUD_ARROW_UP));
+        if tooltip(share, &t("library.remote.share_again_tip"), None).clicked() {
+            let hours = m.expiry.parse::<u32>().unwrap_or(0);
+            let password = Some(m.password.clone()).filter(|p| !p.is_empty());
+            out.push(Out::ShareAgain(LinkAccess { password, expiry_hours: Some(hours) }));
+        }
+
+        if let Remote::Found(item) = &m.remote {
+            ui.add_space(4.0);
+            divider(ui);
+            ui.add_space(4.0);
+            if !m.confirm_delete {
+                let delete = ui.add(Button::new(&t("library.remote.delete")).kind(ButtonKind::Ghost).icon(icon::TRASH));
+                m.confirm_delete = delete.clicked();
+            } else {
+                ui.label(RichText::new(t("library.remote.delete_hint")).color(p.danger).size(12.0));
+                ui.horizontal(|ui| {
+                    if ui.add(Button::new(&t("library.delete.confirm")).kind(ButtonKind::Danger)).clicked() {
+                        out.push(Out::DeleteRemote { item: item.id.clone(), link: m.link });
+                    }
+                    if widgets::secondary_button(ui, &t("common.cancel")).clicked() {
+                        m.confirm_delete = false;
+                    }
+                });
+            }
+        }
+    });
+    open
+}
+
+/// Views, comments, password and expiry as the server reports them.
+fn remote_facts(ui: &mut Ui, p: &Palette, item: &RemoteItem) {
+    let yes_no = |on: bool| if on { t("library.remote.password_set") } else { t("library.remote.password_none") };
+    let expires = match item.expires_ms {
+        Some(ms) => format::date_time(ms),
+        None => t("library.remote.never").into_owned(),
+    };
+    let facts = [
+        (t("library.remote.views"), item.views.to_string()),
+        (t("library.remote.comments"), item.comments.to_string()),
+        (t("library.remote.password"), yes_no(item.has_password).into_owned()),
+        (t("library.remote.expires"), expires),
+    ];
+    for (label, value) in facts {
+        info_row(ui, p, &label, |ui, w| plain(ui, p, &value, w, false));
     }
 }
 
@@ -366,7 +508,7 @@ fn link_row(ui: &mut Ui, p: &Palette, n: usize, link: &LinkRecord, out: &mut Vec
     let painter = ui.painter();
     painter.rect_filled(rect, 10.0, p.surface_2);
     painter.rect_stroke(rect, 10.0, Stroke::new(1.0, p.border), StrokeKind::Inside);
-    let buttons_w = 28.0 * 2.0 + 4.0 + 8.0;
+    let buttons_w = 28.0 * 3.0 + 4.0 * 2.0 + 8.0;
     let text_w = rect.width() - 12.0 - buttons_w - 4.0;
     let url = paint::elided(ui, &link.url, FontId::monospace(11.5), p.text, text_w);
     let sub = format!("{} · {}", link.destination, format::short_date(link.created_ms, snap_core::now_ms()));
@@ -380,10 +522,15 @@ fn link_row(ui: &mut Ui, p: &Palette, n: usize, link: &LinkRecord, out: &mut Vec
     resp.on_hover_text(&link.url);
 
     let slot = |k: f32| {
-        Rect::from_min_size(Pos2::new(rect.right() - 8.0 - 28.0 * (2.0 - k) - 4.0 * (1.0 - k), rect.center().y - 14.0), Vec2::splat(28.0))
+        Rect::from_min_size(Pos2::new(rect.right() - 8.0 - 28.0 * (3.0 - k) - 4.0 * (2.0 - k), rect.center().y - 14.0), Vec2::splat(28.0))
     };
-    for (k, (glyph, tip)) in
-        [(icon::COPY, t("library.links.copy_as")), (icon::ARROW_SQUARE_OUT, t("library.links.open"))].into_iter().enumerate()
+    for (k, (glyph, tip)) in [
+        (icon::COPY, t("library.links.copy_as")),
+        (icon::ARROW_SQUARE_OUT, t("library.links.open")),
+        (icon::DOTS_THREE, t("library.action.more")),
+    ]
+    .into_iter()
+    .enumerate()
     {
         let r = slot(k as f32);
         let button = ui.interact(r, row_id.with(("link-button", k)), Sense::CLICK);
@@ -391,7 +538,11 @@ fn link_row(ui: &mut Ui, p: &Palette, n: usize, link: &LinkRecord, out: &mut Vec
         ui.painter().rect_filled(r, 6.0, p.hover().gamma_multiply(hover));
         util::paint_icon(ui, r.center(), glyph, 15.0, util::lerp_color(p.text_dim, p.text, hover));
         if tooltip(button, &tip, None).clicked() {
-            out.push(if k == 0 { Out::LinkMenu(n, r) } else { Out::OpenUrl(link.url.clone()) });
+            out.push(match k {
+                0 => Out::LinkMenu(n, r),
+                1 => Out::OpenUrl(link.url.clone()),
+                _ => Out::LinkMore(n, r),
+            });
         }
     }
 }

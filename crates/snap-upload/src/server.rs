@@ -37,9 +37,11 @@ pub struct RemoteItem {
     /// Public viewer page.
     pub url: String,
     pub raw_url: Option<String>,
+    pub delete_url: Option<String>,
     pub mime: Option<String>,
-    pub size_bytes: u64,
+    pub bytes: u64,
     pub views: u64,
+    pub comments: u64,
     pub created_ms: i64,
     pub expires_ms: Option<i64>,
     pub has_password: bool,
@@ -58,13 +60,17 @@ pub enum RemoteEventKind {
 #[derive(Debug, Clone, PartialEq, Default, Serialize, Deserialize)]
 #[serde(default)]
 pub struct RemoteEvent {
-    pub id: String,
+    pub id: i64,
     pub kind: RemoteEventKind,
     pub item_id: String,
-    pub at_ms: i64,
-    pub actor: Option<String>,
+    /// Public viewer page of the item.
+    pub url: String,
+    pub title: String,
+    pub created_ms: i64,
+    /// Who viewed or commented; empty for an anonymous viewer.
+    pub actor: String,
     /// Comment text, when `kind` is a comment.
-    pub text: Option<String>,
+    pub text: String,
 }
 
 /// What the server returns for a finished upload.

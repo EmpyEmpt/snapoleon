@@ -32,7 +32,13 @@ open_file = "Could not open the file"
 
 [app.notice]
 copy_link = "Copy link"
+show_qr = "Show QR"
 show_in_folder = "Show in folder"
+
+[app.events]
+viewed = "{who} viewed {title}"
+commented = "{who} commented on {title}"
+someone = "Someone"
 
 [app.hotkey]
 conflict_title = "A hotkey could not be registered"

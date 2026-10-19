@@ -94,6 +94,7 @@ pub fn open(cx: &mut OpenCx, input: RecorderInput) {
         discard_asked: None,
         failure: None,
         stop_when_started: false,
+        icons: None,
     };
     cx.open(spec, view);
 
@@ -217,6 +218,8 @@ struct RecorderView {
     failure: Option<Failure>,
     /// Stop arrived while the recorder was still starting.
     stop_when_started: bool,
+    /// The desktop icons stay hidden for as long as this lives (the "hide desktop icons" setting).
+    icons: Option<snap_capture::DesktopIconsGuard>,
 }
 
 impl RecorderView {
@@ -239,6 +242,7 @@ impl RecorderView {
         if let Some(failure) = preflight(&self.options) {
             return self.fail(cx, failure);
         }
+        self.icons = snap_engine::icons_hidden(cx.settings);
         let mut options = self.options.clone();
         options.exclude_windows =
             std::iter::once(cx.win).chain(self.shared.frames.borrow().iter().copied()).filter_map(|win| cx.shell.native_id(win)).collect();
@@ -248,6 +252,7 @@ impl RecorderView {
     fn fail(&mut self, cx: &mut ViewCx, failure: Failure) {
         tracing::warn!("recording failed: {}", failure.message);
         self.close_session(cx);
+        self.icons = None;
         self.phase = Phase::Failed;
         self.failure = Some(failure);
         let scale = cx.shell.scale_factor(cx.win).unwrap_or(1.0);
@@ -267,6 +272,7 @@ impl RecorderView {
                 let Some(recorder) = self.recorder.take() else { return };
                 self.phase = Phase::Saving { discarding: false };
                 self.close_session(cx);
+                self.icons = None;
                 let (engine, probe) = (cx.engine.clone(), self.area.map(|r| Point::new(r.x + r.w as i32 / 2, r.y + r.h as i32 / 2)));
                 cx.spawn(move || Msg::Finished(finish(&engine, recorder, probe)));
             }
@@ -278,6 +284,7 @@ impl RecorderView {
         let Some(recorder) = self.recorder.take() else { return };
         self.phase = Phase::Saving { discarding: true };
         self.close_session(cx);
+        self.icons = None;
         cx.spawn(move || {
             recorder.cancel();
             Msg::Discarded

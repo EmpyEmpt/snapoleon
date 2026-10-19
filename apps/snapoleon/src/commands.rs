@@ -120,6 +120,10 @@ pub enum Command {
 
     /// The hotkey recorder widget is focused: global hotkeys must not fire.
     PauseHotkeys(bool),
+    /// A capture was just taken: play the shutter sound when "play sounds" is on.
+    Shutter,
+    /// Show a link as a QR code to scan with a phone.
+    ShowQr(String),
     CopyText(String),
     Reveal(PathBuf),
     OpenPath(PathBuf),

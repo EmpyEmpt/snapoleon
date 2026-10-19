@@ -1,4 +1,5 @@
 [engine.error]
+not_team_server = "This destination is not a team server."
 no_pipeline = 'There is no pipeline with the id "{id}".'
 no_destination = "No upload destination is set up. Add one in Settings and make it the default."
 no_link = "There is no link yet. Add an Upload step first."

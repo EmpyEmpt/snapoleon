@@ -117,6 +117,13 @@ impl History {
         insert_link(&conn, id, link)
     }
 
+    /// Forget a share link, for one that was deleted on its server.
+    pub fn remove_link(&self, id: &CaptureId, url: &str) -> Result<()> {
+        let conn = self.conn.lock();
+        conn.execute("DELETE FROM links WHERE capture_id = ?1 AND url = ?2", params![id.0, url]).db()?;
+        Ok(())
+    }
+
     /// Replace the tags. Tags are trimmed, empty ones dropped and
     /// case-insensitive duplicates removed.
     pub fn set_tags(&self, id: &CaptureId, tags: &[String]) -> Result<()> {

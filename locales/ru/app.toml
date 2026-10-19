@@ -32,7 +32,13 @@ open_file = "Не удалось открыть файл"
 
 [app.notice]
 copy_link = "Скопировать ссылку"
+show_qr = "Показать QR"
 show_in_folder = "Показать в папке"
+
+[app.events]
+viewed = "{who} посмотрел(а) «{title}»"
+commented = "{who} прокомментировал(а) «{title}»"
+someone = "Кто-то"
 
 [app.hotkey]
 conflict_title = "Не удалось назначить сочетание клавиш"

@@ -13,6 +13,7 @@ pub mod autostart;
 pub mod clipboard;
 pub mod console;
 pub mod dpi;
+pub mod drag;
 pub mod hotkeys;
 pub mod ipc;
 pub mod notify;
