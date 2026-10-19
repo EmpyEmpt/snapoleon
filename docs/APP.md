@@ -209,7 +209,7 @@ gives each cover its monitor's snapshot (a `Seat`) and calls `Shell::present`, w
 window is still hidden and shows it with that frame. When the session ends the covers are hidden again
 (`Shell::set_visible(false)` plus `Shell::refresh_hidden`, so the snapshot texture is released). A monitor layout
 that differs from the pooled covers replaces them on the next session. The pool is the setting
-`general.instant_overlay` (default on; about 200 MB of resident GPU memory): turning it off closes the resting covers and
+`general.instant_overlay` (default on; about 200 MB of resident GPU memory with the wgpu renderer, far less with the default OpenGL one: `docs/notes/renderer.md`): turning it off closes the resting covers and
 each session opens and closes its own, turning it on opens them (`overlay::set_instant`, from `SettingsChanged`). The dev harness has no pool (it must end with
 its last window), and a tray-less app has none either. Use `overlay::active()` to ask whether a session is running;
 `windows_with_tag(overlay::TAG)` also finds the resting covers. `overlay ready N ms after the hotkey` in the log is

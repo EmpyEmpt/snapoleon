@@ -1,23 +1,19 @@
-//! Per-window state: native window, wgpu surface, egui context and renderer.
+//! Per-window state: native window, render target, egui context and input state.
 
 use std::{
     sync::Arc,
     time::{Duration, Instant},
 };
 
-use anyhow::anyhow;
 use egui::{FullOutput, RawInput, ViewportId};
-use snap_core::{Error, Rect, Result};
+use snap_core::Rect;
 use winit::{event_loop::ActiveEventLoop, window::Window};
 
-use crate::gpu::Gpu;
+use crate::render::{Paint, Surface, Target};
 
 pub(crate) struct WindowState {
     pub window: Arc<Window>,
-    surface: wgpu::Surface<'static>,
-    config: wgpu::SurfaceConfiguration,
-    needs_reconfigure: bool,
-    renderer: egui_wgpu::Renderer,
+    target: Target,
     pub ctx: egui::Context,
     pub egui_state: egui_winit::State,
     viewport_info: egui::ViewportInfo,
@@ -54,40 +50,19 @@ pub(crate) struct Setup {
 }
 
 impl WindowState {
-    pub fn new(gpu: &Gpu, window: Arc<Window>, surface: wgpu::Surface<'static>, setup: Setup, ctx: egui::Context) -> Result<Self> {
-        let size = window.inner_size();
-        let caps = surface.get_capabilities(&gpu.adapter);
-        let format = egui_wgpu::preferred_framebuffer_format(&caps.formats).map_err(|e| Error::Other(anyhow!("surface format: {e}")))?;
-        let alpha_mode = if caps.alpha_modes.contains(&wgpu::CompositeAlphaMode::Opaque) {
-            wgpu::CompositeAlphaMode::Opaque
-        } else {
-            caps.alpha_modes.first().copied().unwrap_or_default()
-        };
-        let mut config = surface
-            .get_default_config(&gpu.adapter, size.width.max(1), size.height.max(1))
-            .ok_or_else(|| Error::Other(anyhow!("surface is not supported by the selected GPU adapter")))?;
-        config.format = format;
-        config.alpha_mode = alpha_mode;
-        config.present_mode = wgpu::PresentMode::AutoVsync;
-        config.desired_maximum_frame_latency = 1;
-        surface.configure(&gpu.device, &config);
-
-        let renderer = egui_wgpu::Renderer::new(&gpu.device, format, egui_wgpu::RendererOptions::default());
+    pub fn new(window: Arc<Window>, target: Target, setup: Setup, ctx: egui::Context) -> Self {
         let egui_state = egui_winit::State::new(
             ctx.clone(),
             ViewportId::ROOT,
             window.as_ref(),
             Some(window.scale_factor() as f32),
             window.theme(),
-            Some(gpu.device.limits().max_texture_dimension_2d as usize),
+            Some(target.max_texture_side()),
         );
 
-        Ok(Self {
+        Self {
             window,
-            surface,
-            config,
-            needs_reconfigure: false,
-            renderer,
+            target,
             ctx,
             egui_state,
             viewport_info: egui::ViewportInfo::default(),
@@ -106,7 +81,7 @@ impl WindowState {
             opened_at: setup.opened_at,
             first_frame: None,
             repaint_at: None,
-        })
+        }
     }
 
     /// Toggle click-through. A layered window must have presented once before
@@ -164,98 +139,16 @@ impl WindowState {
         close
     }
 
-    fn reconfigure(&mut self, gpu: &Gpu) {
-        let size = self.window.inner_size();
-        if size.width == 0 || size.height == 0 {
-            return;
-        }
-        self.config.width = size.width;
-        self.config.height = size.height;
-        self.surface.configure(&gpu.device, &self.config);
-        self.needs_reconfigure = false;
-    }
-
     /// Render one egui frame. Returns true when the frame could not be
     /// presented and a new one should be rendered right away.
-    pub fn paint(&mut self, gpu: &Gpu, mut out: FullOutput) -> bool {
-        for (id, deltas) in out.textures_delta.set.drain() {
-            for delta in deltas {
-                self.renderer.update_texture(&gpu.device, &gpu.queue, id, &delta);
+    pub fn paint(&mut self, out: FullOutput) -> bool {
+        match self.target.paint(&self.ctx, out) {
+            Paint::Presented => {
+                self.first_frame.get_or_insert_with(|| self.opened_at.elapsed());
+                false
             }
+            Paint::Skipped => false,
+            Paint::Retry => true,
         }
-        let retry = self.render(gpu, &mut out);
-        for id in out.textures_delta.free.drain() {
-            self.renderer.free_texture(&id);
-        }
-        retry
-    }
-
-    fn render(&mut self, gpu: &Gpu, out: &mut FullOutput) -> bool {
-        let size = self.window.inner_size();
-        if size.width == 0 || size.height == 0 {
-            return false;
-        }
-        if self.needs_reconfigure || size.width != self.config.width || size.height != self.config.height {
-            self.reconfigure(gpu);
-        }
-
-        let primitives = self.ctx.tessellate(std::mem::take(&mut out.shapes), out.pixels_per_point);
-        let screen =
-            egui_wgpu::ScreenDescriptor { size_in_pixels: [self.config.width, self.config.height], pixels_per_point: out.pixels_per_point };
-        let mut encoder = gpu.device.create_command_encoder(&wgpu::CommandEncoderDescriptor { label: Some("snap-shell frame") });
-        let extra = self.renderer.update_buffers(&gpu.device, &gpu.queue, &mut encoder, &primitives, &screen);
-
-        let frame = match self.surface.get_current_texture() {
-            wgpu::CurrentSurfaceTexture::Success(frame) => frame,
-            wgpu::CurrentSurfaceTexture::Suboptimal(frame) => {
-                self.needs_reconfigure = true;
-                frame
-            }
-            wgpu::CurrentSurfaceTexture::Outdated => {
-                self.reconfigure(gpu);
-                return true;
-            }
-            wgpu::CurrentSurfaceTexture::Lost => {
-                match gpu.instance.create_surface(self.window.clone()) {
-                    Ok(surface) => self.surface = surface,
-                    Err(e) => tracing::error!("recreating lost surface failed: {e}"),
-                }
-                self.reconfigure(gpu);
-                return true;
-            }
-            wgpu::CurrentSurfaceTexture::Occluded | wgpu::CurrentSurfaceTexture::Timeout => return false,
-            wgpu::CurrentSurfaceTexture::Validation => {
-                tracing::warn!("surface texture acquisition failed validation");
-                return false;
-            }
-        };
-
-        let view = frame.texture.create_view(&wgpu::TextureViewDescriptor::default());
-        let clear = self.ctx.global_style().visuals.panel_fill.to_normalized_gamma_f32();
-        {
-            let pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
-                label: Some("snap-shell egui"),
-                color_attachments: &[Some(wgpu::RenderPassColorAttachment {
-                    view: &view,
-                    depth_slice: None,
-                    resolve_target: None,
-                    ops: wgpu::Operations {
-                        load: wgpu::LoadOp::Clear(wgpu::Color { r: clear[0] as f64, g: clear[1] as f64, b: clear[2] as f64, a: 1.0 }),
-                        store: wgpu::StoreOp::Store,
-                    },
-                })],
-                depth_stencil_attachment: None,
-                timestamp_writes: None,
-                occlusion_query_set: None,
-                multiview_mask: None,
-            });
-            self.renderer.render(&mut pass.forget_lifetime(), &primitives, &screen);
-        }
-        gpu.queue.submit(extra.into_iter().chain([encoder.finish()]));
-        self.window.pre_present_notify();
-        gpu.queue.present(frame);
-
-        self.first_frame.get_or_insert_with(|| self.opened_at.elapsed());
-        false
     }
 }

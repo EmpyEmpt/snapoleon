@@ -12,6 +12,12 @@ build = "build.rs"
 name = "snapoleon"
 path = "src/main.rs"
 
+[features]
+# The renderer; crates/snap-shell/build.rs says how the two combine. macOS always draws with wgpu.
+default = ["glow"]
+glow = ["snap-shell/glow"]
+wgpu = ["snap-shell/wgpu"]
+
 [dependencies]
 snap-core.workspace = true
 snap-capture.workspace = true

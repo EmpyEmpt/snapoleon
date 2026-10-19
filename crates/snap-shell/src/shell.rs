@@ -3,43 +3,31 @@
 use std::{
     collections::HashMap,
     sync::Arc,
-    thread::JoinHandle,
     time::{Duration, Instant},
 };
 
-use anyhow::anyhow;
 use snap_core::{Error, Rect, Result};
 use winit::{
     dpi::{LogicalSize, PhysicalPosition, PhysicalSize},
-    event_loop::{ActiveEventLoop, OwnedDisplayHandle},
+    event_loop::ActiveEventLoop,
     window::{Icon, Window, WindowId, WindowLevel},
 };
 
 use crate::{
-    WindowKey, WindowSpec,
-    gpu::Gpu,
-    platform,
+    WindowKey, WindowSpec, platform,
     proxy::Proxy,
+    render::{Gfx, Graphics},
     window::{Setup, WindowState},
 };
 
 /// Size used when a spec gives neither `size` nor `cover`.
 const DEFAULT_SIZE: (f32, f32) = (640.0, 480.0);
 
-/// The GPU is created on a worker thread at start-up so the first window does
-/// not pay for adapter and device initialisation.
-pub(crate) enum GpuSlot {
-    Pending(JoinHandle<Result<Gpu>>),
-    Ready(Gpu),
-    Absent,
-}
-
 pub(crate) struct Core<E: Send + 'static> {
     pub app_id: String,
     pub theme_init: Box<dyn Fn(&egui::Context)>,
     pub proxy: Proxy<E>,
-    pub display: OwnedDisplayHandle,
-    pub gpu: GpuSlot,
+    pub gfx: Gfx,
     pub windows: HashMap<WindowKey, WindowState>,
     pub ids: HashMap<WindowId, WindowKey>,
     pub next_key: WindowKey,
@@ -48,31 +36,6 @@ pub(crate) struct Core<E: Send + 'static> {
 }
 
 impl<E: Send + 'static> Core<E> {
-    /// Wait for the start-up GPU initialisation, or retry it from scratch.
-    fn gpu(&mut self) -> Result<&Gpu> {
-        self.gpu = match std::mem::replace(&mut self.gpu, GpuSlot::Absent) {
-            GpuSlot::Pending(handle) => match handle.join() {
-                Ok(Ok(gpu)) => GpuSlot::Ready(gpu),
-                Ok(Err(e)) => {
-                    tracing::warn!("gpu start-up failed: {e}");
-                    GpuSlot::Absent
-                }
-                Err(_) => {
-                    tracing::warn!("gpu start-up thread panicked");
-                    GpuSlot::Absent
-                }
-            },
-            other => other,
-        };
-        if matches!(self.gpu, GpuSlot::Absent) {
-            self.gpu = GpuSlot::Ready(Gpu::create(self.display.clone())?);
-        }
-        match &self.gpu {
-            GpuSlot::Ready(gpu) => Ok(gpu),
-            _ => Err(Error::Other(anyhow!("no GPU available"))),
-        }
-    }
-
     pub fn remove(&mut self, key: WindowKey) -> bool {
         let Some(state) = self.windows.remove(&key) else {
             return false;
@@ -146,27 +109,13 @@ impl<E: Send + 'static> Shell<'_, E> {
         }
         let attrs = platform::window_attributes(self.el, attrs, &spec, &self.core.app_id);
 
-        let window = Arc::new(self.el.create_window(attrs).map_err(|e| Error::Other(anyhow!(e)))?);
+        let window = Arc::new(self.core.gfx.create_window(self.el, attrs)?);
         platform::configure_window(&window, &spec);
         if spec.pill {
             platform::set_pill(&window, true);
         }
         if let Some(r) = spec.cover {
             platform::place_cover(&window, r, &monitor_list(self.el));
-        }
-
-        let gpu = self.core.gpu()?.clone();
-        let mut surface = gpu.instance.create_surface(window.clone()).map_err(|e| Error::Other(anyhow!(e)))?;
-        let mut gpu = gpu;
-        if !gpu.adapter.is_surface_supported(&surface) {
-            // The adapter picked before any window existed cannot present
-            // here; only possible to repair while nothing else uses the device.
-            if !self.core.windows.is_empty() {
-                return Err(Error::Other(anyhow!("surface is not supported by the shared GPU adapter")));
-            }
-            gpu = Gpu::with_instance(gpu.instance.clone(), Some(&surface))?;
-            surface = gpu.instance.create_surface(window.clone()).map_err(|e| Error::Other(anyhow!(e)))?;
-            self.core.gpu = GpuSlot::Ready(gpu.clone());
         }
 
         let ctx = egui::Context::default();
@@ -183,7 +132,8 @@ impl<E: Send + 'static> Shell<'_, E> {
             activate: spec.activate,
             opened_at,
         };
-        let state = WindowState::new(&gpu, window.clone(), surface, setup, ctx)?;
+        let target = self.core.gfx.create_target(&window)?;
+        let state = WindowState::new(window.clone(), target, setup, ctx);
         self.core.ids.insert(window.id(), key);
         self.core.windows.insert(key, state);
         // The first frame is rendered from the event loop's idle hook.

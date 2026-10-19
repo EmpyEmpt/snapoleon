@@ -13,11 +13,10 @@ use winit::{
 };
 
 use crate::{
-    Shell, ShellApp, ShellConfig, WindowKey,
-    gpu::Gpu,
-    platform,
+    Shell, ShellApp, ShellConfig, WindowKey, platform,
     proxy::{Msg, Proxy},
-    shell::{Core, GpuSlot, monitor_list},
+    render::{Gfx, Graphics, NAME as RENDERER},
+    shell::{Core, monitor_list},
 };
 
 /// Run the shell until [`Shell::quit`] is called. The loop keeps running with
@@ -33,19 +32,14 @@ pub fn run<E: Send + 'static>(cfg: ShellConfig, app: impl ShellApp<E>) -> Result
     event_loop.set_control_flow(ControlFlow::Wait);
 
     let display = event_loop.owned_display_handle();
-    let gpu = {
-        let display = display.clone();
-        std::thread::Builder::new().name("snap-shell-gpu".into()).spawn(move || Gpu::create(display)).map_err(Error::Io)?
-    };
-
+    tracing::info!(renderer = RENDERER, "snap-shell starting");
     let mut runner = Runner {
         app,
         core: Core {
             app_id: cfg.app_id,
             theme_init: cfg.theme_init,
             proxy: Proxy::new(event_loop.create_proxy()),
-            display,
-            gpu: GpuSlot::Pending(gpu),
+            gfx: Gfx::start(display),
             windows: HashMap::new(),
             ids: HashMap::new(),
             next_key: 1,
@@ -102,13 +96,12 @@ impl<E: Send + 'static, A: ShellApp<E>> Runner<E, A> {
         });
         self.flush(el);
 
-        let GpuSlot::Ready(gpu) = &self.core.gpu else { return };
         let Some(w) = self.core.windows.get_mut(&key) else {
             out.drop_without_applying_deltas();
             return;
         };
         let close = w.handle_output(el, &mut out);
-        let retry = w.paint(gpu, out);
+        let retry = w.paint(out);
         w.first_pass_done = true;
         if retry {
             w.window.request_redraw();

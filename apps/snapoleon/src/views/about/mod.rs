@@ -17,12 +17,13 @@ const REPOSITORY: &str = env!("CARGO_PKG_REPOSITORY");
 const LICENSE: &str = env!("CARGO_PKG_LICENSE");
 
 /// Third-party work that ships inside the app: (name, license, home page).
-const CREDITS: [(&str, &str, &str); 8] = [
+const CREDITS: [(&str, &str, &str); 9] = [
     ("Inter", "SIL OFL 1.1", "https://rsms.me/inter/"),
     ("JetBrains Mono", "SIL OFL 1.1", "https://www.jetbrains.com/lp/mono/"),
     ("Phosphor Icons", "MIT", "https://phosphoricons.com/"),
     ("egui", "MIT OR Apache-2.0", "https://github.com/emilk/egui"),
     ("winit", "Apache-2.0", "https://github.com/rust-windowing/winit"),
+    ("glutin", "Apache-2.0", "https://github.com/rust-windowing/glutin"),
     ("wgpu", "MIT OR Apache-2.0", "https://wgpu.rs/"),
     ("tiny-skia", "BSD-3-Clause", "https://github.com/linebender/tiny-skia"),
     ("SQLite", "Public domain", "https://www.sqlite.org/"),

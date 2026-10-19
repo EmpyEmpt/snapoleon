@@ -6,7 +6,7 @@ use snap_core::paths;
 use tracing_subscriber::{EnvFilter, Layer, fmt, layer::SubscriberExt, util::SubscriberInitExt};
 
 const MAX_LOG_BYTES: u64 = 4 * 1024 * 1024;
-const APP_FILTER: &str = "info,wgpu_core=warn,wgpu_hal=warn,naga=warn,egui_wgpu=warn";
+const APP_FILTER: &str = "info,wgpu_core=warn,wgpu_hal=warn,naga=warn,egui_wgpu=warn,glutin=warn";
 const CONSOLE_FILTER: &str = "warn";
 
 /// Where a process's log goes.
