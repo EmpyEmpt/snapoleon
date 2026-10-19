@@ -4,11 +4,29 @@
 //! live here: destinations hold a `secret_ref` resolved through the OS keyring
 //! by `snap-platform::secrets`.
 
-use std::path::Path;
+use std::{
+    io::Write,
+    path::Path,
+    sync::atomic::{AtomicBool, Ordering},
+};
 
 use serde::{Deserialize, Serialize};
 
 use crate::{Result, hotkey::HotkeyBinding, pipeline::Pipeline};
+
+/// Set when the settings file exists but could not be read. The file is the user's only copy of their configuration,
+/// so for the rest of the session nothing may write over it.
+static READ_ONLY: AtomicBool = AtomicBool::new(false);
+
+/// True when the settings file was unreadable at startup and is being left untouched.
+pub fn is_read_only() -> bool {
+    READ_ONLY.load(Ordering::Relaxed)
+}
+
+/// The settings file was read successfully (for instance after the user repaired it): saving works again.
+pub fn clear_read_only() {
+    READ_ONLY.store(false, Ordering::Relaxed);
+}
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(default)]
@@ -69,21 +87,33 @@ impl Settings {
     /// Load from the default location and apply managed policy on top.
     pub fn load_default() -> Settings {
         let mut s = Settings::load(&crate::paths::settings_file()).unwrap_or_else(|e| {
-            tracing::warn!("settings unreadable, using defaults: {e}");
+            tracing::warn!("settings unreadable, using defaults and leaving the file untouched: {e}");
+            READ_ONLY.store(true, Ordering::Relaxed);
             Settings::default()
         });
         crate::policy::Policy::load().apply(&mut s);
         s
     }
 
-    /// Atomic write (temp file + rename).
+    /// Atomic write: a synced temp file renamed over the target, with the previous file kept as `.bak`.
+    /// Does nothing while the settings are read-only (see [`is_read_only`]).
     pub fn save(&self, path: &Path) -> Result<()> {
+        if is_read_only() {
+            tracing::debug!("settings are read-only this session; not saving");
+            return Ok(());
+        }
         if let Some(dir) = path.parent() {
             std::fs::create_dir_all(dir)?;
         }
         let text = toml::to_string_pretty(self).map_err(|e| crate::Error::invalid(e.to_string()))?;
         let tmp = path.with_extension("toml.tmp");
-        std::fs::write(&tmp, text)?;
+        let mut file = std::fs::File::create(&tmp)?;
+        file.write_all(text.as_bytes())?;
+        file.sync_all()?;
+        drop(file);
+        if path.exists() {
+            std::fs::copy(path, path.with_extension("toml.bak"))?;
+        }
         std::fs::rename(tmp, path)?;
         Ok(())
     }

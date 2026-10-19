@@ -359,7 +359,7 @@ fn main() {
 
     let base = spawn_server();
     say!("\n== local server at {base} ==");
-    let secrets = MemoryStore::default();
+    let secrets: Arc<dyn SecretStore> = Arc::new(MemoryStore::default());
     let png: Vec<u8> = (0..70_000u32).map(|i| 32 + (i * 31 % 90) as u8).collect();
     let req = UploadRequest {
         data: &png,
@@ -523,7 +523,7 @@ fn main() {
     say!("delete: ok");
     say!("bad token: {:?}", server::Client::new(&base, "nope").upload(&req, &|_, _| {}).map(|_| ()).map_err(|e| e.to_string()));
     secrets.set(&snap_upload::snap_server_secret_key(&base), "team-token").unwrap();
-    say!("shorten (team server): {}", shorten("https://example.com/long", &Shortener::SnapServer, Some(&base), &secrets).unwrap());
+    say!("shorten (team server): {}", shorten("https://example.com/long", &Shortener::SnapServer, Some(&base), &*secrets).unwrap());
 
     say!("\n== FTP (passive mode against a local server) ==");
     let ftp_root = out.join("ftp_root");
@@ -597,7 +597,7 @@ fn main() {
     say!("no browser callback: {:?}", timeout.map(|_| ()).map_err(|e| e.to_string()));
 
     say!("\n== is.gd (live) ==");
-    say!("{:?}", shorten("https://www.rust-lang.org/learn", &Shortener::IsGd, None, &secrets).map_err(|e| e.to_string()));
+    say!("{:?}", shorten("https://www.rust-lang.org/learn", &Shortener::IsGd, None, &*secrets).map_err(|e| e.to_string()));
 
     say!("\n== Provider error paths (live, bogus credentials) ==");
     secrets.set("tg", "123456:not-a-real-token").unwrap();

@@ -5,7 +5,7 @@ use std::{
 };
 
 use parking_lot::Mutex;
-use rusqlite::{Connection, OptionalExtension, Params, Row, ToSql, params};
+use rusqlite::{Connection, OptionalExtension, Params, Row, ToSql, TransactionBehavior, params};
 use snap_core::{Error, Result, capture::CaptureContext, capture::CaptureId, now_ms, paths};
 
 use crate::{
@@ -265,13 +265,19 @@ impl History {
 
 /// Bring the schema up to date using `PRAGMA user_version` as the version.
 fn migrate(conn: &mut Connection) -> Result<()> {
-    let current: i64 = conn.pragma_query_value(None, "user_version", |r| r.get(0)).db()?;
     let latest = MIGRATIONS.len() as i64;
+    let version = |conn: &Connection| -> Result<i64> { conn.pragma_query_value(None, "user_version", |r| r.get(0)).db() };
+    let current = version(conn)?;
     if current > latest {
         return Err(Error::invalid(format!("history database schema v{current} is newer than this build supports (v{latest})")));
     }
     for (index, sql) in MIGRATIONS.iter().enumerate().skip(current as usize) {
-        let tx = conn.transaction().db()?;
+        // Another process (app and CLI starting together) may be migrating the same file: take the write lock first
+        // and look at the version again, so each step runs exactly once.
+        let tx = conn.transaction_with_behavior(TransactionBehavior::Immediate).db()?;
+        if version(&tx)? > index as i64 {
+            continue;
+        }
         tx.execute_batch(sql).db()?;
         tx.pragma_update(None, "user_version", index as i64 + 1).db()?;
         tx.commit().db()?;

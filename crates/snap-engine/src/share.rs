@@ -36,11 +36,12 @@ pub(crate) fn update_settings(engine: &Engine, f: impl FnOnce(&mut Settings)) ->
     };
     *engine.inner.policy.write() = policy.clone();
     after_settings_change(engine, &edited, language_changed);
-    unmanaged(&edited, &policy).save(&paths::settings_file())
+    unmanaged(&edited, &policy)?.save(&paths::settings_file())
 }
 
 pub(crate) fn reload_settings(engine: &Engine) -> Result<()> {
     let fresh = Settings::load(&paths::settings_file())?;
+    snap_core::settings::clear_read_only();
     let policy = Policy::load();
     let mut fresh = fresh;
     policy.apply(&mut fresh);
@@ -65,11 +66,11 @@ fn after_settings_change(engine: &Engine, s: &Settings, language_changed: bool) 
 
 /// What goes to disk: fields that managed policy overrides keep their on-disk value, so lifting the policy later
 /// gives the user their own configuration back instead of the forced one.
-fn unmanaged(edited: &Settings, policy: &Policy) -> Settings {
-    if !policy.is_managed() {
-        return edited.clone();
+fn unmanaged(edited: &Settings, policy: &Policy) -> Result<Settings> {
+    if !policy.is_managed() || snap_core::settings::is_read_only() {
+        return Ok(edited.clone());
     }
-    let disk = Settings::load(&paths::settings_file()).unwrap_or_default();
+    let disk = Settings::load(&paths::settings_file())?;
     let mut out = edited.clone();
     if policy.destinations.is_some() || policy.disable_uploads {
         out.destinations = disk.destinations.clone();
@@ -93,7 +94,7 @@ fn unmanaged(edited: &Settings, policy: &Policy) -> Settings {
     if policy.language.is_some() {
         out.general.language = disk.general.language;
     }
-    out
+    Ok(out)
 }
 
 // --- saving -----------------------------------------------------------------------------------------------------
@@ -213,7 +214,7 @@ fn finish_upload(
 ) -> Result<Link> {
     let destination = resolve_destination(engine, dest)?;
     let expiry = engine.settings().links.expiry_hours;
-    let uploader = snap_upload::uploader_for(&destination, &*engine.secrets())?;
+    let uploader = snap_upload::uploader_for(&destination, &engine.secrets())?;
     let req = UploadRequest { data, file_name: name, mime, title, expiry_hours: (expiry > 0).then_some(expiry), password: None };
     let done = uploader.upload(&req, progress)?;
     let mut link = Link {

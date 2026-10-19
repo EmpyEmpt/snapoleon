@@ -4,6 +4,7 @@ use std::fs::{self, File};
 use std::io;
 use std::path::PathBuf;
 use std::sync::{Arc, Mutex};
+use std::time::Duration;
 
 use anyhow::anyhow;
 use ocrs::{ImageSource, OcrEngine, OcrEngineParams, TextItem};
@@ -15,7 +16,15 @@ const MODEL_BASE: &str = "https://ocrs-models.s3-accelerate.amazonaws.com";
 const DETECTION: &str = "text-detection.rten";
 const RECOGNITION: &str = "text-recognition.rten";
 
+/// Models are large; a connection that goes quiet for longer than this is treated as dead.
+const CONNECT_TIMEOUT: Duration = Duration::from_secs(15);
+const RESPONSE_TIMEOUT: Duration = Duration::from_secs(30);
+const BODY_TIMEOUT: Duration = Duration::from_secs(300);
+
 static ENGINE: Mutex<Option<Arc<OcrEngine>>> = Mutex::new(None);
+/// Serialises model downloads so two callers never write the same file; the engine slot itself is never held
+/// across a download.
+static DOWNLOAD: Mutex<()> = Mutex::new(());
 
 fn model_path(name: &str) -> PathBuf {
     paths::models_dir().join("ocrs").join(name)
@@ -31,11 +40,25 @@ fn download(name: &str) -> Result<PathBuf> {
     if dest.is_file() {
         return Ok(dest);
     }
+    let _serial = DOWNLOAD.lock().unwrap_or_else(|e| e.into_inner());
+    if dest.is_file() {
+        return Ok(dest);
+    }
     fs::create_dir_all(dest.parent().expect("model path has a parent"))?;
     tracing::info!("downloading OCR model {name}");
-    let resp = ureq::get(format!("{MODEL_BASE}/{name}")).call().map_err(Error::network)?;
+    let agent: ureq::Agent = ureq::Agent::config_builder()
+        .timeout_connect(Some(CONNECT_TIMEOUT))
+        .timeout_recv_response(Some(RESPONSE_TIMEOUT))
+        .timeout_recv_body(Some(BODY_TIMEOUT))
+        .build()
+        .into();
+    let resp = agent.get(format!("{MODEL_BASE}/{name}")).call().map_err(Error::network)?;
     let tmp = dest.with_extension("part");
-    io::copy(&mut resp.into_body().into_reader(), &mut File::create(&tmp)?)?;
+    let copied = File::create(&tmp).and_then(|mut f| io::copy(&mut resp.into_body().into_reader(), &mut f));
+    if let Err(e) = copied {
+        let _ = fs::remove_file(&tmp);
+        return Err(e.into());
+    }
     fs::rename(&tmp, &dest)?;
     Ok(dest)
 }
@@ -46,17 +69,16 @@ fn load(name: &str) -> Result<rten::Model> {
 }
 
 fn engine() -> Result<Arc<OcrEngine>> {
-    let mut slot = ENGINE.lock().unwrap_or_else(|e| e.into_inner());
-    if let Some(e) = slot.as_ref() {
+    if let Some(e) = ENGINE.lock().unwrap_or_else(|e| e.into_inner()).as_ref() {
         return Ok(e.clone());
     }
+    // Downloading and loading happen outside the lock: a slow network must not block every other OCR caller.
     let engine = Arc::new(OcrEngine::new(OcrEngineParams {
         detection_model: Some(load(DETECTION)?),
         recognition_model: Some(load(RECOGNITION)?),
         ..Default::default()
     })?);
-    *slot = Some(engine.clone());
-    Ok(engine)
+    Ok(ENGINE.lock().unwrap_or_else(|e| e.into_inner()).get_or_insert(engine).clone())
 }
 
 pub(crate) fn recognize(img: &RgbaImage) -> Result<OcrResult> {

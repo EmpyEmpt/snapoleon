@@ -14,7 +14,9 @@ OCR card: 4111 l111 1111 1111
 IBAN: DE89 3704 0044 0532 0130 00 ; broken DE89 3704 0044 0532 0130 01
 INN: 7707083893 valid, 7707083894 invalid, 500100732259 valid12, 500100732250 invalid12
 SNILS: 112-233-445 95 valid, 112-233-445 96 invalid, СНИЛС 11223344595 plain
-Passport: паспорт 45 06 123456 (context)
+Passport: паспорт 45 06 123456 (context), серия 4510 № 123456, Серия: 4510 Номер: 123456
+Paths: /Users/John/Documents/Report2024.docx and Microsoft.Windows.SDK.Contracts10 and ts 1760000002
+Пароль: qwerty123 and Токен: 8f3kZ9
 Order 45 06 123456 ref (no context nearby, skipped)
 Phones: +7 (999) 123-45-67, 8 999 123 45 67, +44 20 7946 0958, (415) 555-0132
 Mail: john.doe@example.com and not-an-email@ex

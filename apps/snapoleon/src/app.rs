@@ -10,7 +10,7 @@ use std::{
 };
 
 use egui::Context;
-use snap_core::{Settings, paths, policy::Policy, t};
+use snap_core::{Settings, paths, policy::Policy, t, tf};
 use snap_engine::{Engine, Notice, NoticeKind};
 use snap_platform::tray::Tray;
 use snap_shell::{Shell, ShellApp, WindowKey};
@@ -290,6 +290,17 @@ impl App {
                     }
                 });
             }
+        }
+
+        if snap_core::settings::is_read_only() {
+            let path = paths::settings_file().display().to_string();
+            let notice = Notice {
+                kind: NoticeKind::Warning,
+                title: t("app.notice.settings_unreadable").into_owned(),
+                body: tf("app.notice.settings_unreadable_body", &[("path", &path)]),
+                ..Notice::default()
+            };
+            self.notice(sh, notice);
         }
 
         if dev {
