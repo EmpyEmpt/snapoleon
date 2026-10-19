@@ -43,6 +43,7 @@ fn main() -> Result<(), Error> {
         model: "qwen3:8b".into(),
         vision_model: "qwen2.5vl:7b".into(),
         secret_ref: Some("ai-key".into()),
+        ..Default::default()
     };
     let ai = Ai::new(&settings, &secrets);
     println!("available: {}", ai.available());
