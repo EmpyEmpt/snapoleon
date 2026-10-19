@@ -26,6 +26,7 @@ no_click_listener = "Clicks cannot be observed on this system. Use the capture b
 input_permission = "Snapoleon needs permission to monitor input. Allow it in System Settings, Privacy & Security, Input Monitoring."
 
 [engine.notice]
+copy_failed = "Could not copy to the clipboard"
 failed = "Something went wrong"
 link_copied = "Link copied"
 uploaded = "Uploaded"

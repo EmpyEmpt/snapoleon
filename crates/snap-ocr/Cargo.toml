@@ -6,8 +6,8 @@ edition.workspace = true
 license.workspace = true
 
 [features]
-default = []
-# Pure-Rust fallback engine; models are downloaded on first use.
+default = ["ocrs"]
+# Pure-Rust fallback engine, the last resort where no native engine exists; models are downloaded on first use.
 ocrs = ["dep:ocrs", "dep:rten", "dep:ureq"]
 
 [dependencies]

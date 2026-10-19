@@ -134,6 +134,8 @@ impl<'a> Run<'a> {
                         body: error_text(&e),
                         ..Notice::default()
                     });
+                    // What already ran (a saved file, an edited document) still belongs in the library.
+                    self.finish();
                     return Err(e);
                 }
             }
@@ -172,8 +174,19 @@ impl<'a> Run<'a> {
             Step::Translate { target_lang } => self.translate(target_lang.as_deref()),
             Step::Save { dir, template, format } => self.save(dir.as_deref(), template, *format),
             Step::CopyImage => {
-                self.engine.copy_image(&self.cap.image)?;
-                self.done.push(Done::ImageCopied);
+                // The clipboard may be held by another process; that must not cost the user the later steps.
+                match self.engine.copy_image(&self.cap.image) {
+                    Ok(()) => self.done.push(Done::ImageCopied),
+                    Err(e) => {
+                        tracing::warn!("cannot copy the image: {e}");
+                        self.ui.notify(&Notice {
+                            kind: NoticeKind::Warning,
+                            title: t("engine.notice.copy_failed").into_owned(),
+                            body: error_text(&e),
+                            ..Notice::default()
+                        });
+                    }
+                }
                 Ok(())
             }
             Step::Upload { destination } => self.upload(destination.as_deref()),

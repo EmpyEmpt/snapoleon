@@ -526,7 +526,7 @@ fn editor(ui: &mut Ui, rc: &mut Rows, st: &mut State, cx: &mut ViewCx, set: &mut
         let secrets = cx.engine.secrets();
         cx.spawn(move || Msg::Tested {
             id: dest.id.clone(),
-            result: snap_upload::uploader_for(&dest, &*secrets).and_then(|u| u.test()).map_err(|e| crate::notices::error_text(&e)),
+            result: snap_upload::uploader_for(&dest, &secrets).and_then(|u| u.test()).map_err(|e| crate::notices::error_text(&e)),
         });
     }
     if make_default {

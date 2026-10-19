@@ -1,4 +1,4 @@
-//! Engine-independent driver: splits very tall images into bands and retries
+//! Engine-independent driver: splits very tall or very wide images into bands and tiles and retries
 //! small text on a 2x upscaled copy.
 
 use image::imageops::{self, FilterType};
@@ -9,6 +9,9 @@ use crate::OcrResult;
 /// Images taller than this are recognised in bands.
 const BAND_TRIGGER: u32 = 4000;
 const BAND_HEIGHT: u32 = 3000;
+/// Images wider than this are recognised in column tiles (Windows OCR rejects anything over ~10000 px).
+const TILE_TRIGGER: u32 = 8000;
+const TILE_WIDTH: u32 = 6000;
 /// How far above the nominal cut we look for an empty pixel row.
 const CUT_SEARCH: u32 = 400;
 /// Median word-box height (px) under which a x2 pass is tried.
@@ -19,6 +22,27 @@ const MAX_UPSCALE_WIDTH: u32 = 4500;
 pub(crate) type Backend<'a> = &'a dyn Fn(&RgbaImage) -> Result<OcrResult>;
 
 pub(crate) fn run(img: &RgbaImage, backend: Backend) -> Result<OcrResult> {
+    if img.width() <= TILE_TRIGGER {
+        return run_bands(img, backend);
+    }
+    let mut merged = OcrResult::default();
+    let mut x = 0;
+    while x < img.width() {
+        let end = if img.width() - x <= TILE_TRIGGER { img.width() } else { cut_column(img, x + TILE_WIDTH) };
+        let tile = imageops::crop_imm(img, x, 0, end - x, img.height()).to_image();
+        let part = run_bands(&tile, backend)?;
+        merged.engine = part.engine;
+        merged.language = merged.language.or(part.language);
+        for mut line in part.lines {
+            shift(&mut line, x as f32, 0.0);
+            merged.lines.push(line);
+        }
+        x = end;
+    }
+    Ok(merged)
+}
+
+fn run_bands(img: &RgbaImage, backend: Backend) -> Result<OcrResult> {
     if img.height() <= BAND_TRIGGER {
         return with_upscale(img, backend);
     }
@@ -31,7 +55,7 @@ pub(crate) fn run(img: &RgbaImage, backend: Backend) -> Result<OcrResult> {
         merged.engine = part.engine;
         merged.language = merged.language.or(part.language);
         for mut line in part.lines {
-            offset(&mut line, y as f32);
+            shift(&mut line, 0.0, y as f32);
             merged.lines.push(line);
         }
         y = end;
@@ -39,9 +63,11 @@ pub(crate) fn run(img: &RgbaImage, backend: Backend) -> Result<OcrResult> {
     Ok(merged)
 }
 
-fn offset(line: &mut crate::OcrLine, dy: f32) {
+fn shift(line: &mut crate::OcrLine, dx: f32, dy: f32) {
+    line.rect.x += dx;
     line.rect.y += dy;
     for w in &mut line.words {
+        w.rect.x += dx;
         w.rect.y += dy;
     }
 }
@@ -49,6 +75,16 @@ fn offset(line: &mut crate::OcrLine, dy: f32) {
 /// Row at or above `target` that looks like background, so words are not cut.
 fn cut_row(img: &RgbaImage, target: u32) -> u32 {
     (target.saturating_sub(CUT_SEARCH)..=target).rev().find(|&y| row_is_flat(img, y)).unwrap_or(target)
+}
+
+/// Column at or left of `target` that looks like background, so words are not cut.
+fn cut_column(img: &RgbaImage, target: u32) -> u32 {
+    (target.saturating_sub(CUT_SEARCH)..=target).rev().find(|&x| column_is_flat(img, x)).unwrap_or(target)
+}
+
+fn column_is_flat(img: &RgbaImage, x: u32) -> bool {
+    let first = img.get_pixel(x, 0).0;
+    (0..img.height()).all(|y| img.get_pixel(x, y).0.iter().zip(first).all(|(a, b)| a.abs_diff(b) <= 6))
 }
 
 fn row_is_flat(img: &RgbaImage, y: u32) -> bool {

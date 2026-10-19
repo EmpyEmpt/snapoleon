@@ -40,6 +40,8 @@ use snap_core::{
     tf,
 };
 
+use std::sync::Arc;
+
 use oauth::Provider;
 use session::Session;
 
@@ -78,7 +80,7 @@ pub trait Uploader: Send + Sync {
 ///
 /// OAuth-backed destinations expect the secret to be [`oauth::Tokens`] JSON
 /// (or a bare access token); expired tokens are refreshed and written back.
-pub fn uploader_for(d: &Destination, secrets: &dyn SecretStore) -> Result<Box<dyn Uploader>> {
+pub fn uploader_for(d: &Destination, secrets: &Arc<dyn SecretStore>) -> Result<Box<dyn Uploader>> {
     let secret = || d.secret_ref.as_deref().filter(|k| !k.is_empty()).and_then(|k| secrets.get(k));
     let required =
         || secret().filter(|s| !s.is_empty()).ok_or_else(|| Error::permission(tf("upload.error.missing_secret", &[("name", &d.name)])));

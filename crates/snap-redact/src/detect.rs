@@ -41,11 +41,13 @@ regex!(
 );
 regex!(
     KEY_VALUE,
-    r#"(?i)\b[a-z0-9_\-]*?(?:password|passwd|pwd|secret|token|api[_\-]?key)[a-z0-9_\-]*\s*[:=]\s*(?:"([^"\n]+)"|'([^'\n]+)'|([^\s"',;]+))"#
+    r#"(?i)\b[\w\-]*?(?:password|passwd|pwd|secret|token|api[_\-]?key|парол|токен|секрет|ключ)[\w\-]*\s*[:=]\s*(?:"([^"\n]+)"|'([^'\n]+)'|([^\s"',;]+))"#
 );
 regex!(BEARER, r"(?i)\bbearer\s+([A-Za-z0-9._~+/=\-]{16,})");
 regex!(GENERIC_TOKEN, r"[A-Za-z0-9+/=_\-.]{24,}");
 regex!(IBAN_TOKEN, r"\b[A-Z]{2}[0-9]{2}(?: ?[A-Z0-9]{1,4})+");
+regex!(INN_CONTEXT, r"(?i)\b(?:инн|inn|tin|налогоплательщик\w*|taxpayer)\b");
+regex!(PASSPORT_SERIES_NUMBER, r"(?i)[0-9]{2}[ \-]?[0-9]{2}[ \t]*[,;]?[ \t]*(?:№|n[o°º]\.?|номер)[ \t]*[:.]?[ \t]*[0-9]{6}");
 regex!(SSN, r"[0-9]{3}-[0-9]{2}-[0-9]{4}");
 regex!(SNILS_FORMATTED, r"^[0-9]{3}[- ][0-9]{3}[- ][0-9]{3}[ -][0-9]{2}$");
 regex!(PHONE_RU, r"(?:\+7|8)[ \-]?\(?[0-9]{3}\)?[ \-]?[0-9]{3}[ \-]?[0-9]{2}[ \-]?[0-9]{2}");
@@ -54,7 +56,7 @@ regex!(PHONE_E164, r"\+[1-9](?:[ \-.()]?[0-9]){6,14}");
 regex!(IPV4, r"(?:(?:25[0-5]|2[0-4][0-9]|1[0-9][0-9]|[1-9]?[0-9])\.){3}(?:25[0-5]|2[0-4][0-9]|1[0-9][0-9]|[1-9]?[0-9])");
 regex!(IPV6, r"[0-9A-Fa-f]{0,4}(?::[0-9A-Fa-f]{0,4}){2,7}(?::(?:[0-9]{1,3}\.){3}[0-9]{1,3})?");
 
-const PASSPORT_CONTEXT: &[&str] = &["паспорт", "серия", "passport"];
+const PASSPORT_CONTEXT: &[&str] = &["паспорт", "серия", "серии", "passport", "pasport", "seriya", "seriia"];
 const SNILS_CONTEXT: &[&str] = &["снилс", "snils", "страхов"];
 const SECRET_PARAM_SUFFIXES: &[&str] =
     &["token", "key", "secret", "password", "passwd", "pwd", "pass", "signature", "sig", "auth", "session", "sessionid"];
@@ -71,10 +73,17 @@ pub fn detect(kind: RedactKind, text: &str, norm: &str) -> Vec<Span> {
             v
         }
         RedactKind::CreditCard => digit_spans(norm, 13, 19, |d| luhn(d) && known_card_iin(d)),
-        RedactKind::RuInn => digit_spans(norm, 10, 12, inn_valid),
+        // Ten digits with a valid check digit are common (timestamps, order ids): a label is required.
+        RedactKind::RuInn => {
+            digit_spans(norm, 10, 12, inn_valid).into_iter().filter(|&(s, e)| near_context(text, s, e, &INN_CONTEXT)).collect()
+        }
         RedactKind::RuSnils => snils(norm, text),
         RedactKind::RuPassport => {
-            digit_spans(norm, 10, 10, |_| true).into_iter().filter(|&(s, e)| near_any(text, s, e, PASSPORT_CONTEXT)).collect()
+            let mut v = digit_spans(norm, 10, 10, |_| true);
+            // "серия 4510 № 123456": the number label between the groups breaks the digit chain.
+            v.extend(scan(&PASSPORT_SERIES_NUMBER, norm, digit_bounded));
+            v.retain(|&(s, e)| near_any(text, s, e, PASSPORT_CONTEXT));
+            v
         }
         RedactKind::UsSsn => scan(&SSN, norm, |t, s, e| {
             let p = &t[s..e];
@@ -203,13 +212,23 @@ fn digit_spans(text: &str, min: usize, max: usize, ok: impl Fn(&[u8]) -> bool) -
     out
 }
 
-/// Whether one of `words` (lowercase) occurs within 40 characters of the span.
-fn near_any(text: &str, s: usize, e: usize, words: &[&str]) -> bool {
+/// The text within 40 characters on either side of the span.
+fn context_window(text: &str, s: usize, e: usize) -> String {
     let before: Vec<char> = text[..s].chars().rev().take(40).collect();
     let mut window: String = before.into_iter().rev().collect();
     window.extend(text[e..].chars().take(40));
-    let window = window.to_lowercase();
+    window
+}
+
+/// Whether one of `words` (lowercase) occurs within 40 characters of the span.
+fn near_any(text: &str, s: usize, e: usize, words: &[&str]) -> bool {
+    let window = context_window(text, s, e).to_lowercase();
     words.iter().any(|w| window.contains(w))
+}
+
+/// Whole-word variant of [`near_any`] for short labels that are also fragments of ordinary words.
+fn near_context(text: &str, s: usize, e: usize, label: &Regex) -> bool {
+    label.is_match(&context_window(text, s, e))
 }
 
 /// СНИЛС: formatted `NNN-NNN-NNN NN` always counts; plain 11 digits need a context word.
@@ -290,12 +309,22 @@ fn secrets(text: &str) -> Vec<Span> {
     for m in GENERIC_TOKEN.find_iter(text) {
         let t = m.as_str();
         let has = |f: fn(&u8) -> bool| t.bytes().any(|c| f(&c));
-        if has(u8::is_ascii_lowercase) && has(u8::is_ascii_uppercase) && has(u8::is_ascii_digit) && entropy(t) >= 3.5 {
+        if has(u8::is_ascii_lowercase) && has(u8::is_ascii_uppercase) && has(u8::is_ascii_digit) && entropy(t) >= 3.5 && !path_like(t) {
             out.push((m.start(), m.end()));
         }
     }
     out.extend(scan(&URL, text, |_, _, _| true).into_iter().filter(|&(s, e)| url_has_secret(&text[s..e])));
     out
+}
+
+/// File paths, namespaces and file names: every `/`- or `.`-separated part reads as a word (letters, at most four
+/// trailing digits). Real secrets with such separators have random parts.
+fn path_like(t: &str) -> bool {
+    let word = |p: &str| {
+        let letters = p.trim_end_matches(|c: char| c.is_ascii_digit());
+        p.len() - letters.len() <= 4 && letters.bytes().all(|c| c.is_ascii_alphabetic())
+    };
+    t.contains(['/', '.']) && t.split(['/', '.', '-', '_', '+', '=']).filter(|p| !p.is_empty()).all(word)
 }
 
 /// Credentials (`user:pass@host`) or token-like query parameters.
