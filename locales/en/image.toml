@@ -1,0 +1,9 @@
+[image.error]
+empty = "The image is empty"
+cannot_fit = "Cannot fit the image into {bytes} bytes, even when scaled down"
+webp_too_large = "WebP supports images up to {max} px on a side"
+webp_encode = "WebP encoding failed: {reason}"
+
+[image.frame]
+new_tab = "New tab"
+search_hint = "Search or enter address"

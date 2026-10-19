@@ -1,0 +1,10 @@
+[history.kind]
+region = "Область"
+window = "Окно"
+element = "Элемент интерфейса"
+monitor = "Монитор"
+all_monitors = "Все экраны"
+scrolling = "Прокрутка"
+clipboard = "Буфер обмена"
+file = "Файл"
+recording = "Запись"

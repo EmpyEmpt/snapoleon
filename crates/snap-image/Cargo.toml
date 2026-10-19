@@ -5,5 +5,18 @@ version.workspace = true
 edition.workspace = true
 license.workspace = true
 
+[features]
+default = ["oxipng"]
+# Lossless PNG recompression for `encode(.., optimize_png = true)`.
+oxipng = ["dep:oxipng"]
+
 [dependencies]
 snap-core.workspace = true
+image.workspace = true
+tiny-skia = { version = "0.12", default-features = false, features = ["std", "simd"] }
+fast_image_resize = "6"
+ab_glyph = "0.2"
+webp = { version = "0.3", default-features = false }
+oxipng = { version = "10", default-features = false, optional = true }
+rand.workspace = true
+tracing.workspace = true

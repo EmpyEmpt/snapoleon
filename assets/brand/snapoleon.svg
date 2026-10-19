@@ -1,0 +1,18 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024" width="1024" height="1024" role="img" aria-label="Snapoleon">
+  <title>Snapoleon</title>
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1024" y2="1024" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#7E91FF"/>
+      <stop offset="1" stop-color="#2A3ED6"/>
+    </linearGradient>
+    <linearGradient id="sheen" x1="0" y1="0" x2="0" y2="635" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#fff" stop-opacity="0.18"/>
+      <stop offset="1" stop-color="#fff" stop-opacity="0"/>
+    </linearGradient>
+  </defs>
+  <rect width="1024" height="1024" rx="230.4" fill="url(#bg)"/>
+  <rect width="1024" height="1024" rx="230.4" fill="url(#sheen)"/>
+  <path d="M151.55 589.82C176.13 352.26 331.78 204.8 512 204.8C692.22 204.8 847.87 352.26 872.45 589.82C757.76 458.75 643.07 409.6 512 409.6C380.93 409.6 266.24 458.75 151.55 589.82Z" fill="#fff"/>
+  <path d="M184.32 638.98H253.95V819.2H184.32ZM253.95 749.57H397.31V819.2H253.95ZM770.05 638.98H839.68V819.2H770.05ZM626.69 749.57H770.05V819.2H626.69Z" fill="#fff" fill-opacity="0.92"/>
+  <circle cx="512" cy="307.2" r="32.77" fill="#F2C64F"/>
+</svg>

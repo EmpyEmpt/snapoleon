@@ -1,0 +1,10 @@
+[history.kind]
+region = "Region"
+window = "Window"
+element = "UI element"
+monitor = "Monitor"
+all_monitors = "All screens"
+scrolling = "Scrolling capture"
+clipboard = "Clipboard"
+file = "File"
+recording = "Recording"

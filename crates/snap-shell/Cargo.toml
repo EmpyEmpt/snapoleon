@@ -7,3 +7,29 @@ license.workspace = true
 
 [dependencies]
 snap-core.workspace = true
+egui.workspace = true
+tracing.workspace = true
+anyhow.workspace = true
+egui-winit = { version = "0.37", default-features = false, features = ["clipboard", "links"] }
+egui-wgpu = { version = "0.37", default-features = false }
+wgpu = { version = "30", default-features = false, features = ["std", "parking_lot", "wgsl"] }
+winit = { version = "0.30.13", default-features = false, features = ["rwh_06"] }
+pollster = "0.4"
+
+[target.'cfg(windows)'.dependencies]
+wgpu = { version = "30", default-features = false, features = ["dx12", "vulkan"] }
+windows-sys = { version = "0.61", features = ["Win32_Foundation", "Win32_Graphics_Dwm", "Win32_UI_WindowsAndMessaging"] }
+
+[target.'cfg(target_os = "macos")'.dependencies]
+egui-wgpu = { version = "0.37", default-features = false, features = ["macos-window-resize-jitter-fix"] }
+wgpu = { version = "30", default-features = false, features = ["metal"] }
+objc2 = "0.6"
+objc2-app-kit = { version = "0.3", features = ["NSApplication", "NSResponder", "NSView", "NSWindow"] }
+
+[target.'cfg(target_os = "linux")'.dependencies]
+egui-winit = { version = "0.37", default-features = false, features = ["clipboard", "links", "wayland", "x11"] }
+wgpu = { version = "30", default-features = false, features = ["vulkan", "gles"] }
+winit = { version = "0.30.13", default-features = false, features = ["rwh_06", "x11", "wayland", "wayland-dlopen", "wayland-csd-adwaita"] }
+
+[dev-dependencies]
+tracing-subscriber.workspace = true

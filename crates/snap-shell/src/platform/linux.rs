@@ -1,0 +1,77 @@
+use snap_core::{Error, Rect, Result};
+use winit::{
+    event_loop::ActiveEventLoop,
+    monitor::MonitorHandle,
+    platform::{
+        wayland::ActiveEventLoopExtWayland,
+        x11::{WindowAttributesExtX11, WindowType},
+    },
+    raw_window_handle::{HasWindowHandle, RawWindowHandle},
+    window::{Fullscreen, Window, WindowAttributes, WindowLevel},
+};
+
+use crate::WindowSpec;
+
+/// Window managers may round or clamp placements by a pixel.
+pub(crate) const COVER_TOLERANCE: i32 = 1;
+
+pub(crate) fn window_attributes(
+    el: &ActiveEventLoop,
+    mut attrs: WindowAttributes,
+    spec: &WindowSpec,
+    app_id: &str,
+) -> WindowAttributes {
+    attrs = attrs.with_name(app_id, app_id);
+    if spec.is_tool() {
+        attrs = attrs.with_x11_window_type(vec![WindowType::Utility]);
+    }
+    if let Some(cover) = spec.cover {
+        attrs = attrs.with_window_level(WindowLevel::AlwaysOnTop);
+        // Wayland cannot place toplevels; the closest thing to an exact cover
+        // is fullscreen on the monitor that has exactly that rect.
+        if el.is_wayland()
+            && let Some(monitor) = el.available_monitors().find(|m| monitor_rect(m) == cover)
+        {
+            attrs = attrs.with_fullscreen(Some(Fullscreen::Borderless(Some(monitor))));
+        }
+    }
+    attrs
+}
+
+fn monitor_rect(m: &MonitorHandle) -> Rect {
+    let (p, s) = (m.position(), m.size());
+    Rect::new(p.x, p.y, s.width, s.height)
+}
+
+pub(crate) fn configure_window(_window: &Window, spec: &WindowSpec) {
+    if spec.exclude_from_capture {
+        tracing::debug!("exclude_from_capture is not supported on this platform");
+    }
+}
+
+pub(crate) fn refresh(_window: &Window, _tool_style: bool) {}
+
+pub(crate) fn set_exclude_from_capture(_window: &Window, _on: bool) -> Result<()> {
+    Err(Error::unsupported("excluding a window from screen capture"))
+}
+
+pub(crate) fn place_cover(window: &Window, r: Rect, _monitors: &[(Rect, f32)]) {
+    if window.fullscreen().is_none() {
+        super::winit_set_outer_rect(window, r);
+    }
+}
+
+pub(crate) fn set_outer_rect(window: &Window, r: Rect) {
+    super::winit_set_outer_rect(window, r);
+}
+
+#[allow(clippy::unnecessary_cast)] // `c_ulong` is 32-bit on 32-bit targets
+pub(crate) fn native_id(window: &Window) -> Option<u64> {
+    match window.window_handle().ok()?.as_raw() {
+        RawWindowHandle::Xlib(h) => Some(h.window as u64),
+        RawWindowHandle::Xcb(h) => Some(u64::from(h.window.get())),
+        _ => None,
+    }
+}
+
+pub(crate) fn activate(_window: &Window) {}

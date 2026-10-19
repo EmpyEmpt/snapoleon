@@ -81,6 +81,48 @@ pub fn tf(key: &str, args: &[(&str, &str)]) -> String {
     s
 }
 
+static OTHERS: RwLock<Option<HashMap<String, HashMap<String, String>>>> = RwLock::new(None);
+
+/// Translate `key` in a specific language, independent of the active one
+/// (the server answers each request in its `Accept-Language`).
+pub fn t_in(lang: &str, key: &str) -> String {
+    if lang == current_language() {
+        return t(key).into_owned();
+    }
+    let hit = OTHERS.read().as_ref().and_then(|m| m.get(lang)).map(|table| table.get(key).cloned());
+    let found = match hit {
+        Some(v) => v,
+        None => {
+            let table = load(lang);
+            let v = table.get(key).cloned();
+            OTHERS.write().get_or_insert_with(HashMap::new).insert(lang.to_string(), table);
+            v
+        }
+    };
+    found.unwrap_or_else(|| t_in_fallback(key))
+}
+
+fn t_in_fallback(key: &str) -> String {
+    let guard = CATALOG.read();
+    match guard.as_ref() {
+        Some(c) => c.fallback.get(key).cloned().unwrap_or_else(|| key.to_string()),
+        None => {
+            drop(guard);
+            set_language("");
+            t_in_fallback(key)
+        }
+    }
+}
+
+/// [`tf`] for a specific language.
+pub fn tf_in(lang: &str, key: &str, args: &[(&str, &str)]) -> String {
+    let mut s = t_in(lang, key);
+    for (k, v) in args {
+        s = s.replace(&format!("{{{k}}}"), v);
+    }
+    s
+}
+
 fn load(lang: &str) -> HashMap<String, String> {
     let mut map = HashMap::new();
     for (l, text) in EMBEDDED {

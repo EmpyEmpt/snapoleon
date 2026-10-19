@@ -1,0 +1,16 @@
+[shell]
+default_title = "Snapoleon"
+
+[shell.demo]
+window_title = "Shell demo"
+overlay_title = "Overlay"
+tool_title = "Tool"
+intro = "Multi-window runtime check"
+text_label = "Text field"
+text_hint = "Type, copy and paste here"
+open_overlay = "Open overlay"
+close_overlay = "Close overlay"
+quit = "Quit"
+esc_to_close = "Esc to close"
+first_frame = "First frame: {ms} ms"
+tool_hint = "Always on top"

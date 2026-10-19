@@ -1,0 +1,11 @@
+[platform.hotkey]
+empty_token = "\"{accel}\": there is an empty part between the + signs"
+duplicate_modifier = "\"{accel}\": the modifier \"{token}\" is repeated"
+two_keys = "\"{accel}\": only one main key is allowed (found another one: \"{token}\")"
+unknown_key = "\"{accel}\": unknown key \"{token}\""
+no_key = "\"{accel}\": add a key after the modifiers"
+needs_modifier = "\"{accel}\": a letter, digit or punctuation key also needs Ctrl, Alt or Cmd/Win"
+duplicate = "{accel} is already assigned to shortcut {n} in this list"
+in_use = "{accel} is already in use by another application"
+wayland_hint = "Global hotkeys are not available in this Wayland session. Bind the command `snapoleon capture region` to a key in your desktop's keyboard shortcut settings."
+portal_cancelled = "The shortcut request was cancelled."

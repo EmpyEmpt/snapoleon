@@ -1,0 +1,54 @@
+# snapoleon-server.toml: every key is optional; defaults are shown.
+# Each setting can also be set with an environment variable (SNAPOLEON_BIND,
+# SNAPOLEON_PUBLIC_URL, SNAPOLEON_DATA_DIR, SNAPOLEON_MAX_UPLOAD_MB,
+# SNAPOLEON_REGISTRATION, SNAPOLEON_TRUST_PROXY, SNAPOLEON_LANGUAGE,
+# SNAPOLEON_STORAGE, SNAPOLEON_S3_*, SNAPOLEON_OIDC_*); environment wins.
+
+# Address to listen on.
+bind = "127.0.0.1:8787"
+
+# Externally visible base URL, used for links and link-preview tags.
+# Without it the server assumes http://<bind>.
+public_url = "https://snap.example.com"
+
+# SQLite database and (for filesystem storage) uploaded files live here.
+data_dir = "/var/lib/snapoleon"
+
+# Largest accepted upload, in megabytes.
+max_upload_mb = 100
+
+# "open" lets anyone create an account at /register; "closed" leaves that to admins and SSO.
+registration = "closed"
+
+# Language of the pages and console output the server renders: "en" or "ru".
+language = "en"
+
+# Trust CF-Connecting-IP / X-Real-IP / X-Forwarded-For (last entry) from a reverse proxy.
+# Enable only when the server is not reachable except through that proxy.
+trust_proxy = false
+
+[storage]
+# "fs" stores files under data_dir/blobs; "s3" uses any S3-compatible bucket.
+kind = "fs"
+# S3 settings (kind = "s3"). Cloudflare R2: endpoint = https://<account>.r2.cloudflarestorage.com, region = "auto".
+# Leave endpoint empty for AWS S3.
+endpoint = ""
+bucket = ""
+region = "auto"
+key = ""
+secret = ""
+# Optional key prefix inside the bucket.
+prefix = ""
+
+[oidc]
+# OpenID Connect single sign-on (authorization code flow with PKCE). Enabled when issuer and client_id are set.
+# Redirect URI to register with the provider: <public_url>/auth/oidc/callback
+issuer = ""
+client_id = ""
+client_secret = ""
+# Members of this group (read from groups_claim) become server admins.
+admin_group = ""
+groups_claim = "groups"
+scopes = "openid profile email"
+# Create a local account on first SSO login.
+auto_provision = true

@@ -1,0 +1,25 @@
+[ui.window]
+minimize = "Minimize"
+maximize = "Maximize"
+restore = "Restore"
+close = "Close"
+
+[ui.hotkey]
+press_keys = "Press keys…"
+not_set = "Not set"
+esc_hint = "Esc to cancel"
+clear = "Clear shortcut"
+
+[ui.search]
+clear = "Clear search"
+
+[ui.color]
+custom = "Custom color"
+hex = "Hex"
+opacity = "Opacity"
+
+[ui.stroke]
+px = "{n} px"
+
+[ui.toast]
+dismiss = "Dismiss"

@@ -7,3 +7,27 @@ license.workspace = true
 
 [dependencies]
 snap-core.workspace = true
+axum = { version = "0.8", features = ["multipart"] }
+tokio = { version = "1", features = ["rt-multi-thread", "macros", "signal", "time", "net", "sync"] }
+tower-http = { version = "0.7", features = ["trace", "compression-gzip", "limit"] }
+rusqlite = { version = "0.40", features = ["bundled"] }
+object_store = { version = "0.14", features = ["aws"] }
+argon2 = "0.6"
+jsonwebtoken = { version = "11", default-features = false, features = ["aws_lc_rs"] }
+reqwest = { version = "0.13", default-features = false, features = ["json", "form", "http2", "rustls"] }
+maud = { version = "0.27", features = ["axum"] }
+ab_glyph = "0.2"
+bytes = "1"
+anyhow.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+toml.workspace = true
+tracing.workspace = true
+tracing-subscriber.workspace = true
+parking_lot.workspace = true
+chrono.workspace = true
+image.workspace = true
+base64.workspace = true
+rand.workspace = true
+sha2 = "0.11.1"
+hmac = "0.13.0"

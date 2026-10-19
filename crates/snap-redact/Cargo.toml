@@ -7,3 +7,4 @@ license.workspace = true
 
 [dependencies]
 snap-core.workspace = true
+regex.workspace = true

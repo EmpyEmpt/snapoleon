@@ -7,3 +7,10 @@ license.workspace = true
 
 [dependencies]
 snap-core.workspace = true
+anyhow.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+tracing.workspace = true
+parking_lot.workspace = true
+image.workspace = true
+rusqlite = { version = "0.40", features = ["bundled"] }

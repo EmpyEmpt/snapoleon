@@ -1,0 +1,15 @@
+[annotate.error]
+not_a_project = "Это не файл проекта Snapoleon"
+missing = "Файл проекта повреждён: отсутствует {name}"
+damaged = "Файл проекта повреждён: {reason}"
+newer = "Проект сохранён более новой версией Snapoleon (формат {version}) и не может быть открыт"
+
+[annotate.stamp]
+check = "Галочка"
+cross = "Крестик"
+question = "Вопросительный знак"
+warning = "Предупреждение"
+star = "Звезда"
+heart = "Сердце"
+thumbs_up = "Палец вверх"
+info = "Информация"

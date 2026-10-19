@@ -7,3 +7,10 @@ license.workspace = true
 
 [dependencies]
 snap-core.workspace = true
+snap-image.workspace = true
+image.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+tiny-skia = { version = "0.12", default-features = false, features = ["std", "simd"] }
+ab_glyph = "0.2"
+zip = { version = "9", default-features = false, features = ["deflate-flate2"] }

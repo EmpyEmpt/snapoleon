@@ -1,0 +1,16 @@
+[shell]
+default_title = "Snapoleon"
+
+[shell.demo]
+window_title = "Проверка оболочки"
+overlay_title = "Оверлей"
+tool_title = "Панель"
+intro = "Проверка многооконной среды"
+text_label = "Текстовое поле"
+text_hint = "Печатайте, копируйте и вставляйте здесь"
+open_overlay = "Открыть оверлей"
+close_overlay = "Закрыть оверлей"
+quit = "Выйти"
+esc_to_close = "Esc — закрыть"
+first_frame = "Первый кадр: {ms} мс"
+tool_hint = "Поверх всех окон"

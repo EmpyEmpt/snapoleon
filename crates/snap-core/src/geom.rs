@@ -163,6 +163,10 @@ impl RectF {
     pub fn contains(self, p: PointF) -> bool {
         p.x >= self.x && p.y >= self.y && p.x <= self.right() && p.y <= self.bottom()
     }
+    pub fn union(self, o: RectF) -> RectF {
+        let (x, y) = (self.x.min(o.x), self.y.min(o.y));
+        RectF::new(x, y, self.right().max(o.right()) - x, self.bottom().max(o.bottom()) - y)
+    }
     pub fn round(self) -> Rect {
         Rect::new(self.x.round() as i32, self.y.round() as i32, self.w.round().max(0.0) as u32, self.h.round().max(0.0) as u32)
     }

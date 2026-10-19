@@ -5,5 +5,39 @@ version.workspace = true
 edition.workspace = true
 license.workspace = true
 
+[features]
+default = []
+# Pure-Rust fallback engine; models are downloaded on first use.
+ocrs = ["dep:ocrs", "dep:rten", "dep:ureq"]
+
 [dependencies]
 snap-core.workspace = true
+image.workspace = true
+tracing.workspace = true
+serde.workspace = true
+anyhow.workspace = true
+qrcode = { version = "0.14", default-features = false }
+rxing = { version = "0.9", default-features = false, features = ["decoders", "multi_barcode_readers", "full_barcode_format_support", "encoding_rs"] }
+ocrs = { version = "0.13", optional = true }
+rten = { version = "0.26", optional = true }
+ureq = { workspace = true, optional = true }
+
+[target.'cfg(windows)'.dependencies]
+windows = { version = "0.62", features = [
+    "Foundation",
+    "Foundation_Collections",
+    "Globalization",
+    "Graphics_Imaging",
+    "Media_Ocr",
+    "Storage_Streams",
+    "Win32_System_WinRT",
+] }
+
+[target.'cfg(target_os = "macos")'.dependencies]
+objc2 = "0.6"
+objc2-foundation = "0.3"
+objc2-vision = "0.3"
+
+[dev-dependencies]
+ab_glyph = "0.2"
+serde_json.workspace = true

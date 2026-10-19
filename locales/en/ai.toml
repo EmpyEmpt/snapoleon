@@ -1,0 +1,20 @@
+[ai.error]
+disabled = "AI features are turned off. Enable them in Settings."
+no_endpoint = "No AI endpoint is configured."
+no_model = "No AI model is configured."
+no_key = "An API key is required for this service."
+no_target = "No target language is set."
+no_steps = "There are no steps to describe."
+nothing_to_title = "There is nothing to title."
+translate_none = "No translation service is configured."
+unreachable = "Cannot reach {url}: {error}"
+http = "The AI service returned an error ({status}): {message}"
+bad_response = "The AI service returned an unexpected response."
+bad_json = "The AI service did not return a valid structured answer."
+empty_response = "The AI service returned an empty answer."
+
+[ai.test]
+ok = "Connected to {endpoint}. {count} models: {models}"
+ok_empty = "Connected to {endpoint}."
+ok_chat = "Connected to {endpoint}. Model {model} answered."
+model_missing = "Not found on the server: {models}"

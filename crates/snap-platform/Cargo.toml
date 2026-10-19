@@ -5,5 +5,57 @@ version.workspace = true
 edition.workspace = true
 license.workspace = true
 
+[features]
+default = ["wayland-portal"]
+# Convert `egui::Modifiers` + `egui::Key` into accelerator strings.
+egui = ["dep:egui"]
+# Linux: org.freedesktop.portal.GlobalShortcuts for Wayland sessions.
+wayland-portal = []
+
 [dependencies]
 snap-core.workspace = true
+tracing.workspace = true
+parking_lot.workspace = true
+crossbeam-channel.workspace = true
+serde_json.workspace = true
+anyhow.workspace = true
+image.workspace = true
+directories.workspace = true
+egui = { workspace = true, optional = true }
+arboard = "3"
+interprocess = "2"
+keyring-core = "1"
+global-hotkey = "0.9"
+
+[target.'cfg(any(windows, target_os = "macos"))'.dependencies]
+tray-icon = "0.26"
+
+[target.'cfg(windows)'.dependencies]
+tauri-winrt-notification = "0.8"
+winreg = "0.56"
+windows-native-keyring-store = "1"
+windows = { version = "0.62", features = [
+    "Win32_Foundation",
+    "Win32_Media_Audio",
+    "Win32_Security",
+    "Win32_Storage_FileSystem",
+    "Win32_System_Console",
+    "Win32_UI_HiDpi",
+    "Win32_UI_Shell",
+    "Win32_UI_WindowsAndMessaging",
+] }
+
+[target.'cfg(target_os = "macos")'.dependencies]
+apple-native-keyring-store = { version = "1", features = ["keychain"] }
+objc2 = "0.6"
+block2 = "0.6"
+objc2-foundation = "0.3"
+
+[target.'cfg(target_os = "linux")'.dependencies]
+ksni = { version = "0.3", default-features = false, features = ["blocking", "async-io"] }
+notify-rust = "4"
+zbus = "5"
+zbus-secret-service-keyring-store = { version = "1", features = ["rt-async-io-crypto-rust"] }
+
+[target.'cfg(windows)'.dev-dependencies]
+windows = { version = "0.62", features = ["Win32_UI_HiDpi", "Win32_UI_Input_KeyboardAndMouse", "Win32_UI_WindowsAndMessaging"] }

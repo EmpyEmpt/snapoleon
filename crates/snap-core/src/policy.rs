@@ -1,6 +1,6 @@
 //! Managed (IT-admin) policy. Sources, first found wins per field:
 //! - Windows: `HKLM\SOFTWARE\Policies\Snapoleon` then `HKCU\...` (see `packaging/windows/admx`).
-//!   Read by `snap-platform::policy::read_windows_policy` and handed in via [`Policy::from_pairs`].
+//!   Read by `snap_platform::policy::read_pairs` and handed in via [`Policy::from_pairs`].
 //! - macOS: managed preferences `/Library/Managed Preferences/app.snapoleon.plist` (via platform crate).
 //! - All platforms: `policy.toml` in `/etc/snapoleon/`, `%ProgramData%\Snapoleon\`,
 //!   or `/Library/Application Support/Snapoleon/`.

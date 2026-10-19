@@ -1,0 +1,35 @@
+# Run from this directory:  docker compose up -d --build
+# The first start prints the bootstrap admin password and API token:  docker compose logs snapoleon
+services:
+  snapoleon:
+    build:
+      context: ../../..
+      dockerfile: server/snapoleon-server/deploy/Dockerfile
+    image: snapoleon-server:latest
+    restart: unless-stopped
+    ports:
+      - "8787:8787"
+    volumes:
+      - snapoleon-data:/data
+    environment:
+      # Public address used in links and link previews (your domain, with https).
+      SNAPOLEON_PUBLIC_URL: "https://snap.example.com"
+      SNAPOLEON_MAX_UPLOAD_MB: "200"
+      SNAPOLEON_REGISTRATION: "closed"
+      # Behind a reverse proxy (Caddy, nginx, Cloudflare): read client IPs from its headers.
+      SNAPOLEON_TRUST_PROXY: "true"
+      # Uncomment to store files in an S3-compatible bucket instead of the volume.
+      # SNAPOLEON_STORAGE: "s3"
+      # SNAPOLEON_S3_ENDPOINT: "https://<account>.r2.cloudflarestorage.com"
+      # SNAPOLEON_S3_BUCKET: "snapoleon"
+      # SNAPOLEON_S3_REGION: "auto"
+      # SNAPOLEON_S3_KEY: "..."
+      # SNAPOLEON_S3_SECRET: "..."
+      # Uncomment for single sign-on.
+      # SNAPOLEON_OIDC_ISSUER: "https://idp.example.com/realms/team"
+      # SNAPOLEON_OIDC_CLIENT_ID: "snapoleon"
+      # SNAPOLEON_OIDC_CLIENT_SECRET: "..."
+      # SNAPOLEON_OIDC_ADMIN_GROUP: "snapoleon-admins"
+
+volumes:
+  snapoleon-data:

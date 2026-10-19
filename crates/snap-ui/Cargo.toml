@@ -7,3 +7,9 @@ license.workspace = true
 
 [dependencies]
 snap-core.workspace = true
+egui.workspace = true
+tiny-skia = "0.12"
+
+[dev-dependencies]
+eframe = { version = "0.37", default-features = false, features = ["glow", "default_fonts"] }
+image.workspace = true

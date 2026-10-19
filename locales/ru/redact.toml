@@ -1,0 +1,12 @@
+[redact.kind]
+email = "Адрес эл. почты"
+phone = "Номер телефона"
+credit_card = "Банковская карта"
+iban = "IBAN"
+ru_inn = "ИНН"
+ru_snils = "СНИЛС"
+ru_passport = "Паспорт РФ"
+us_ssn = "Номер SSN (США)"
+ip_address = "IP-адрес"
+secret = "Секрет или ключ доступа"
+url = "Ссылка"

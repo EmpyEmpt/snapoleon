@@ -1,0 +1,15 @@
+[annotate.error]
+not_a_project = "This is not a Snapoleon project file"
+missing = "The project file is damaged: {name} is missing"
+damaged = "The project file is damaged: {reason}"
+newer = "This project was saved by a newer version of Snapoleon (format {version}) and cannot be opened"
+
+[annotate.stamp]
+check = "Check mark"
+cross = "Cross"
+question = "Question mark"
+warning = "Warning"
+star = "Star"
+heart = "Heart"
+thumbs_up = "Thumbs up"
+info = "Info"

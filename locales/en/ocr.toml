@@ -1,0 +1,19 @@
+[ocr.engine]
+auto = "Automatic"
+native = "System OCR"
+tesseract = "Tesseract"
+ocrs = "ocrs (built-in)"
+
+[ocr.note]
+native_windows = "Windows OCR, languages: {langs}"
+native_unsupported = "No system OCR on this platform"
+tesseract_found = "Found at {path}"
+tesseract_missing = "tesseract was not found on PATH. Install it or set its path in the OCR settings."
+ocrs_disabled = "This build does not include the ocrs engine"
+ocrs_ready = "Models downloaded"
+ocrs_download = "Models (about 12 MB) are downloaded on first use"
+
+[ocr.error]
+no_language = "No OCR language is installed. Open Settings > Time & language > Language & region, add a language and make sure its \"Optical character recognition\" feature is installed."
+no_engine = "No OCR engine could read the image. {details}"
+too_large = "The image is too large for the OCR engine (limit {max} px per side)."

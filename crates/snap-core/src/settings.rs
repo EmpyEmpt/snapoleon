@@ -121,6 +121,15 @@ pub struct General {
     pub play_sounds: bool,
     pub tray_click: crate::hotkey::Action,
     pub first_run_done: bool,
+    /// Disable UI animations regardless of the OS preference.
+    pub reduce_motion: bool,
+}
+
+impl General {
+    /// The user's accent override, if set and valid.
+    pub fn accent_color(&self) -> Option<[u8; 3]> {
+        parse_hex_color(&self.accent).map(|c| [c[0], c[1], c[2]])
+    }
 }
 
 impl Default for General {
@@ -134,6 +143,7 @@ impl Default for General {
             play_sounds: false,
             tray_click: crate::hotkey::Action::CaptureRegion,
             first_run_done: false,
+            reduce_motion: false,
         }
     }
 }
@@ -350,6 +360,8 @@ pub struct CustomUploader {
     pub headers: Vec<(String, String)>,
     /// `multipart_form_data` | `binary` | `form_url_encoded` | `json`
     pub body: String,
+    /// Raw body template for `json` / `xml` bodies (ShareX `Data`).
+    pub data: String,
     pub arguments: Vec<(String, String)>,
     pub file_form_name: String,
     /// ShareX syntax, e.g. `{json:data.link}`, `{regex:...}`, `{response}`.

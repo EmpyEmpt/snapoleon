@@ -1,0 +1,25 @@
+[ui.window]
+minimize = "Свернуть"
+maximize = "Развернуть"
+restore = "Восстановить"
+close = "Закрыть"
+
+[ui.hotkey]
+press_keys = "Нажмите клавиши…"
+not_set = "Не задано"
+esc_hint = "Esc — отмена"
+clear = "Сбросить сочетание"
+
+[ui.search]
+clear = "Очистить поиск"
+
+[ui.color]
+custom = "Свой цвет"
+hex = "HEX"
+opacity = "Прозрачность"
+
+[ui.stroke]
+px = "{n} пикс."
+
+[ui.toast]
+dismiss = "Скрыть"

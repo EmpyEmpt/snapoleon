@@ -7,3 +7,22 @@ license.workspace = true
 
 [dependencies]
 snap-core.workspace = true
+parking_lot.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+tracing.workspace = true
+chrono.workspace = true
+ureq.workspace = true
+regex.workspace = true
+base64.workspace = true
+rand.workspace = true
+hmac = "0.12"
+sha2 = "0.10"
+hex = "0.4"
+sha1 = "0.10"
+percent-encoding = "2"
+url = "2"
+roxmltree = "0.21"
+webbrowser = "1"
+suppaftp = { version = "12", features = ["rustls-ring"] }
+webpki-roots = "1"
