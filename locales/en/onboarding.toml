@@ -1,0 +1,51 @@
+[onboarding]
+title = "Welcome to Snapoleon"
+skip = "Skip"
+next = "Next"
+back = "Back"
+finish = "Start using Snapoleon"
+
+[onboarding.hotkey]
+title = "Capture with one key"
+body = "Press a single shortcut anywhere, drag over what you want, and you are done."
+label = "Capture hotkey"
+change = "Click the field to choose another."
+then = "What happens next"
+explain = "Drag over the part of the screen you want. A small toolbar appears under your selection: copy, save, edit, pin or upload."
+
+[onboarding.files]
+title = "Choose where files go"
+body = "Pick a folder for your screenshots and what should happen after each one."
+folder = "Save folder"
+choose = "Choose…"
+after = "After a capture"
+after_hint = "This runs when a hotkey does not name its own pipeline. You can change it anytime in Settings."
+no_steps = "No steps"
+
+[onboarding.permissions]
+title = "Allow Snapoleon to see your screen"
+body = "macOS asks before an app can capture the screen. Grant what you need now."
+restart = "After you allow screen recording, macOS may ask you to quit and reopen Snapoleon."
+required = "Required"
+granted = "Allowed"
+allow = "Allow"
+open_settings = "Open system settings"
+
+[onboarding.permissions.screen]
+title = "Screen recording"
+body = "Needed for every screenshot and recording."
+
+[onboarding.permissions.accessibility]
+title = "Accessibility"
+body = "Lets Snapoleon snap to buttons and read window titles."
+
+[onboarding.permissions.microphone]
+title = "Microphone"
+body = "Only for voice in recordings, if you turn it on."
+
+[onboarding.ready]
+title = "You are all set"
+body = "Nothing else needs your permission here. Snapoleon lives in the tray."
+launch = "Start with your system"
+launch_hint = "Snapoleon waits quietly in the tray after you sign in."
+portable = "Not available in the portable version."

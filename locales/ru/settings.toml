@@ -1,0 +1,1060 @@
+# Окно настроек (apps/snapoleon/src/views/settings). Строки настроек — таблицы с `label` и необязательным `desc`.
+
+[settings]
+title = "Настройки"
+search = "Поиск настроек"
+search_results = "Результаты по запросу «{query}»"
+managed = "Управляется вашей организацией"
+managed_hint = "Эту настройку задаёт администратор."
+probing = "Проверка…"
+open = "Открыть"
+copy_path = "Скопировать путь"
+copy_snippet = "Копировать"
+choose_folder = "Выбрать папку"
+choose_file = "Выбрать файл"
+
+[settings.search_empty]
+title = "Ничего не найдено"
+body = "Попробуйте другое слово или откройте нужный раздел слева."
+
+[settings.secret]
+stored = "Сохранено в системной связке ключей"
+empty = "Не задано"
+remove = "Удалить"
+
+[settings.page.general]
+title = "Общие"
+desc = "Язык, оформление и запуск Snapoleon."
+
+[settings.page.capture]
+title = "Съёмка"
+desc = "Файлы, область выделения и редактор."
+
+[settings.page.hotkeys]
+title = "Горячие клавиши"
+desc = "Глобальные сочетания для каждого действия."
+
+[settings.page.pipelines]
+title = "Конвейеры"
+desc = "Что происходит после снимка, шаг за шагом."
+
+[settings.page.destinations]
+title = "Назначения"
+desc = "Куда отправляются загрузки."
+
+[settings.page.links]
+title = "Ссылки"
+desc = "Как ссылки копируются и сокращаются."
+
+[settings.page.recording]
+title = "Запись"
+desc = "Запись видео и GIF."
+
+[settings.page.text_ai]
+title = "Текст и ИИ"
+desc = "Распознавание текста, перевод и подключение к ИИ."
+
+[settings.page.privacy]
+title = "Приватность"
+desc = "Скрытие данных, метаданные и что запоминается."
+
+[settings.page.history]
+title = "История"
+desc = "Библиотека прошлых снимков."
+
+[settings.page.pins]
+title = "Закрепления"
+desc = "Как выглядят закреплённые снимки."
+
+[settings.page.advanced]
+title = "Дополнительно"
+desc = "Политики, папки, командная строка и резервная копия."
+
+# --- Общие -------------------------------------------------------------------------------------------------------
+
+[settings.general.section]
+appearance = "Оформление"
+behavior = "Поведение"
+help = "Справка"
+
+[settings.general.language]
+label = "Язык"
+desc = "Применяется сразу."
+system = "Как в системе"
+
+[settings.general.theme]
+label = "Тема"
+desc = "Следовать системе или выбрать вручную."
+system = "Системная"
+dark = "Тёмная"
+light = "Светлая"
+
+[settings.general.accent]
+label = "Акцентный цвет"
+desc = "Для выделения, фокуса и главных кнопок."
+
+[settings.general.reduce_motion]
+label = "Меньше анимации"
+desc = "Отключает анимацию интерфейса."
+
+[settings.general.launch_at_login]
+label = "Запускать при входе"
+desc = "Сворачиваться в трей при входе в систему."
+
+[settings.general.launch_portable]
+label = "Запускать при входе"
+desc = "Недоступно в переносной версии."
+
+[settings.general.tray_click]
+label = "Щелчок по значку в трее"
+desc = "Что делает левый щелчок по значку."
+
+[settings.general.show_notifications]
+label = "Показывать уведомления"
+desc = "Сообщать, когда снимок сохранён или загружен."
+
+[settings.general.play_sounds]
+label = "Звуки"
+desc = "Короткий щелчок при снимке."
+
+[settings.general.welcome]
+label = "Приветствие"
+desc = "Пройти первоначальную настройку ещё раз."
+button = "Показать"
+
+[settings.general.about]
+label = "О Snapoleon"
+desc = "Версия, лицензии и ссылки."
+button = "О программе"
+
+# --- Съёмка ------------------------------------------------------------------------------------------------------
+
+[settings.capture.section]
+output = "Вывод"
+overlay = "Область выделения"
+behavior = "Поведение съёмки"
+editor = "Редактор"
+
+[settings.capture.format]
+label = "Формат изображения"
+desc = "Для сохранения и загрузки."
+png = "PNG"
+jpeg = "JPEG"
+webp = "WebP"
+
+[settings.capture.jpeg_quality]
+label = "Качество JPEG"
+desc = "Выше — чётче и тяжелее."
+
+[settings.capture.webp_quality]
+label = "Качество WebP"
+desc = "100 — без потерь."
+
+[settings.capture.optimize_png]
+label = "Оптимизировать PNG"
+desc = "Файлы меньше, сохранение чуть медленнее."
+
+[settings.capture.save_dir]
+label = "Папка для снимков"
+desc = "Куда сохраняются снимки. Если пусто, используется папка «Изображения»."
+
+[settings.capture.filename_template]
+label = "Имя файла"
+desc = "Нажмите на метку, чтобы добавить её. Недопустимые в именах символы заменяются."
+
+[settings.capture]
+preview = "Пример"
+unknown_token = "Неизвестная метка"
+add_token = "Добавить в имя"
+
+[settings.capture.show_magnifier]
+label = "Лупа"
+desc = "Увеличенный фрагмент и значения цвета у курсора."
+
+[settings.capture.magnifier_zoom]
+label = "Увеличение лупы"
+desc = "Во сколько раз лупа увеличивает."
+
+[settings.capture.show_crosshair]
+label = "Перекрестие"
+desc = "Направляющие через весь экран до начала выделения."
+
+[settings.capture.dim_outside]
+label = "Затемнять вне выделения"
+desc = "Приглушать всё, что не попадёт в снимок."
+
+[settings.capture.snap_to_windows]
+label = "Прилипать к окнам"
+desc = "Выделение само подстраивается под окно или элемент под курсором."
+
+[settings.capture.include_cursor]
+label = "Снимать курсор мыши"
+
+[settings.capture.hide_desktop_icons]
+label = "Скрывать значки рабочего стола"
+desc = "Только на время съёмки."
+
+[settings.capture.delay_secs]
+label = "Задержка"
+desc = "Для снимка с задержкой."
+
+[settings.capture.hdr]
+label = "HDR-экраны"
+desc = "Приводить HDR-снимки к SDR, чтобы цвета выглядели верно."
+auto = "Автоматически"
+off = "Выключено"
+
+[settings.capture.window_shadow]
+label = "Тень окна"
+desc = "Добавлять мягкую тень вокруг снятых окон."
+
+[settings.editor.palette]
+label = "Цвета для пометок"
+desc = "Образцы на панели редактора."
+add = "Добавить цвет"
+remove = "Убрать последний цвет"
+reset = "Сбросить цвета"
+
+[settings.editor.stroke_width]
+label = "Толщина линии по умолчанию"
+
+[settings.editor.font_size]
+label = "Размер текста по умолчанию"
+
+[settings.editor.readable_downscale]
+label = "Сохранять читаемость пометок"
+desc = "Усиливает тонкие линии и мелкий текст при экспорте в меньшем размере."
+
+[settings.editor.max_export_width]
+label = "Максимальная ширина экспорта"
+desc = "0 — оставить исходный размер."
+
+[settings.editor.step_badge_start]
+label = "Первый номер шага"
+desc = "С какого числа начинается нумерация значков."
+
+# --- Горячие клавиши ---------------------------------------------------------------------------------------------
+
+[settings.hotkeys]
+enabled = "Включено"
+conflict = "Конфликт"
+invalid = "Ошибка"
+conflict_with = "Это сочетание уже назначено: «{action}»"
+
+[settings.hotkeys.group]
+capture = "Съёмка"
+record = "Запись"
+text = "Текст и инструменты"
+pin = "Закрепление и правка"
+app = "Приложение"
+
+[settings.hotkeys.section]
+pipelines = "Конвейер для каждой клавиши"
+reset = "По умолчанию"
+
+[settings.hotkeys.pipeline]
+default = "Конвейер по умолчанию"
+
+[settings.hotkeys.reset]
+label = "Сбросить горячие клавиши"
+desc = "Вернуть встроенные сочетания."
+button = "Сбросить"
+confirm = "Сбросить все сочетания"
+
+# --- Конвейеры ---------------------------------------------------------------------------------------------------
+
+[settings.pipelines]
+list = "Ваши конвейеры"
+no_steps_short = "Нет шагов"
+new = "Новый конвейер"
+new_name = "Новый конвейер"
+default_badge = "По умолчанию"
+back = "Конвейеры"
+name = "Название"
+name_hint = "Например, Отправить команде"
+id = "Идентификатор"
+id_hint = "его используют командная строка и горячие клавиши"
+make_default = "Сделать основным"
+duplicate = "Дублировать"
+delete = "Удалить"
+delete_confirm = "Удалить конвейер"
+steps = "Шаги"
+no_steps = "В этом конвейере пока нет шагов. Добавьте первый ниже."
+add_step = "Добавить шаг"
+copy_name = "Копия: {name}"
+presets = "Пресеты оформления"
+presets_hint = "Фоны, поля и рамки, которые применяет шаг «Оформить»."
+
+[settings.pipelines.section]
+defaults = "По умолчанию"
+
+[settings.pipelines.default]
+label = "Конвейер по умолчанию"
+desc = "Запускается после снимка, если у клавиши не указан другой."
+
+[settings.pipelines.step]
+remove = "Удалить шаг"
+up = "Выше"
+down = "Ниже"
+
+[settings.pipelines.step.annotate]
+title = "Пометки"
+desc = "Открыть редактор и дождаться, пока вы закончите."
+
+[settings.pipelines.step.auto_redact]
+title = "Скрыть чувствительные данные"
+desc = "Найти в снимке адреса почты, карты, ключи и похожие данные и закрыть их."
+
+[settings.pipelines.step.beautify]
+title = "Оформить"
+desc = "Поместить снимок на фон с полями, тенью и рамкой."
+
+[settings.pipelines.step.resize]
+title = "Изменить размер"
+desc = "Уменьшить большие изображения."
+
+[settings.pipelines.step.ocr]
+title = "Распознать текст"
+desc = "Прочитать текст на снимке."
+
+[settings.pipelines.step.decode_codes]
+title = "Считать коды"
+desc = "Распознать QR-коды и штрихкоды."
+
+[settings.pipelines.step.translate]
+title = "Перевести текст"
+desc = "Перевести распознанный текст."
+
+[settings.pipelines.step.save]
+title = "Сохранить на диск"
+desc = "Записать изображение в файл."
+
+[settings.pipelines.step.copy_image]
+title = "Копировать изображение"
+desc = "Поместить изображение в буфер обмена."
+
+[settings.pipelines.step.upload]
+title = "Загрузить"
+desc = "Отправить изображение в выбранное назначение."
+
+[settings.pipelines.step.shorten]
+title = "Сократить ссылку"
+desc = "Сократить ссылку на загрузку вашим сервисом."
+
+[settings.pipelines.step.copy_link]
+title = "Копировать ссылку"
+desc = "Поместить ссылку в буфер обмена."
+
+[settings.pipelines.step.pin]
+title = "Закрепить на экране"
+desc = "Оставить изображение поверх других окон."
+
+[settings.pipelines.step.alt_text]
+title = "Описать с помощью ИИ"
+desc = "Написать альтернативный текст через ваше подключение к ИИ."
+
+[settings.pipelines.step.run_command]
+title = "Запустить программу"
+desc = "Запустить внешнюю программу с результатом."
+
+[settings.pipelines.step.notify]
+title = "Уведомить"
+desc = "Показать уведомление, когда конвейер закончит работу."
+
+[settings.pipelines.param]
+kinds = "Виды данных"
+kinds_hint = "Если ничего не выбрано, берутся виды из настроек конфиденциальности."
+style = "Способ скрытия"
+from_privacy = "Из настроек конфиденциальности"
+preset = "Пресет"
+max_width = "Максимальная ширина"
+max_height = "Максимальная высота"
+size_hint = "0 — без ограничения."
+readable = "Сохранять читаемость текста"
+copy_text = "Копировать текст"
+markdown_table = "Копировать таблицы как Markdown"
+target_lang = "Язык"
+target_lang_hint = "Из настроек перевода"
+folder = "Папка"
+from_capture = "Из настроек съёмки"
+template = "Имя файла"
+format = "Формат"
+destination = "Назначение"
+default_destination = "Назначение по умолчанию"
+no_destinations = "Назначений пока нет. Добавьте их в разделе «Назначения»."
+link_format = "Формат ссылки"
+from_links = "Из настроек ссылок"
+program = "Программа"
+program_hint = "Путь к исполняемому файлу"
+arguments = "Аргументы"
+add_arg = "Добавить аргумент"
+remove_arg = "Убрать аргумент"
+placeholders = "В аргументах можно использовать {file}, {url} и {text}."
+
+[settings.pipelines.preset]
+new = "Новый пресет"
+new_name = "Новый пресет"
+edit = "Изменить пресет"
+name = "Название"
+background = "Фон"
+color = "Цвет"
+colors = "Цвета"
+angle = "Угол"
+image = "Изображение"
+padding = "Поля"
+radius = "Скругление углов"
+shadow = "Тень"
+aspect = "Соотношение сторон"
+aspect_free = "Исходный размер"
+frame = "Рамка"
+
+[settings.pipelines.bg]
+transparent = "Прозрачный"
+solid = "Сплошной цвет"
+gradient = "Градиент"
+blurred = "Размытый снимок"
+image = "Изображение"
+
+[settings.pipelines.frame]
+none = "Без рамки"
+mac_window = "Окно macOS"
+mac_window_dark = "Окно macOS, тёмное"
+browser = "Браузер"
+browser_dark = "Браузер, тёмный"
+phone = "Телефон"
+
+# --- Назначения --------------------------------------------------------------------------------------------------
+
+[settings.destinations]
+list = "Ваши назначения"
+add = "Добавить назначение"
+import = "Импорт .sxcu"
+back = "Назначения"
+default_badge = "По умолчанию"
+signed_in = "Вход выполнен"
+signed_in_badge = "Вход выполнен"
+sign_out = "Выйти"
+sign_in = "Войти через {provider}"
+waiting_browser = "Ожидание браузера…"
+no_default = "Нет"
+imported = "Пользовательский загрузчик импортирован"
+exported = "Сохранено: {path}"
+testing = "Проверка…"
+uploads_off = "Загрузки отключены администратором."
+managed_list = "Список назначений задаёт администратор."
+
+[settings.destinations.empty]
+title = "Назначений пока нет"
+body = "Добавьте хранилище S3, FTP-сервер, Dropbox, Telegram или собственный сервер и отправляйте туда снимки из конвейера."
+
+[settings.destinations.picker]
+title = "Новое назначение"
+body = "Выберите сервис. Всё можно будет изменить позже."
+
+[settings.destinations.group]
+s3 = "Хранилища, совместимые с S3"
+servers = "Серверы и папки"
+cloud = "Облачные диски"
+services = "Сервисы"
+custom = "Своё"
+
+[settings.destinations.type]
+s3 = "Хранилище S3"
+ftp = "FTP"
+ftps = "FTPS"
+webdav = "WebDAV"
+local = "Локальная папка"
+imgur = "Imgur"
+telegram = "Telegram"
+yandex = "Яндекс Диск"
+dropbox = "Dropbox"
+gdrive = "Google Диск"
+onedrive = "OneDrive"
+box = "Box"
+custom = "Свой HTTP-загрузчик"
+server = "Командный сервер"
+
+[settings.destinations.section]
+general = "Назначение"
+connection = "Подключение"
+access = "Доступ"
+account = "Учётная запись"
+response = "Ответ"
+actions = "Действия"
+defaults = "По умолчанию"
+
+[settings.destinations.default]
+label = "Назначение по умолчанию"
+desc = "Используется шагами «Загрузить», где назначение не указано."
+
+[settings.destinations.test]
+label = "Проверить подключение"
+desc = "Проверяет адрес и учётные данные."
+button = "Проверить"
+ok = "Подключено"
+failed = "Не удалось"
+
+[settings.destinations.make_default]
+label = "Назначение по умолчанию"
+desc = "Использовать это назначение, когда другое не указано."
+button = "Сделать основным"
+
+[settings.destinations.export]
+label = "Экспорт"
+desc = "Сохранить как файл пользовательского загрузчика ShareX."
+button = "Экспорт .sxcu"
+
+[settings.destinations.delete]
+label = "Удалить назначение"
+desc = "Также удаляются сохранённые учётные данные."
+button = "Удалить"
+confirm = "Удалить назначение"
+
+[settings.destinations.method]
+post = "POST"
+put = "PUT"
+patch = "PATCH"
+
+[settings.destinations.body]
+multipart = "Форма с файлом"
+binary = "Файл в теле запроса"
+form = "Форма URL-encoded"
+json = "JSON"
+
+[settings.destinations.kv]
+name = "Имя"
+value = "Значение"
+add = "Добавить"
+remove = "Убрать"
+
+[settings.destinations.f.name]
+label = "Название"
+desc = "Показывается в списках и меню."
+
+[settings.destinations.f.endpoint]
+label = "Адрес сервиса"
+desc = "Адрес вместе с https://."
+account_id = "Замените <account-id> в адресе на идентификатор вашей учётной записи Cloudflare."
+
+[settings.destinations.f.region]
+label = "Регион"
+
+[settings.destinations.f.bucket]
+label = "Бакет"
+
+[settings.destinations.f.path_style]
+label = "Адреса с путём"
+desc = "Бакет указывается в пути, а не в имени хоста. Это нужно MinIO и большинству собственных хранилищ."
+
+[settings.destinations.f.prefix]
+label = "Префикс папки"
+desc = "Добавляется перед каждым именем файла. Заканчивайте его косой чертой."
+
+[settings.destinations.f.public_base_url]
+label = "Публичный адрес"
+desc = "Из него строятся ссылки, например на ваш домен или CDN. Если пусто, берётся адрес сервиса."
+
+[settings.destinations.f.random_code_len]
+label = "Длина случайного имени"
+desc = "Число символов в случайном имени файла. 0 — оставить исходное имя."
+
+[settings.destinations.f.acl_public_read]
+label = "Делать файлы публичными"
+desc = "Отправлять ACL public-read при каждой загрузке."
+
+[settings.destinations.f.access_key_id]
+label = "Идентификатор ключа доступа"
+
+[settings.destinations.f.s3_secret]
+label = "Секретный ключ доступа"
+desc = "Хранится в системной связке ключей."
+
+[settings.destinations.f.host]
+label = "Хост"
+
+[settings.destinations.f.port]
+label = "Порт"
+
+[settings.destinations.f.secure]
+label = "Шифровать через TLS"
+desc = "Использовать явный FTPS."
+
+[settings.destinations.f.dir]
+label = "Папка на сервере"
+desc = "Создаётся, если её нет."
+
+[settings.destinations.f.user]
+label = "Имя пользователя"
+
+[settings.destinations.f.password]
+label = "Пароль"
+desc = "Хранится в системной связке ключей."
+
+[settings.destinations.f.webdav_url]
+label = "Адрес папки"
+desc = "WebDAV-адрес папки, в которую загружать."
+
+[settings.destinations.f.local_dir]
+label = "Папка"
+desc = "Сюда копируются файлы. Хорошо подойдёт синхронизируемая папка."
+
+[settings.destinations.f.imgur_client]
+label = "Client ID"
+desc = "Из вашего приложения Imgur. Он нужен для анонимных загрузок."
+
+[settings.destinations.f.chat_id]
+label = "Чат"
+desc = "Канал вида @mychannel или числовой идентификатор чата."
+
+[settings.destinations.f.bot_token]
+label = "Токен бота"
+desc = "Выдаётся @BotFather. Хранится в системной связке ключей."
+
+[settings.destinations.f.server_url]
+label = "Адрес сервера"
+desc = "Адрес вашего командного сервера Snapoleon."
+
+[settings.destinations.f.server_token]
+label = "Токен доступа"
+desc = "Создаётся на странице учётной записи сервера. Хранится в системной связке ключей."
+
+[settings.destinations.f.folder]
+label = "Папка"
+
+[settings.destinations.f.folder_id]
+label = "Идентификатор папки"
+desc = "Если пусто, файлы попадают в корень."
+
+[settings.destinations.f.publish]
+label = "Создавать публичную ссылку"
+
+[settings.destinations.f.oauth_client]
+label = "Client ID"
+desc = "Из приложения, которое вы зарегистрировали у провайдера."
+
+[settings.destinations.f.oauth_secret]
+label = "Client secret"
+desc = "Нужен не всем провайдерам."
+hint = "Необязательно"
+
+[settings.destinations.f.oauth_account]
+label = "Учётная запись"
+desc = "Вход выполняется в браузере. Токены хранятся в системной связке ключей."
+
+[settings.destinations.f.request]
+label = "Запрос"
+desc = "Метод и адрес, которые принимают загрузку."
+
+[settings.destinations.f.body]
+label = "Тело запроса"
+
+[settings.destinations.f.file_form_name]
+label = "Имя поля с файлом"
+
+[settings.destinations.f.arguments]
+label = "Аргументы"
+desc = "Поля формы или свойства JSON, которые отправляются вместе с файлом."
+
+[settings.destinations.f.data]
+label = "JSON в теле запроса"
+desc = "Шаблон тела запроса."
+
+[settings.destinations.f.headers]
+label = "Заголовки"
+
+[settings.destinations.f.parameters]
+label = "Параметры URL"
+
+[settings.destinations.f.response_url]
+label = "Ссылка"
+desc = "Где в ответе искать ссылку, например {json:data.link}."
+
+[settings.destinations.f.thumbnail_url]
+label = "Миниатюра"
+
+[settings.destinations.f.deletion_url]
+label = "Ссылка для удаления"
+
+[settings.destinations.f.error_message]
+label = "Сообщение об ошибке"
+
+[settings.destinations.f.custom_secret]
+label = "Секрет"
+desc = "Доступен запросу как {secret}. Хранится в системной связке ключей."
+
+# --- Ссылки ------------------------------------------------------------------------------------------------------
+
+[settings.links.section]
+copy = "Копирование"
+shortener = "Сокращение"
+
+[settings.links.copy_format]
+label = "Копировать ссылки как"
+desc = "Формат для шагов «Копировать ссылку»."
+
+[settings.links.format]
+url = "Обычная ссылка"
+markdown = "Markdown"
+html = "HTML"
+bbcode = "BBCode"
+
+[settings.links.expiry_hours]
+label = "Срок действия ссылки"
+desc = "Для ссылок на командном сервере."
+
+[settings.links.expiry]
+never = "Бессрочно"
+hour = "1 час"
+day = "1 день"
+week = "1 неделя"
+month = "30 дней"
+quarter = "90 дней"
+custom = "{n} ч"
+
+[settings.links.shortener]
+label = "Сокращатель ссылок"
+desc = "Применяется шагами «Сократить ссылку»."
+none = "Нет"
+server = "Командный сервер"
+yourls = "YOURLS"
+shlink = "Shlink"
+isgd = "is.gd"
+
+[settings.links.shortener_url]
+label = "Адрес сервиса"
+
+[settings.links.shortener_secret_yourls]
+label = "Подпись"
+desc = "Со страницы инструментов YOURLS. Хранится в системной связке ключей."
+
+[settings.links.shortener_secret_shlink]
+label = "Ключ API"
+desc = "Хранится в системной связке ключей."
+
+# --- Запись ------------------------------------------------------------------------------------------------------
+
+[settings.recording]
+disabled = "Запись отключена администратором."
+no_encoders = "Кодировщики не найдены."
+hardware = "Аппаратный"
+software = "Программный"
+ffmpeg_hint = "Ищется автоматически"
+ffmpeg_missing = "ffmpeg не найден. В Linux он нужен для MP4, GIF и WebP, а для обрезки видео используется везде, где установлен."
+ffmpeg_found = "Используется {path}"
+fps_unit = "{n} к/с"
+bitrate_unit = "{n} Мбит/с"
+mic_default = "Как в системе"
+
+[settings.recording.section]
+output = "Вывод"
+audio = "Звук"
+overlays = "На экране"
+encoding = "Кодирование"
+
+[settings.recording.format]
+label = "Формат"
+desc = "Если при старте записи формат не выбран."
+mp4 = "MP4"
+gif = "GIF"
+webp = "WebP"
+
+[settings.recording.fps]
+label = "Частота кадров"
+desc = "Для записи в MP4."
+
+[settings.recording.gif_fps]
+label = "Частота кадров GIF"
+desc = "Ниже — файл меньше."
+
+[settings.recording.bitrate]
+label = "Качество MP4"
+desc = "Битрейт. В автоматическом режиме он зависит от размера картинки."
+auto = "Автоматически"
+
+[settings.recording.max_gif_width]
+label = "Максимальная ширина GIF"
+desc = "Более широкая картинка уменьшается."
+
+[settings.recording.countdown_secs]
+label = "Обратный отсчёт"
+desc = "Секунд до начала записи."
+
+[settings.recording.system_audio]
+label = "Записывать звук системы"
+
+[settings.recording.microphone]
+label = "Записывать микрофон"
+
+[settings.recording.mic_device]
+label = "Микрофон"
+
+[settings.recording.show_cursor]
+label = "Показывать курсор"
+
+[settings.recording.highlight_clicks]
+label = "Подсвечивать щелчки"
+desc = "Круги на месте щелчков."
+
+[settings.recording.show_keystrokes]
+label = "Показывать нажатия клавиш"
+desc = "В macOS нужно разрешение на мониторинг ввода."
+
+[settings.recording.encoder]
+label = "Кодировщик"
+desc = "Аппаратный быстрее и меньше нагружает процессор."
+auto = "Автоматически"
+hardware = "Аппаратный"
+software = "Программный"
+
+[settings.recording.encoders]
+label = "Доступные кодировщики"
+
+[settings.recording.ffmpeg_path]
+label = "ffmpeg"
+desc = "Необязательно. Используется там, где нет встроенного кодировщика."
+
+# --- Текст и ИИ --------------------------------------------------------------------------------------------------
+
+[settings.text_ai]
+available = "Доступен"
+unavailable = "Недоступен"
+check_again = "Проверить снова"
+testing = "Проверка…"
+ai_disabled = "Функции ИИ отключены администратором."
+privacy_note = "Снимки и текст отправляются только на указанный выше адрес. По умолчанию это локальный сервер на этом компьютере, а при выключенном ИИ ничего не отправляется."
+tesseract_hint = "Ищется автоматически"
+
+[settings.text_ai.section]
+ocr = "Распознавание текста"
+translate = "Перевод"
+ai = "ИИ"
+
+[settings.text_ai.engine]
+auto = "Автоматически"
+native = "Системный движок"
+tesseract = "Tesseract"
+ocrs = "Встроенный"
+
+[settings.text_ai.ocr_engine]
+label = "Движок распознавания"
+desc = "В автоматическом режиме берётся системный движок, а затем остальные."
+
+[settings.text_ai.ocr_languages]
+label = "Языки"
+desc = "Отметьте языки, на которых вы читаете. Так движку проще выбрать нужный алфавит."
+system = "Язык не выбран: используются языки вашего профиля."
+
+[settings.text_ai.tesseract_path]
+label = "Программа Tesseract"
+desc = "Необязательно. Нужна, если tesseract нет в PATH."
+
+[settings.text_ai.engines]
+label = "Движки на этом компьютере"
+
+[settings.text_ai.provider]
+label = "Сервис перевода"
+none = "Нет"
+libre = "LibreTranslate"
+deepl = "DeepL"
+ai = "Подключение к ИИ"
+
+[settings.text_ai.target_lang]
+label = "Переводить на"
+desc = "Язык перевода по умолчанию."
+
+[settings.text_ai.libre_url]
+label = "Адрес сервера"
+
+[settings.text_ai.deepl_free]
+label = "Бесплатный тариф"
+desc = "Использовать адрес бесплатного API DeepL."
+
+[settings.text_ai.translate_key]
+label = "Ключ API"
+desc = "Хранится в системной связке ключей."
+
+[settings.text_ai.ai_enabled]
+label = "Использовать ИИ"
+desc = "Альтернативный текст, названия и перевод через ваше подключение."
+
+[settings.text_ai.endpoint]
+label = "Адрес API"
+desc = "Адрес, совместимый с OpenAI: Ollama, LM Studio, OpenAI, OpenRouter или Anthropic."
+
+[settings.text_ai.model]
+label = "Текстовая модель"
+
+[settings.text_ai.vision_model]
+label = "Модель для изображений"
+desc = "Если пусто, используется текстовая модель."
+
+[settings.text_ai.ai_key]
+label = "Ключ API"
+desc = "Для локальных серверов не нужен. Хранится в системной связке ключей."
+
+[settings.text_ai.test]
+label = "Проверить подключение"
+desc = "Обращается к серверу и показывает доступные модели."
+button = "Проверить"
+
+# --- Конфиденциальность ------------------------------------------------------------------------------------------
+
+[settings.privacy.section]
+redaction = "Скрытие данных"
+files = "Файлы и история"
+
+[settings.privacy.redact_kinds]
+label = "Закрывать автоматически"
+desc = "Виды данных, которые ищут шаги скрытия."
+
+[settings.privacy.redact_style]
+label = "Способ скрытия"
+desc = "Пикселизацию нельзя обратить."
+
+[settings.privacy.style]
+pixelate = "Пикселизация"
+solid = "Заливка"
+blur = "Размытие"
+
+[settings.privacy.strip_metadata]
+label = "Удалять метаданные"
+desc = "Не записывать EXIF и текстовые блоки в экспортируемые изображения."
+
+[settings.privacy.record_context]
+label = "Запоминать источник"
+desc = "Хранить заголовок окна и адрес страницы вместе со снимком в библиотеке."
+
+# --- История -----------------------------------------------------------------------------------------------------
+
+[settings.history]
+disabled = "Библиотека отключена администратором."
+off = "Библиотека выключена."
+count = "В библиотеке записей: {n}."
+cleared = "Удалено записей из библиотеки: {n}"
+
+[settings.history.section]
+library = "Библиотека"
+data = "Данные"
+
+[settings.history.enabled]
+label = "Вести библиотеку"
+desc = "Запоминать каждый снимок, чтобы потом его можно было найти."
+
+[settings.history.retention_days]
+label = "Хранить записи"
+desc = "Старые записи удаляются из библиотеки. Файлы на диске остаются."
+
+[settings.history.retention]
+forever = "Всегда"
+month = "30 дней"
+quarter = "90 дней"
+half_year = "180 дней"
+year = "1 год"
+custom = "{n} дн."
+
+[settings.history.index_text]
+label = "Индексировать текст для поиска"
+desc = "Читать текст на снимках в фоне, чтобы поиск мог его находить."
+
+[settings.history.clear]
+label = "Очистить библиотеку"
+desc = "Удаляет все записи. Файлы снимков остаются на диске."
+button = "Очистить…"
+confirm = "Очистить библиотеку"
+
+# --- Закрепления -------------------------------------------------------------------------------------------------
+
+[settings.pins.section]
+look = "Оформление"
+
+[settings.pins.opacity]
+label = "Непрозрачность"
+desc = "Насколько прозрачны новые закрепления."
+
+[settings.pins.shadow]
+label = "Тень"
+
+[settings.pins.border_color]
+label = "Цвет рамки"
+
+# --- Дополнительно -----------------------------------------------------------------------------------------------
+
+[settings.advanced]
+imported = "Настройки импортированы"
+exported = "Настройки сохранены: {path}"
+show = "Показать"
+
+[settings.advanced.section]
+policy = "Политики"
+install = "Установка"
+cli = "Командная строка и MCP"
+backup = "Резервная копия и сброс"
+
+[settings.advanced.policy]
+label = "Управляемые настройки"
+desc = "Параметры, заданные администратором, здесь заблокированы."
+none = "Не управляется"
+on = "Включено"
+off = "Выключено"
+days = "{n} дн."
+uploads = "Загрузки"
+recording = "Запись"
+ai = "Функции ИИ"
+history = "Библиотека"
+redact = "Скрытие данных перед загрузкой"
+retention = "Срок хранения библиотеки"
+language = "Язык"
+destinations = "Назначения"
+default_destination = "Назначение по умолчанию"
+
+[settings.advanced.portable]
+label = "Переносной режим"
+desc = "Переносная копия хранит настройки и данные рядом с программой."
+yes = "Переносная"
+no = "Установленная"
+
+[settings.advanced.path.settings]
+label = "Файл настроек"
+
+[settings.advanced.path.data]
+label = "Папка данных"
+
+[settings.advanced.path.history]
+label = "База библиотеки"
+
+[settings.advanced.path.logs]
+label = "Журналы"
+
+[settings.advanced.path.models]
+label = "Загруженные модели"
+
+[settings.advanced.path.locales]
+label = "Дополнительные переводы"
+
+[settings.advanced.cli]
+label = "Командная строка"
+desc = "Эти команды обращаются к запущенному приложению из терминала, скрипта или сочетания клавиш оболочки."
+
+[settings.advanced.mcp_desktop]
+label = "MCP для Claude Desktop"
+desc = "Добавьте это в claude_desktop_config.json, чтобы ассистенты могли снимать экран и искать по снимкам."
+
+[settings.advanced.mcp_code]
+label = "MCP для Claude Code"
+desc = "Выполните один раз в терминале."
+
+[settings.advanced.export]
+label = "Экспорт настроек"
+desc = "Сохранить настройки в файл TOML. Секреты не включаются."
+button = "Экспорт…"
+
+[settings.advanced.import]
+label = "Импорт настроек"
+desc = "Заменить текущие настройки файлом TOML."
+button = "Импорт…"
+
+[settings.advanced.reset]
+label = "Сбросить все настройки"
+desc = "Вернуть значения по умолчанию. Назначения и сохранённые секреты остаются."
+button = "Сбросить…"
+confirm = "Сбросить все настройки"
