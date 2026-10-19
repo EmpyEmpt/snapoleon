@@ -5,6 +5,7 @@
 
 pub mod capture;
 pub mod error;
+pub mod fonts;
 pub mod geom;
 pub mod hotkey;
 pub mod i18n;

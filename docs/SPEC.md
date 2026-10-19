@@ -50,8 +50,8 @@ history).
 | `server/snapoleon-server` | self-hosted team server (axum): uploads, short links w/ expiry/password/delete, view counts, OG previews, workspaces, tokens, OIDC SSO, retention |
 
 Shared fonts are in `assets/fonts/` (Inter Regular/SemiBold/Bold, JetBrains Mono
-Medium; subset to Latin+Cyrillic+symbols). Use `include_bytes!` with a path
-relative to the crate (`../../assets/fonts/...`).
+Medium; subset to Latin+Cyrillic+symbols by `tools/subset_fonts.py` from the full fonts in `assets/fonts/src/`).
+They are embedded once, in `snap_core::fonts`: use those statics, never a new `include_bytes!`.
 
 Coordinate conventions (see `snap_core::geom`): integer `Rect`/`Point` are
 **physical pixels in virtual-desktop space**; `RectF`/`PointF` are image-pixel

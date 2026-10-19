@@ -2,10 +2,7 @@
 
 use egui::{Context, FontData, FontDefinitions, FontFamily, Id};
 
-static INTER_REGULAR: &[u8] = include_bytes!("../../../assets/fonts/Inter-Regular.ttf");
-static INTER_SEMIBOLD: &[u8] = include_bytes!("../../../assets/fonts/Inter-SemiBold.ttf");
-static INTER_BOLD: &[u8] = include_bytes!("../../../assets/fonts/Inter-Bold.ttf");
-static JETBRAINS_MONO: &[u8] = include_bytes!("../../../assets/fonts/JetBrainsMono-Medium.ttf");
+use snap_core::fonts::{INTER_BOLD, INTER_REGULAR, INTER_SEMIBOLD, JETBRAINS_MONO};
 static PHOSPHOR: &[u8] = include_bytes!("../assets/Phosphor.ttf");
 
 /// Family for semibold UI text (`body_strong`, `title`).

@@ -22,10 +22,7 @@ const TEXT: [u8; 3] = [0xEC, 0xED, 0xEF];
 const TEXT_DIM: [u8; 3] = [0x9A, 0xA0, 0xAC];
 const ACCENT: [u8; 3] = [0x6B, 0x7F, 0xFF];
 
-static INTER_REGULAR: &[u8] = include_bytes!("../../../assets/fonts/Inter-Regular.ttf");
-static INTER_SEMIBOLD: &[u8] = include_bytes!("../../../assets/fonts/Inter-SemiBold.ttf");
-static INTER_BOLD: &[u8] = include_bytes!("../../../assets/fonts/Inter-Bold.ttf");
-static MONO: &[u8] = include_bytes!("../../../assets/fonts/JetBrainsMono-Medium.ttf");
+use snap_core::fonts::{INTER_BOLD, INTER_REGULAR, INTER_SEMIBOLD, JETBRAINS_MONO as MONO};
 
 /// Decode an upload with allocation and dimension limits (first frame for animations).
 pub fn decode(bytes: &[u8]) -> Result<RgbaImage> {

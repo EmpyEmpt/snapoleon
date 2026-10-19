@@ -97,6 +97,10 @@ desc = "Used for selection, focus and primary buttons."
 label = "Reduce motion"
 desc = "Turns off interface animations."
 
+[settings.general.instant_overlay]
+label = "Instant overlay"
+desc = "Keep the capture overlay ready in the background. Opens instantly; uses about 200 MB more memory."
+
 [settings.general.launch_at_login]
 label = "Launch at login"
 desc = "Start in the tray when you sign in."

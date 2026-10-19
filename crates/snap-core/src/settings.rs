@@ -153,6 +153,9 @@ pub struct General {
     pub first_run_done: bool,
     /// Disable UI animations regardless of the OS preference.
     pub reduce_motion: bool,
+    /// Keep the capture overlay's cover windows open (hidden) in the background so it appears at once, at the
+    /// price of about 200 MB of GPU-backed memory. Off: covers are opened per session and closed after it.
+    pub instant_overlay: bool,
 }
 
 impl General {
@@ -174,6 +177,7 @@ impl Default for General {
             tray_click: crate::hotkey::Action::CaptureRegion,
             first_run_done: false,
             reduce_motion: false,
+            instant_overlay: true,
         }
     }
 }

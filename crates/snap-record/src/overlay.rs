@@ -14,7 +14,7 @@ use crate::{
     input::{self, InputEvent, Mods},
 };
 
-static FONT_BYTES: &[u8] = include_bytes!("../../../assets/fonts/Inter-SemiBold.ttf");
+use snap_core::fonts::INTER_SEMIBOLD as FONT_BYTES;
 
 const RIPPLE_LIFE: Duration = Duration::from_millis(650);
 const CHIP_LIFE: Duration = Duration::from_millis(1700);

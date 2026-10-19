@@ -5,9 +5,9 @@ use std::sync::OnceLock;
 use ab_glyph::{Font, FontRef, OutlineCurve, Point};
 use tiny_skia::PathBuilder;
 
-static REGULAR: &[u8] = include_bytes!("../../../assets/fonts/Inter-Regular.ttf");
-static BOLD: &[u8] = include_bytes!("../../../assets/fonts/Inter-Bold.ttf");
-static MONO: &[u8] = include_bytes!("../../../assets/fonts/JetBrainsMono-Medium.ttf");
+use snap_core::fonts::INTER_BOLD as BOLD;
+use snap_core::fonts::INTER_REGULAR as REGULAR;
+use snap_core::fonts::JETBRAINS_MONO as MONO;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(crate) enum Face {

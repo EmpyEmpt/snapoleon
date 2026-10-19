@@ -56,18 +56,72 @@ chrono = { version = "0.4", default-features = false, features = ["clock", "std"
 image = { version = "0.25", default-features = false, features = ["png", "jpeg", "webp", "gif", "bmp", "ico"] }
 egui = "0.37"
 ureq = { version = "3", default-features = false, features = ["rustls", "json", "gzip"] }
-regex = "1"
+regex = { version = "1", default-features = false, features = ["std", "unicode", "perf-cache", "perf-literal"] }
 directories = "6"
 base64 = "0.22"
 rand = "0.9"
 
 [profile.release]
-opt-level = 3
+# Size first: the installer is the first thing a user meets. The pixel loops and the text rasteriser below are the
+# exceptions; `z` was measured 1.3 MB smaller than `s` for the whole tree.
+opt-level = "z"
 lto = "fat"
 codegen-units = 1
 strip = true
 # Unwinding, not aborting: the tray app is resident, and a bug in one window's view should cost that window
 # (`App::with_view` catches the panic and closes it), not every hotkey until the user notices and restarts it.
+
+# Hot pixel code stays at full speed: image processing and encoding, OCR/barcode preprocessing, recording, rasterizing.
+[profile.release.package.snap-image]
+opt-level = 3
+[profile.release.package.snap-annotate]
+opt-level = 3
+[profile.release.package.snap-ocr]
+opt-level = 3
+[profile.release.package.snap-record]
+opt-level = 3
+[profile.release.package.fast_image_resize]
+opt-level = 3
+[profile.release.package.tiny-skia]
+opt-level = 3
+[profile.release.package.tiny-skia-path]
+opt-level = 3
+[profile.release.package.ab_glyph]
+opt-level = 3
+[profile.release.package.ab_glyph_rasterizer]
+opt-level = 3
+[profile.release.package.image]
+opt-level = 3
+[profile.release.package.png]
+opt-level = 3
+[profile.release.package.fdeflate]
+opt-level = 3
+[profile.release.package.flate2]
+opt-level = 3
+[profile.release.package.miniz_oxide]
+opt-level = 3
+[profile.release.package.gif]
+opt-level = 3
+[profile.release.package.weezl]
+opt-level = 3
+[profile.release.package.color_quant]
+opt-level = 3
+[profile.release.package.libwebp-sys]
+opt-level = 3
+[profile.release.package.crc32fast]
+opt-level = 3
+[profile.release.package.adler2]
+opt-level = 3
+
+# egui's glyph rasteriser leans on inlined SIMD wrappers, which `z` would stop inlining.
+[profile.release.package.fearless_simd]
+opt-level = "s"
+[profile.release.package.vello_cpu]
+opt-level = "s"
+[profile.release.package.vello_common]
+opt-level = "s"
+[profile.release.package.epaint]
+opt-level = "s"
 
 [profile.dev.package."*"]
 opt-level = 2
