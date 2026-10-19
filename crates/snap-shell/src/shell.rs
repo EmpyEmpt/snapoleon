@@ -171,7 +171,14 @@ impl<E: Send + 'static> Shell<'_, E> {
         let proxy = self.core.proxy.clone();
         ctx.set_request_repaint_callback(move |info| proxy.repaint_at(key, Instant::now() + info.delay));
 
-        let setup = Setup { tool_style: spec.is_tool(), tag: spec.tag, cover: spec.cover, want_visible: spec.visible, opened_at };
+        let setup = Setup {
+            tool_style: spec.is_tool(),
+            tag: spec.tag,
+            cover: spec.cover,
+            want_visible: spec.visible,
+            activate: spec.activate,
+            opened_at,
+        };
         let state = WindowState::new(&gpu, window.clone(), surface, setup, ctx)?;
         self.core.ids.insert(window.id(), key);
         self.core.windows.insert(key, state);

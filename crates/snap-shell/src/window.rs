@@ -29,6 +29,8 @@ pub(crate) struct WindowState {
     pub cover_attempts: u8,
     pub tool_style: bool,
     pub want_visible: bool,
+    /// Ask the OS for the foreground when the window appears (`WindowSpec::activate`).
+    pub activate: bool,
     pub first_pass_done: bool,
     pub shown: bool,
     /// Click-through requested before the window was first shown.
@@ -44,6 +46,7 @@ pub(crate) struct Setup {
     pub cover: Option<Rect>,
     pub tool_style: bool,
     pub want_visible: bool,
+    pub activate: bool,
     pub opened_at: Instant,
 }
 
@@ -99,6 +102,7 @@ impl WindowState {
             cover_attempts: 0,
             tool_style: setup.tool_style,
             want_visible: setup.want_visible,
+            activate: setup.activate,
             first_pass_done: false,
             shown: false,
             pending_passthrough: None,
