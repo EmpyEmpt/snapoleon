@@ -152,7 +152,7 @@ copy_translation = "Copy translation"
 translate = "Translation"
 translate_to = "Translate to {lang}"
 translating = "Translating…"
-translate_off = "Translation is off. Choose a service in Settings, or point it at your own LibreTranslate server."
+translate_off = "Translation is not set up. Choose a service in Settings, or point it at your own LibreTranslate server."
 translate_setup = "Set up translation"
 
 [editor.export]

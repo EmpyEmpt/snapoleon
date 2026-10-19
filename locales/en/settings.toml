@@ -1036,7 +1036,7 @@ label = "Extra translations"
 
 [settings.advanced.cli]
 label = "Command line"
-desc = "These commands reach the running app from a terminal, a script or a compositor key binding."
+desc = "Run these from a terminal, a script or a compositor key binding. Capture, OCR and upload also work when the app is not running."
 
 [settings.advanced.mcp_desktop]
 label = "MCP for Claude Desktop"

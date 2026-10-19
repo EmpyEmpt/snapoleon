@@ -2,8 +2,8 @@
 
 use egui::{Align, Layout, Sense, Stroke, StrokeKind, Ui, Vec2};
 use snap_annotate::{RenderOptions, render};
+use snap_core::t;
 use snap_core::{PointF, RectF, Result, tf};
-use snap_core::{settings::TranslateProvider, t};
 use snap_engine::OcrResult;
 use snap_ui::{
     ToastKind, icon, palette, radius, space, text,
@@ -207,7 +207,7 @@ fn result_ui(ui: &mut Ui, st: &mut State, cx: &mut PanelCx) -> Option<RectF> {
                 ui.label(text::dim(t("editor.ocr.translating")));
             });
         }
-        _ if matches!(cx.vcx.settings.translate.provider, TranslateProvider::None) => {
+        _ if !crate::views::text::translation_ready(cx.vcx.settings) => {
             ui.add(egui::Label::new(text::dim(t("editor.ocr.translate_off"))).wrap());
             let setup = ui.add(Button::new(&t("editor.ocr.translate_setup")).icon(icon::GEAR).kind(ButtonKind::Secondary));
             if setup.clicked() {

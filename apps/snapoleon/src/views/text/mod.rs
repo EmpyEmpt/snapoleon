@@ -35,6 +35,15 @@ pub fn open(cx: &mut OpenCx, title: String, text: String) {
     open_with_codes(cx, title, text, Vec::new());
 }
 
+/// Whether translating can work at all: a service is chosen, and when that service is the AI endpoint, AI is set up.
+pub fn translation_ready(settings: &snap_core::Settings) -> bool {
+    match settings.translate.provider {
+        TranslateProvider::None => false,
+        TranslateProvider::Ai => settings.ai.enabled && !settings.ai.endpoint.trim().is_empty() && !settings.ai.model.trim().is_empty(),
+        TranslateProvider::LibreTranslate { .. } | TranslateProvider::DeepL { .. } => true,
+    }
+}
+
 /// Like [`open`], with decoded QR codes and barcodes listed above the text.
 pub fn open_with_codes(cx: &mut OpenCx, title: String, text: String, codes: Vec<Code>) {
     let title = if title.trim().is_empty() { t("text.title").into_owned() } else { title };
@@ -113,7 +122,7 @@ impl TextView {
         if self.translating || self.text.trim().is_empty() {
             return;
         }
-        if matches!(cx.settings.translate.provider, TranslateProvider::None) {
+        if !translation_ready(cx.settings) {
             cx.toast_action(
                 ToastKind::Info,
                 t("text.translate_off"),
