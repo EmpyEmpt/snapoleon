@@ -90,7 +90,7 @@ fn main() -> snap_core::Result<()> {
     let with_ffmpeg = std::env::args().any(|a| a == "--ffmpeg");
     snap_record::set_ffmpeg_enabled(with_ffmpeg);
 
-    let out = PathBuf::from("C:/Users/3mpti/snapoleon/target/smoke/snap-record");
+    let out = PathBuf::from(concat!(env!("CARGO_MANIFEST_DIR"), "/../../target/smoke/snap-record"));
     std::fs::create_dir_all(&out)?;
     let monitor = RecordTarget::Monitor(primary_monitor_index());
     println!("encoders: {:?}", snap_record::encoders());

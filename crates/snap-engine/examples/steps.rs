@@ -12,7 +12,7 @@ use snap_engine::{
     steps::{self, Guide, StepRecorder, StepShot},
 };
 
-const OUT: &str = "C:/Users/3mpti/snapoleon/target/smoke/snap-engine/steps";
+const OUT: &str = concat!(env!("CARGO_MANIFEST_DIR"), "/../../target/smoke/snap-engine/steps");
 
 fn main() -> snap_core::Result<()> {
     tracing_subscriber::fmt().with_writer(std::io::stderr).with_env_filter("snap_engine=debug,warn").init();

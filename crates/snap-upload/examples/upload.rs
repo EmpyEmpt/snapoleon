@@ -292,7 +292,7 @@ fn custom(url: String, body: &str, f: impl FnOnce(&mut CustomUploader)) -> Desti
 }
 
 fn main() {
-    let out = PathBuf::from("C:/Users/3mpti/snapoleon/target/smoke/snap-upload");
+    let out = PathBuf::from(concat!(env!("CARGO_MANIFEST_DIR"), "/../../target/smoke/snap-upload"));
     std::fs::create_dir_all(&out).unwrap();
     let report = std::cell::RefCell::new(String::new());
     macro_rules! say {

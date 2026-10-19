@@ -12,7 +12,7 @@ use snap_annotate::*;
 use snap_core::settings::{BeautifyPreset, RedactStyle};
 use snap_core::{PointF, RectF};
 
-const OUT: &str = "C:/Users/3mpti/snapoleon/target/smoke/snap-annotate";
+const OUT: &str = concat!(env!("CARGO_MANIFEST_DIR"), "/../../target/smoke/snap-annotate");
 
 fn p(x: f32, y: f32) -> PointF {
     PointF::new(x, y)
@@ -24,7 +24,7 @@ fn r(x: f32, y: f32, w: f32, h: f32) -> RectF {
 
 fn base_image() -> RgbaImage {
     for name in ["window.png", "monitor0_nocursor.png"] {
-        let path = PathBuf::from("C:/Users/3mpti/snapoleon/target/smoke/snap-capture").join(name);
+        let path = PathBuf::from(concat!(env!("CARGO_MANIFEST_DIR"), "/../../target/smoke/snap-capture")).join(name);
         if let Ok(img) = image::open(&path) {
             println!("base image: {}", path.display());
             return img.to_rgba8();

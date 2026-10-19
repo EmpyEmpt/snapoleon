@@ -9,7 +9,7 @@ use image::{Rgba, RgbaImage};
 use snap_core::settings::OcrSettings;
 use snap_ocr::{codes, engines, native_languages, recognize};
 
-const OUT: &str = "C:/Users/3mpti/snapoleon/target/smoke/snap-ocr";
+const OUT: &str = concat!(env!("CARGO_MANIFEST_DIR"), "/../../target/smoke/snap-ocr");
 
 fn draw_text(img: &mut RgbaImage, font: &FontRef, size: f32, x: f32, baseline: f32, text: &str) {
     let scaled = font.as_scaled(PxScale::from(size));

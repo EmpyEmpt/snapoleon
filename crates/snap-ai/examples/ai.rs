@@ -22,7 +22,7 @@ use snap_core::{
 type Seen = Arc<Mutex<Vec<(String, String, Option<String>, Value)>>>;
 
 fn main() -> Result<(), Error> {
-    let out = PathBuf::from("C:/Users/3mpti/snapoleon/target/smoke/snap-ai");
+    let out = PathBuf::from(concat!(env!("CARGO_MANIFEST_DIR"), "/../../target/smoke/snap-ai"));
     std::fs::create_dir_all(&out)?;
 
     let listener = TcpListener::bind("127.0.0.1:0")?;

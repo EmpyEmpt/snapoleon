@@ -100,7 +100,7 @@ fn main() -> snap_core::Result<()> {
         unsafe { GetWindowRect(hwnd, &mut rect) }.map_err(|e| snap_core::Error::Other(e.into()))?;
         let (cx, cy) = ((rect.left + rect.right) as f64 / 2.0, (rect.top + rect.bottom) as f64 / 2.0);
 
-        let out = std::path::PathBuf::from("C:/Users/3mpti/snapoleon/target/smoke/snap-record/overlay.mp4");
+        let out = std::path::PathBuf::from(concat!(env!("CARGO_MANIFEST_DIR"), "/../../target/smoke/snap-record/overlay.mp4"));
         let rec = snap_record::start(RecordOptions {
             target: RecordTarget::Window(raw as u64),
             format: VideoFormat::Mp4,

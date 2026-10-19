@@ -1,13 +1,12 @@
-# apps/snapoleon: architecture for view builders
+# apps/snapoleon: architecture
 
-This document is the contract between the app skeleton and the people (or agents) who build the
-views. Read it together with `docs/SPEC.md` (what each view must do) and `docs/DESIGN.md` (how it
-must look).
+How the desktop app is put together: the window registry, the `View` contract, commands, jobs and
+the dev harness. Read it together with `docs/SPEC.md` (what each view does) and `docs/DESIGN.md`
+(how it looks).
 
-**The one rule:** a view builder touches only `apps/snapoleon/src/views/<their dirs>/` and their own
-locale files `locales/{en,ru}/<view>.toml`. Everything else (the `View` trait, `ViewCx`, commands,
-routing, jobs, tray, hotkeys, IPC, `Cargo.toml`, `app.toml`) is owned by the skeleton. If you need a
-change there, write it down in your report; do not edit it.
+Views live in `apps/snapoleon/src/views/<view>/` with their strings in `locales/{en,ru}/<view>.toml`.
+The `View` trait, `ViewCx`, commands, routing, jobs, tray, hotkeys and IPC are shared by every view;
+change them deliberately.
 
 ## Map
 
@@ -29,7 +28,7 @@ apps/snapoleon/
   src/dev.rs          dev harness (SNAPOLEON_DEV=...)
   src/views/mod.rs    View, ViewCx, OpenCx, ViewHandle, Chrome, window_spec
   src/views/countdown.rs  the count-down tile (delayed capture; the recorder's 3-2-1 draws the same one)
-  src/views/<view>/   one directory per view, each starts as a stub with its final entry point
+  src/views/<view>/   one directory per view, entered through its `open` function
 ```
 
 ## Threading model
@@ -85,8 +84,8 @@ cx.open(window_spec(t("editor.title"), TAG, (1100.0, 760.0), (720.0, 480.0)), My
 
 - `window_spec(title, tag, size, min_size)` gives the standard app window: no OS decorations
   (custom title bar), rounded, resizable, app icon. Sizes are logical pixels. Build other kinds
-  (pins, HUDs, overlays) from `WindowSpec` directly; see the stubs for `pin`, `recorder`,
-  `scroll`, `overlay`.
+  (pins, HUDs, overlays) from `WindowSpec` directly; see `pin`, `recorder`, `scroll` and
+  `overlay`.
 - `WindowSpec::activate` (default `true`): the window asks for the foreground when it appears, so a window opened by
   a hotkey or the tray does not come up behind the app the user is in. Windows that sit over the user's work and
   must not take the keyboard from it (pins, the recorder and scroll HUDs, count-down tiles) set it to `false`.
@@ -269,15 +268,13 @@ revealing files is `snap_platform::open`. Both are safe to call from any thread;
 Every user-visible string goes through `snap_core::t("view.key")` / `tf(..)`. Each view owns
 `locales/en/<view>.toml` and `locales/ru/<view>.toml` (create both, same keys, natural Russian,
 sentence case, no exclamation marks). Use the shared `common.*` and `action.*` keys where they fit.
-Never edit another area's locale file. Keys under `app.*` belong to the skeleton; the `app.stub.*`
-strings go away with the stubs.
+Keys under `app.*` belong to the app core (tray, notices, startup).
 
 ## Dev harness
 
 Run one view in isolation with realistic demo data:
 
 ```
-export PATH="$HOME/.cargo/bin:$PATH"; export CARGO_TARGET_DIR=C:/Users/3mpti/snapoleon/target/agents/<you>
 SNAPOLEON_DEV=editor cargo run -p snapoleon
 SNAPOLEON_DEV=settings SNAPOLEON_DEV_PAGE=hotkeys SNAPOLEON_DEV_THEME=light cargo run -p snapoleon
 SNAPOLEON_DEV=library SNAPOLEON_DEV_SHOT=$TEMP/library.png cargo run -p snapoleon   # saves a screenshot and quits

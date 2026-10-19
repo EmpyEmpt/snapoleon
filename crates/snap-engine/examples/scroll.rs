@@ -7,7 +7,7 @@ use std::sync::atomic::AtomicBool;
 use snap_core::{Rect, RgbaImage, Settings, secrets::MemoryStore};
 use snap_engine::{Engine, ScrollProgress, stitch_scroll};
 
-const OUT: &str = "C:/Users/3mpti/snapoleon/target/smoke/snap-engine";
+const OUT: &str = concat!(env!("CARGO_MANIFEST_DIR"), "/../../target/smoke/snap-engine");
 
 fn main() -> snap_core::Result<()> {
     tracing_subscriber::fmt().with_writer(std::io::stderr).with_env_filter("snap_engine=debug,warn").init();
