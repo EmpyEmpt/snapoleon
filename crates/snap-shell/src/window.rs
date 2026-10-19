@@ -66,7 +66,7 @@ impl WindowState {
         config.format = format;
         config.alpha_mode = alpha_mode;
         config.present_mode = wgpu::PresentMode::AutoVsync;
-        config.desired_maximum_frame_latency = 2;
+        config.desired_maximum_frame_latency = 1;
         surface.configure(&gpu.device, &config);
 
         let renderer = egui_wgpu::Renderer::new(&gpu.device, format, egui_wgpu::RendererOptions::default());
