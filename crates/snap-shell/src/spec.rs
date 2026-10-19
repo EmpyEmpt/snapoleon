@@ -31,6 +31,9 @@ pub struct WindowSpec {
     /// `WS_EX_TOOLWINDOW`), floating level on all spaces (macOS), X11
     /// `_NET_WM_WINDOW_TYPE_UTILITY`.
     pub tool_window: bool,
+    /// Take the keyboard focus when first shown. `false` for windows that must not disturb what the user is
+    /// looking at (a menu that closes when its window loses focus), like a countdown before a delayed capture.
+    pub activate: bool,
     /// Hide the window from screenshots and screen recordings (Windows and macOS).
     pub exclude_from_capture: bool,
     /// Rounded corners (Windows 11 DWM); no-op elsewhere.
@@ -54,6 +57,7 @@ impl Default for WindowSpec {
             skip_taskbar: false,
             visible: true,
             tool_window: false,
+            activate: true,
             exclude_from_capture: false,
             rounded: false,
             icon: None,

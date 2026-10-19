@@ -27,6 +27,7 @@ use crate::{
 pub mod about;
 pub mod colors;
 pub mod combine;
+pub mod countdown;
 pub mod diff;
 pub mod editor;
 pub mod library;

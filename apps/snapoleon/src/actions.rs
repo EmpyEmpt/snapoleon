@@ -1,10 +1,8 @@
 //! Routes every hotkey `Action` to the right flow, and turns overlay results into commands.
 
-use std::time::Duration;
-
-use snap_core::{Settings, hotkey::Action, pipeline::Step, settings::VideoFormat, t, tf};
+use snap_core::{Settings, hotkey::Action, pipeline::Step, settings::VideoFormat, t};
 use snap_engine::{CaptureRequest, Notice, NoticeKind, RecordTarget};
-use snap_shell::{Proxy, Shell};
+use snap_shell::Shell;
 
 use crate::{
     app::App,
@@ -42,8 +40,8 @@ impl App {
             Action::CaptureAllMonitors => immediate(CaptureRequest::AllMonitors, pipeline),
             Action::CaptureLastRegion => immediate(CaptureRequest::LastRegion, pipeline),
             Action::CaptureDelayed => {
-                self.countdown(sh.proxy(), Command::StartCapture { action: Action::CaptureRegion, pipeline });
-                return;
+                let (secs, then) = (settings.capture.delay_secs, Command::StartCapture { action: Action::CaptureRegion, pipeline });
+                Command::Open(Box::new(move |cx| crate::views::countdown::open(cx, secs, then)))
             }
             Action::RecordRegion => overlay(OverlayMode::Record(settings.recording.format), None),
             Action::RecordGif => overlay(OverlayMode::Record(VideoFormat::Gif), None),
@@ -85,20 +83,6 @@ impl App {
 
     fn no_clipboard_image(&mut self, sh: &mut Shell<AppEvent>) {
         self.notice(sh, Notice { kind: NoticeKind::Info, title: t("app.clipboard.no_image").into_owned(), ..Notice::default() });
-    }
-
-    /// Count down on a helper thread (progress pill and tray tooltip), then queue `then`.
-    fn countdown(&mut self, proxy: Proxy<AppEvent>, then: Command) {
-        let secs = self.settings.capture.delay_secs;
-        std::thread::spawn(move || {
-            for left in (1..=secs).rev() {
-                let label = tf("app.countdown", &[("n", &left.to_string())]);
-                proxy.send(AppEvent::JobProgress { label, frac: Some(left as f32 / secs as f32) });
-                std::thread::sleep(Duration::from_secs(1));
-            }
-            proxy.send(AppEvent::JobProgress { label: String::new(), frac: None });
-            proxy.send(AppEvent::Command(then));
-        });
     }
 }
 

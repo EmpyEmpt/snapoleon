@@ -33,7 +33,6 @@ const COUNTDOWN_TAG: &str = "recorder-countdown";
 /// Logical size of the control pill and of the error card it turns into.
 const PILL_SIZE: (f32, f32) = (400.0, 48.0);
 const CARD_SIZE: (f32, f32) = (420.0, 152.0);
-const TILE_SIZE: f32 = 136.0;
 /// Frame thickness in logical pixels.
 const FRAME_THICKNESS: f32 = 2.0;
 /// Gap between the recorded area and the pill, in logical pixels.
@@ -112,24 +111,10 @@ pub fn open(cx: &mut OpenCx, input: RecorderInput) {
         }
     }
     if countdown > 0 {
-        let size = (TILE_SIZE * scale).round() as i32;
         let center = area.map_or(Point::new(screen.x + screen.w as i32 / 2, screen.y + screen.h as i32 / 2), |r| {
             Point::new(r.x + r.w as i32 / 2, r.y + r.h as i32 / 2)
         });
-        let spec = WindowSpec {
-            title: t("recorder.title").into_owned(),
-            size: Some((TILE_SIZE, TILE_SIZE)),
-            position: Some(Point::new(center.x - size / 2, center.y - size / 2)),
-            decorations: false,
-            resizable: false,
-            rounded: true,
-            always_on_top: true,
-            tool_window: true,
-            exclude_from_capture: true,
-            icon: Some(app_icon()),
-            tag: COUNTDOWN_TAG.into(),
-            ..WindowSpec::default()
-        };
+        let spec = super::countdown::tile_spec(t("recorder.title").into_owned(), COUNTDOWN_TAG, center, scale);
         let win = cx.open(spec, countdown::TileView { shared: shared.clone() });
         cx.shell.set_passthrough(win, true);
         shared.tile.set(Some(win));

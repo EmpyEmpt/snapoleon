@@ -121,6 +121,7 @@ impl<E: Send + 'static> Shell<'_, E> {
             .with_visible(false)
             .with_decorations(spec.decorations)
             .with_resizable(spec.resizable)
+            .with_active(spec.activate)
             .with_window_level(if spec.always_on_top { WindowLevel::AlwaysOnTop } else { WindowLevel::Normal });
         if let Some(icon) = &spec.icon {
             let (w, h) = icon.dimensions();
