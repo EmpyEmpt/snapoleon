@@ -1,0 +1,161 @@
+# The Library window: history grid, filters and the detail drawer.
+# Keys that are counted come in the plural forms one / few / many / other; English only distinguishes one and other.
+
+[library]
+title = "Library"
+
+[library.search]
+hint = "Search text, titles, apps and links"
+
+[library.filter]
+all = "All"
+screenshots = "Screenshots"
+recordings = "Recordings"
+favorites = "Favorites"
+today = "Today"
+week = "This week"
+month = "This month"
+
+[library.action]
+edit = "Edit"
+edit_video = "Edit video"
+copy = "Copy"
+pin = "Pin to screen"
+favorite = "Add to favorites"
+unfavorite = "Remove from favorites"
+upload = "Upload"
+reveal = "Show in folder"
+copy_file = "Copy file"
+copy_path = "Copy path"
+delete = "Delete"
+more = "More"
+quick_look = "Quick look"
+combine = "Combine"
+combine_hint = "Combine the selected images into one"
+
+[library.selected]
+one = "{n} selected"
+few = "{n} selected"
+many = "{n} selected"
+other = "{n} selected"
+
+[library.selection]
+clear = "Clear selection"
+
+[library.delete]
+one = "Delete this capture?"
+one_hint = "It is removed from the library."
+files = "Also delete the files from disk"
+confirm = "Delete"
+
+[library.delete.many]
+one = "Delete {n} capture?"
+few = "Delete {n} captures?"
+many = "Delete {n} captures?"
+other = "Delete {n} captures?"
+
+[library.deleted]
+one = "Deleted {n} capture"
+few = "Deleted {n} captures"
+many = "Deleted {n} captures"
+other = "Deleted {n} captures"
+
+[library.drawer]
+close = "Close details"
+missing = "The file is no longer there."
+
+[library.empty]
+title = "Nothing here yet"
+body = "Press {key} to take your first shot."
+body_nokey = "Use the tray icon to take your first shot."
+
+[library.none]
+title = "No matches"
+body = "Try different words or clear the filters."
+action = "Clear filters"
+
+[library.off]
+title = "History is turned off"
+body = "Turn it on in settings to keep your captures here."
+action = "Open settings"
+
+[library.error]
+missing = "The file is missing or was moved."
+
+[library.info]
+app = "App"
+window = "Window"
+url = "Address"
+size = "Dimensions"
+file_size = "File size"
+duration = "Duration"
+captured = "Captured"
+file = "File"
+
+[library.links]
+title = "Links"
+copy_as = "Copy link as"
+open = "Open link"
+
+[library.links.format]
+url = "URL"
+markdown = "Markdown"
+html = "HTML"
+bbcode = "BBCode"
+
+[library.tags]
+title = "Tags"
+add = "Add a tag"
+
+[library.text]
+title = "Text"
+copy = "Copy text"
+open = "Open in text window"
+none = "No text yet."
+recognize = "Recognize text"
+recognizing = "Recognizing text…"
+found_none = "No text found"
+
+[library.time]
+now = "just now"
+minutes = "{n} min ago"
+hours = "{n} h ago"
+yesterday = "yesterday"
+
+[library.time.days]
+one = "{n} day ago"
+few = "{n} days ago"
+many = "{n} days ago"
+other = "{n} days ago"
+
+[library.upload]
+started = "Uploading…"
+done = "Uploaded, link copied"
+
+[library.combine]
+loading = "Opening the combine tool…"
+
+[library.date]
+short = "{day} {month}"
+short_year = "{day} {month} {year}"
+full = "{day} {month} {year}, {time}"
+
+[library.month]
+jan = "Jan"
+feb = "Feb"
+mar = "Mar"
+apr = "Apr"
+may = "May"
+jun = "Jun"
+jul = "Jul"
+aug = "Aug"
+sep = "Sep"
+oct = "Oct"
+nov = "Nov"
+dec = "Dec"
+
+[library.size]
+b = "{n} B"
+kb = "{n} KB"
+mb = "{n} MB"
+gb = "{n} GB"
