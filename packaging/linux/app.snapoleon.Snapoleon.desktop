@@ -1,0 +1,24 @@
+[Desktop Entry]
+Type=Application
+Version=1.5
+Name=Snapoleon
+GenericName=Screenshot and screen recorder
+Comment=Screenshots, screen recording, OCR and sharing
+Comment[ru]=Скриншоты, запись экрана, OCR и обмен ссылками
+Exec=snapoleon %U
+Icon=app.snapoleon.Snapoleon
+Terminal=false
+Categories=Graphics;Utility;Photography;
+Keywords=screenshot;screen;capture;record;ocr;annotate;snip;
+MimeType=application/vnd.snapoleon.project+zip;x-scheme-handler/snapoleon;
+StartupNotify=false
+StartupWMClass=snapoleon
+Actions=Capture;Record;
+
+[Desktop Action Capture]
+Name=Capture region
+Exec=snapoleon capture region
+
+[Desktop Action Record]
+Name=Record screen
+Exec=snapoleon record

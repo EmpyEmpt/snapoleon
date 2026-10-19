@@ -1,0 +1,67 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<!--
+  Example configuration profile that sets Snapoleon managed preferences (MDM: Jamf, Kandji, Intune, ...).
+  The MDM writes the payload to /Library/Managed Preferences/app.snapoleon.plist, which Snapoleon reads.
+  Replace both PayloadUUID values with fresh UUIDs (uuidgen) before deploying, and remove keys you do not need.
+  Booleans may be <true/> or <false/>. The key names match docs/POLICY.md.
+-->
+<plist version="1.0">
+<dict>
+  <key>PayloadType</key>
+  <string>Configuration</string>
+  <key>PayloadVersion</key>
+  <integer>1</integer>
+  <key>PayloadIdentifier</key>
+  <string>app.snapoleon.policy</string>
+  <key>PayloadUUID</key>
+  <string>00000000-0000-0000-0000-000000000001</string>
+  <key>PayloadDisplayName</key>
+  <string>Snapoleon policy</string>
+  <key>PayloadDescription</key>
+  <string>Managed settings for Snapoleon.</string>
+  <key>PayloadOrganization</key>
+  <string>Example Corp IT</string>
+  <key>PayloadScope</key>
+  <string>System</string>
+  <key>PayloadContent</key>
+  <array>
+    <dict>
+      <key>PayloadType</key>
+      <string>app.snapoleon</string>
+      <key>PayloadVersion</key>
+      <integer>1</integer>
+      <key>PayloadIdentifier</key>
+      <string>app.snapoleon.policy.settings</string>
+      <key>PayloadUUID</key>
+      <string>00000000-0000-0000-0000-000000000002</string>
+      <key>PayloadDisplayName</key>
+      <string>Snapoleon settings</string>
+
+      <key>DisableUploads</key>
+      <false/>
+      <key>DisableRecording</key>
+      <false/>
+      <key>DisableAI</key>
+      <true/>
+      <key>DisableHistory</key>
+      <false/>
+      <key>ForceRedactBeforeUpload</key>
+      <true/>
+      <key>RetentionDays</key>
+      <integer>30</integer>
+      <key>Language</key>
+      <string>en</string>
+      <key>DefaultDestination</key>
+      <string>team</string>
+      <key>DestinationsToml</key>
+      <string>[[destinations]]
+id = "team"
+name = "Company Snapoleon server"
+type = "snap_server"
+url = "https://snap.example.com"
+</string>
+    </dict>
+  </array>
+</dict>
+</plist>

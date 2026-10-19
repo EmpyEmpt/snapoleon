@@ -1,0 +1,45 @@
+# yaml-language-server: $schema=https://aka.ms/winget-manifest.installer.1.6.0.schema.json
+PackageIdentifier: Snapoleon.Snapoleon
+PackageVersion: ${{ VERSION }}
+MinimumOSVersion: 10.0.17763.0
+InstallerLocale: en-US
+ReleaseDate: ${{ RELEASE_DATE }}
+FileExtensions:
+  - snap
+Protocols:
+  - snapoleon
+Installers:
+  # Per-user NSIS installer (no administrator rights needed).
+  - Architecture: x64
+    InstallerType: nsis
+    Scope: user
+    InstallerUrl: ${{ BASE_URL }}/Snapoleon-${{ VERSION }}-windows-x64-setup.exe
+    InstallerSha256: ${{ SHA256_WINDOWS_X64_SETUP }}
+    InstallerSwitches:
+      Silent: /S
+      SilentWithProgress: /S
+    UpgradeBehavior: install
+  - Architecture: arm64
+    InstallerType: nsis
+    Scope: user
+    InstallerUrl: ${{ BASE_URL }}/Snapoleon-${{ VERSION }}-windows-arm64-setup.exe
+    InstallerSha256: ${{ SHA256_WINDOWS_ARM64_SETUP }}
+    InstallerSwitches:
+      Silent: /S
+      SilentWithProgress: /S
+    UpgradeBehavior: install
+  # Per-machine MSI (for IT deployment).
+  - Architecture: x64
+    InstallerType: wix
+    Scope: machine
+    InstallerUrl: ${{ BASE_URL }}/Snapoleon-${{ VERSION }}-windows-x64.msi
+    InstallerSha256: ${{ SHA256_WINDOWS_X64_MSI }}
+    UpgradeBehavior: install
+  - Architecture: arm64
+    InstallerType: wix
+    Scope: machine
+    InstallerUrl: ${{ BASE_URL }}/Snapoleon-${{ VERSION }}-windows-arm64.msi
+    InstallerSha256: ${{ SHA256_WINDOWS_ARM64_MSI }}
+    UpgradeBehavior: install
+ManifestType: installer
+ManifestVersion: 1.6.0

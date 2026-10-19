@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<mime-info xmlns="http://www.freedesktop.org/standards/shared-mime-info">
+  <mime-type type="application/vnd.snapoleon.project+zip">
+    <comment>Snapoleon project</comment>
+    <comment xml:lang="ru">Проект Snapoleon</comment>
+    <sub-class-of type="application/zip"/>
+    <glob pattern="*.snap"/>
+    <icon name="app.snapoleon.Snapoleon"/>
+  </mime-type>
+</mime-info>

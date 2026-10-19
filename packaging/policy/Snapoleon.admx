@@ -1,0 +1,75 @@
+<?xml version="1.0" encoding="utf-8"?>
+<policyDefinitions xmlns:xsd="http://www.w3.org/2001/XMLSchema" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" revision="1.0" schemaVersion="1.0" xmlns="http://schemas.microsoft.com/GroupPolicy/2006/07/PolicyDefinitions">
+  <policyNamespaces>
+    <target prefix="snapoleon" namespace="Snapoleon.Policies.Snapoleon" />
+  </policyNamespaces>
+  <resources minRequiredRevision="1.0" />
+  <supportedOn>
+    <definitions>
+      <definition name="SUPPORTED_Snapoleon_0_1" displayName="$(string.SUPPORTED_Snapoleon_0_1)" />
+    </definitions>
+  </supportedOn>
+  <categories>
+    <category name="Snapoleon" displayName="$(string.Snapoleon)" />
+  </categories>
+  <policies>
+    <policy name="DisableUploads" class="Both" displayName="$(string.DisableUploads)" explainText="$(string.DisableUploads_Explain)" key="Software\Policies\Snapoleon" valueName="DisableUploads">
+      <parentCategory ref="Snapoleon" />
+      <supportedOn ref="SUPPORTED_Snapoleon_0_1" />
+      <enabledValue><decimal value="1" /></enabledValue>
+      <disabledValue><decimal value="0" /></disabledValue>
+    </policy>
+    <policy name="DisableRecording" class="Both" displayName="$(string.DisableRecording)" explainText="$(string.DisableRecording_Explain)" key="Software\Policies\Snapoleon" valueName="DisableRecording">
+      <parentCategory ref="Snapoleon" />
+      <supportedOn ref="SUPPORTED_Snapoleon_0_1" />
+      <enabledValue><decimal value="1" /></enabledValue>
+      <disabledValue><decimal value="0" /></disabledValue>
+    </policy>
+    <policy name="DisableAI" class="Both" displayName="$(string.DisableAI)" explainText="$(string.DisableAI_Explain)" key="Software\Policies\Snapoleon" valueName="DisableAI">
+      <parentCategory ref="Snapoleon" />
+      <supportedOn ref="SUPPORTED_Snapoleon_0_1" />
+      <enabledValue><decimal value="1" /></enabledValue>
+      <disabledValue><decimal value="0" /></disabledValue>
+    </policy>
+    <policy name="DisableHistory" class="Both" displayName="$(string.DisableHistory)" explainText="$(string.DisableHistory_Explain)" key="Software\Policies\Snapoleon" valueName="DisableHistory">
+      <parentCategory ref="Snapoleon" />
+      <supportedOn ref="SUPPORTED_Snapoleon_0_1" />
+      <enabledValue><decimal value="1" /></enabledValue>
+      <disabledValue><decimal value="0" /></disabledValue>
+    </policy>
+    <policy name="ForceRedactBeforeUpload" class="Both" displayName="$(string.ForceRedactBeforeUpload)" explainText="$(string.ForceRedactBeforeUpload_Explain)" key="Software\Policies\Snapoleon" valueName="ForceRedactBeforeUpload">
+      <parentCategory ref="Snapoleon" />
+      <supportedOn ref="SUPPORTED_Snapoleon_0_1" />
+      <enabledValue><decimal value="1" /></enabledValue>
+      <disabledValue><decimal value="0" /></disabledValue>
+    </policy>
+    <policy name="RetentionDays" class="Both" displayName="$(string.RetentionDays)" explainText="$(string.RetentionDays_Explain)" key="Software\Policies\Snapoleon" valueName="RetentionDays">
+      <parentCategory ref="Snapoleon" />
+      <supportedOn ref="SUPPORTED_Snapoleon_0_1" />
+      <elements>
+        <decimal id="RetentionDays_Value" valueName="RetentionDays" minValue="1" maxValue="3650" required="true" />
+      </elements>
+    </policy>
+    <policy name="Language" class="Both" displayName="$(string.Language)" explainText="$(string.Language_Explain)" key="Software\Policies\Snapoleon" valueName="Language">
+      <parentCategory ref="Snapoleon" />
+      <supportedOn ref="SUPPORTED_Snapoleon_0_1" />
+      <elements>
+        <text id="Language_Value" valueName="Language" required="true" maxLength="64" />
+      </elements>
+    </policy>
+    <policy name="DefaultDestination" class="Both" displayName="$(string.DefaultDestination)" explainText="$(string.DefaultDestination_Explain)" key="Software\Policies\Snapoleon" valueName="DefaultDestination">
+      <parentCategory ref="Snapoleon" />
+      <supportedOn ref="SUPPORTED_Snapoleon_0_1" />
+      <elements>
+        <text id="DefaultDestination_Value" valueName="DefaultDestination" required="true" maxLength="64" />
+      </elements>
+    </policy>
+    <policy name="DestinationsToml" class="Both" displayName="$(string.DestinationsToml)" explainText="$(string.DestinationsToml_Explain)" key="Software\Policies\Snapoleon" valueName="DestinationsToml">
+      <parentCategory ref="Snapoleon" />
+      <supportedOn ref="SUPPORTED_Snapoleon_0_1" />
+      <elements>
+        <text id="DestinationsToml_Value" valueName="DestinationsToml" required="true" maxLength="1023" />
+      </elements>
+    </policy>
+  </policies>
+</policyDefinitions>

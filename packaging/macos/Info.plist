@@ -1,0 +1,68 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <!-- Menu-bar app: no Dock icon, no app switcher entry. -->
+  <key>LSUIElement</key>
+  <true/>
+  <key>LSMinimumSystemVersion</key>
+  <string>12.3</string>
+  <key>NSHighResolutionCapable</key>
+  <true/>
+  <key>NSScreenCaptureUsageDescription</key>
+  <string>Snapoleon needs Screen Recording access to capture screenshots and record your screen. Captures stay on this Mac unless you choose to share them.</string>
+  <key>NSMicrophoneUsageDescription</key>
+  <string>Snapoleon uses the microphone only when you turn on voice narration while recording the screen.</string>
+  <key>NSAppleEventsUsageDescription</key>
+  <string>Snapoleon uses Apple Events to reveal captured files in Finder.</string>
+  <key>CFBundleURLTypes</key>
+  <array>
+    <dict>
+      <key>CFBundleURLName</key>
+      <string>app.snapoleon</string>
+      <key>CFBundleURLSchemes</key>
+      <array>
+        <string>snapoleon</string>
+      </array>
+    </dict>
+  </array>
+  <key>CFBundleDocumentTypes</key>
+  <array>
+    <dict>
+      <key>CFBundleTypeName</key>
+      <string>Snapoleon project</string>
+      <key>CFBundleTypeRole</key>
+      <string>Editor</string>
+      <key>LSHandlerRank</key>
+      <string>Owner</string>
+      <key>LSItemContentTypes</key>
+      <array>
+        <string>app.snapoleon.project</string>
+      </array>
+    </dict>
+  </array>
+  <key>UTExportedTypeDeclarations</key>
+  <array>
+    <dict>
+      <key>UTTypeIdentifier</key>
+      <string>app.snapoleon.project</string>
+      <key>UTTypeDescription</key>
+      <string>Snapoleon project</string>
+      <key>UTTypeConformsTo</key>
+      <array>
+        <string>public.data</string>
+        <string>public.archive</string>
+      </array>
+      <key>UTTypeTagSpecification</key>
+      <dict>
+        <key>public.filename-extension</key>
+        <array>
+          <string>snap</string>
+        </array>
+        <key>public.mime-type</key>
+        <string>application/vnd.snapoleon.project+zip</string>
+      </dict>
+    </dict>
+  </array>
+</dict>
+</plist>

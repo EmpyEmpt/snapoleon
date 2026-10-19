@@ -1,0 +1,29 @@
+# yaml-language-server: $schema=https://aka.ms/winget-manifest.defaultLocale.1.6.0.schema.json
+PackageIdentifier: Snapoleon.Snapoleon
+PackageVersion: ${{ VERSION }}
+PackageLocale: en-US
+Publisher: Snapoleon
+PublisherUrl: https://github.com/snapoleon
+PublisherSupportUrl: https://github.com/snapoleon/snapoleon/issues
+PackageName: Snapoleon
+PackageUrl: https://github.com/snapoleon/snapoleon
+License: MIT OR Apache-2.0
+LicenseUrl: https://github.com/snapoleon/snapoleon/blob/main/LICENSE-MIT
+Copyright: Copyright (c) The Snapoleon contributors
+ShortDescription: Screenshots, screen recording, OCR and sharing in one small Rust app.
+Description: |-
+  Snapoleon is a screenshot and screen recording tool written entirely in Rust. One hotkey selects a
+  region and opens an instant toolbar; pipelines, upload destinations, a command line interface and an
+  MCP server are there when you need them. Includes an annotation editor, scrolling capture, OCR,
+  QR and barcode decoding, automatic redaction and a searchable history. Private by default.
+Moniker: snapoleon
+Tags:
+  - screenshot
+  - screen-capture
+  - screen-recorder
+  - ocr
+  - annotate
+  - sharex-alternative
+ReleaseNotesUrl: https://github.com/snapoleon/snapoleon/releases/tag/v${{ VERSION }}
+ManifestType: defaultLocale
+ManifestVersion: 1.6.0

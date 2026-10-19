@@ -1,0 +1,35 @@
+<?xml version="1.0" encoding="utf-8"?>
+<policyDefinitionResources xmlns:xsd="http://www.w3.org/2001/XMLSchema" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" revision="1.0" schemaVersion="1.0" xmlns="http://schemas.microsoft.com/GroupPolicy/2006/07/PolicyDefinitions">
+  <displayName>Параметры политики Snapoleon</displayName>
+  <description>Параметры политики Snapoleon</description>
+  <resources>
+    <stringTable>
+      <string id="Snapoleon">Snapoleon</string>
+      <string id="SUPPORTED_Snapoleon_0_1">Snapoleon 0.1 или новее</string>
+      <string id="DisableUploads">Запретить загрузку</string>
+      <string id="DisableUploads_Explain">Включено: все места назначения удаляются, и ни один снимок не может быть отправлен на удалённый сервис или сервер. Локальное сохранение и буфер обмена работают. Не задано: пользователи сами управляют местами назначения.</string>
+      <string id="DisableRecording">Запретить запись экрана</string>
+      <string id="DisableRecording_Explain">Включено: запись экрана (видео и GIF) отключена. Скриншоты не затрагиваются.</string>
+      <string id="DisableAI">Отключить функции ИИ</string>
+      <string id="DisableAI_Explain">Включено: функции ИИ (альтернативный текст, заголовки, перевод, умное скрытие данных) отключены, никакие изображения и текст не отправляются в ИИ-сервисы.</string>
+      <string id="DisableHistory">Отключить историю снимков</string>
+      <string id="DisableHistory_Explain">Включено: история снимков с поиском отключена, записи в неё не ведутся.</string>
+      <string id="ForceRedactBeforeUpload">Принудительно скрывать данные перед загрузкой</string>
+      <string id="ForceRedactBeforeUpload_Explain">Включено: метаданные всегда удаляются, а автоматическое скрытие обнаруженных чувствительных данных принудительно применяется перед любой загрузкой.</string>
+      <string id="RetentionDays">Срок хранения истории (дни)</string>
+      <string id="RetentionDays_Explain">Включено: записи истории старше указанного числа дней удаляются автоматически.</string>
+      <string id="Language">Язык интерфейса</string>
+      <string id="Language_Explain">Включено: задаёт язык интерфейса по коду локали (например en или ru).</string>
+      <string id="DefaultDestination">Место назначения по умолчанию</string>
+      <string id="DefaultDestination_Explain">Включено: задаёт идентификатор места загрузки по умолчанию. Он должен совпадать с id места из принудительного списка.</string>
+      <string id="DestinationsToml">Принудительные места назначения (TOML)</string>
+      <string id="DestinationsToml_Explain">Включено: заменяет список мест назначения пользователя местами, заданными здесь в виде TOML с одной или несколькими таблицами [[destinations]]. Пользователи не могут добавлять другие. Секреты здесь не хранятся; используйте записи secret_ref, выданные в хранилище ключей пользователя. Редактор групповых политик ограничивает значение 1023 символами; для длинных списков используйте policy.toml в %ProgramData%\Snapoleon.</string>
+    </stringTable>
+    <presentationTable>
+      <presentation id="RetentionDays"><decimalTextBox refId="RetentionDays_Value" defaultValue="30">Срок хранения истории (дни)</decimalTextBox></presentation>
+      <presentation id="Language"><textBox refId="Language_Value"><label>Язык интерфейса</label></textBox></presentation>
+      <presentation id="DefaultDestination"><textBox refId="DefaultDestination_Value"><label>Место назначения по умолчанию</label></textBox></presentation>
+      <presentation id="DestinationsToml"><textBox refId="DestinationsToml_Value"><label>Принудительные места назначения (TOML)</label></textBox></presentation>
+    </presentationTable>
+  </resources>
+</policyDefinitionResources>

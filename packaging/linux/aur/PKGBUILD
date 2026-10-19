@@ -1,0 +1,39 @@
+# Maintainer: The Snapoleon contributors
+# AUR package: snapoleon-bin. Repackages the release tarball built by CI.
+# pkgver and the sha256sums are updated by the release workflow (see packaging/linux/aur/).
+pkgname=snapoleon-bin
+_name=snapoleon
+pkgver=0.1.0
+pkgrel=1
+pkgdesc='Screenshots, screen recording, OCR and sharing, written in Rust'
+arch=('x86_64' 'aarch64')
+url='https://github.com/snapoleon/snapoleon'
+license=('MIT' 'Apache-2.0')
+depends=('libxcb' 'libxkbcommon' 'wayland' 'dbus' 'pipewire>=1.0' 'mesa')
+optdepends=('tesseract: OCR engine on Linux'
+            'tesseract-data-eng: English OCR data'
+            'ffmpeg: screen recording encoder'
+            'xdg-desktop-portal: capture and global shortcuts on Wayland'
+            'libappindicator-gtk3: tray icon on GNOME (needs a StatusNotifier host)')
+provides=('snapoleon')
+conflicts=('snapoleon')
+source_x86_64=("${_name}-${pkgver}-x86_64.tar.gz::${url}/releases/download/v${pkgver}/Snapoleon-${pkgver}-linux-x86_64.tar.gz")
+source_aarch64=("${_name}-${pkgver}-aarch64.tar.gz::${url}/releases/download/v${pkgver}/Snapoleon-${pkgver}-linux-aarch64.tar.gz")
+sha256sums_x86_64=('SKIP') # filled in by the release workflow
+sha256sums_aarch64=('SKIP')
+
+package() {
+  install -Dm755 snapoleon "${pkgdir}/usr/bin/snapoleon"
+  install -Dm644 app.snapoleon.Snapoleon.desktop "${pkgdir}/usr/share/applications/app.snapoleon.Snapoleon.desktop"
+  install -Dm644 app.snapoleon.Snapoleon.metainfo.xml "${pkgdir}/usr/share/metainfo/app.snapoleon.Snapoleon.metainfo.xml"
+  install -Dm644 app.snapoleon.Snapoleon.mime.xml "${pkgdir}/usr/share/mime/packages/app.snapoleon.Snapoleon.xml"
+  install -Dm644 icons/hicolor/scalable/apps/app.snapoleon.Snapoleon.svg \
+    "${pkgdir}/usr/share/icons/hicolor/scalable/apps/app.snapoleon.Snapoleon.svg"
+  for s in 16 32 48 64 128 256 512; do
+    install -Dm644 "icons/hicolor/${s}x${s}/apps/app.snapoleon.Snapoleon.png" \
+      "${pkgdir}/usr/share/icons/hicolor/${s}x${s}/apps/app.snapoleon.Snapoleon.png"
+  done
+  install -Dm644 policy.toml.example "${pkgdir}/etc/snapoleon/policy.toml.example"
+  install -Dm644 LICENSE-MIT "${pkgdir}/usr/share/licenses/${pkgname}/LICENSE-MIT"
+  install -Dm644 LICENSE-APACHE "${pkgdir}/usr/share/licenses/${pkgname}/LICENSE-APACHE"
+}

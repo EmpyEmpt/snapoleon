@@ -1,0 +1,319 @@
+name: Release
+
+# Push a tag like v0.1.0 to build, package, (optionally) sign and publish a GitHub release.
+# Signing steps run only when the corresponding secrets exist:
+#   Windows (Azure Trusted Signing): AZURE_TENANT_ID, AZURE_CLIENT_ID, AZURE_CLIENT_SECRET,
+#     AZURE_TS_ENDPOINT, AZURE_TS_ACCOUNT, AZURE_TS_PROFILE
+#   macOS: APPLE_CERTIFICATE (base64 .p12), APPLE_CERTIFICATE_PASSWORD, APPLE_SIGNING_IDENTITY,
+#     APPLE_ID, APPLE_APP_PASSWORD, APPLE_TEAM_ID
+#   Checksums: SHA256SUMS always; MINISIGN_SECRET_KEY (+ optional MINISIGN_PASSWORD) adds SHA256SUMS.minisig
+
+on:
+  push:
+    tags: ["v*"]
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "Version without the leading v (dry run: builds artifacts, does not publish)"
+        required: true
+
+permissions:
+  contents: write
+
+env:
+  CARGO_TERM_COLOR: always
+  CARGO_INCREMENTAL: 0
+  CARGO_PACKAGER_VERSION: "0.11.8"
+  VERSION: ${{ github.event.inputs.version || github.ref_name }}
+
+jobs:
+  windows:
+    name: windows-${{ matrix.arch }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { arch: x64, os: windows-latest, target: x86_64-pc-windows-msvc }
+          - { arch: arm64, os: windows-11-arm, target: aarch64-pc-windows-msvc }
+    env:
+      AZURE_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
+      AZURE_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
+      AZURE_CLIENT_SECRET: ${{ secrets.AZURE_CLIENT_SECRET }}
+      AZURE_TS_ENDPOINT: ${{ secrets.AZURE_TS_ENDPOINT }}
+      AZURE_TS_ACCOUNT: ${{ secrets.AZURE_TS_ACCOUNT }}
+      AZURE_TS_PROFILE: ${{ secrets.AZURE_TS_PROFILE }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.target }}
+      - uses: Swatinem/rust-cache@v2
+        with:
+          key: release-${{ matrix.target }}
+      - name: Install nasm
+        shell: pwsh
+        run: choco install nasm -y --no-progress; "C:\Program Files\NASM" | Out-File -Append -Encoding utf8 $env:GITHUB_PATH
+      - name: Set version
+        shell: bash
+        run: |
+          v="${VERSION#v}"
+          echo "V=$v" >> "$GITHUB_ENV"
+          sed -i "s/^version = \".*\"/version = \"$v\"/" packaging/Packager.toml
+      - name: Build
+        run: cargo build --release --locked -p snapoleon --target ${{ matrix.target }}
+      - name: Stage binary where cargo-packager expects it
+        shell: bash
+        run: |
+          mkdir -p target/release
+          cp "target/${{ matrix.target }}/release/snapoleon.exe" target/release/snapoleon.exe
+
+      - name: Sign snapoleon.exe (Azure Trusted Signing)
+        if: env.AZURE_CLIENT_ID != '' && env.AZURE_TS_ACCOUNT != ''
+        uses: azure/trusted-signing-action@v0
+        with:
+          azure-tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          azure-client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          azure-client-secret: ${{ secrets.AZURE_CLIENT_SECRET }}
+          endpoint: ${{ secrets.AZURE_TS_ENDPOINT }}
+          trusted-signing-account-name: ${{ secrets.AZURE_TS_ACCOUNT }}
+          certificate-profile-name: ${{ secrets.AZURE_TS_PROFILE }}
+          files-folder: ${{ github.workspace }}\target\release
+          files-folder-filter: exe
+          file-digest: SHA256
+          timestamp-rfc3161: http://timestamp.acs.microsoft.com
+          timestamp-digest: SHA256
+
+      - name: Install cargo-packager
+        shell: bash
+        run: cargo install cargo-packager --locked --version "$CARGO_PACKAGER_VERSION"
+      - name: Package (NSIS + MSI)
+        shell: bash
+        run: cargo packager --config packaging/Packager.toml --release --formats nsis,wix
+
+      - name: Collect artifacts
+        shell: bash
+        run: |
+          mkdir -p dist
+          cp target/packager/*-setup.exe "dist/Snapoleon-$V-windows-${{ matrix.arch }}-setup.exe"
+          cp target/packager/*.msi "dist/Snapoleon-$V-windows-${{ matrix.arch }}.msi"
+      - name: Portable zip
+        shell: pwsh
+        run: ./packaging/windows/make-portable.ps1 -Exe target/release/snapoleon.exe -Version $env:V -Arch ${{ matrix.arch }} -Out dist
+
+      - name: Sign installers (Azure Trusted Signing)
+        if: env.AZURE_CLIENT_ID != '' && env.AZURE_TS_ACCOUNT != ''
+        uses: azure/trusted-signing-action@v0
+        with:
+          azure-tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          azure-client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          azure-client-secret: ${{ secrets.AZURE_CLIENT_SECRET }}
+          endpoint: ${{ secrets.AZURE_TS_ENDPOINT }}
+          trusted-signing-account-name: ${{ secrets.AZURE_TS_ACCOUNT }}
+          certificate-profile-name: ${{ secrets.AZURE_TS_PROFILE }}
+          files-folder: ${{ github.workspace }}\dist
+          files-folder-filter: exe,msi
+          file-digest: SHA256
+          timestamp-rfc3161: http://timestamp.acs.microsoft.com
+          timestamp-digest: SHA256
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: dist-windows-${{ matrix.arch }}
+          path: dist/*
+          if-no-files-found: error
+
+  macos:
+    name: macos-universal
+    runs-on: macos-14
+    env:
+      APPLE_CERTIFICATE: ${{ secrets.APPLE_CERTIFICATE }}
+      APPLE_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
+      APPLE_SIGNING_IDENTITY: ${{ secrets.APPLE_SIGNING_IDENTITY }}
+      APPLE_ID: ${{ secrets.APPLE_ID }}
+      APPLE_PASSWORD: ${{ secrets.APPLE_APP_PASSWORD }}
+      APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: aarch64-apple-darwin,x86_64-apple-darwin
+      - uses: Swatinem/rust-cache@v2
+        with:
+          key: release-macos
+      - run: brew install nasm
+      - name: Set version
+        run: |
+          v="${VERSION#v}"
+          echo "V=$v" >> "$GITHUB_ENV"
+          sed -i '' "s/^version = \".*\"/version = \"$v\"/" packaging/Packager.toml
+      - name: Build both architectures and lipo
+        run: |
+          cargo build --release --locked -p snapoleon --target aarch64-apple-darwin
+          cargo build --release --locked -p snapoleon --target x86_64-apple-darwin
+          mkdir -p target/release
+          lipo -create -output target/release/snapoleon \
+            target/aarch64-apple-darwin/release/snapoleon \
+            target/x86_64-apple-darwin/release/snapoleon
+          lipo -info target/release/snapoleon
+      - name: Import signing certificate
+        if: env.APPLE_CERTIFICATE != ''
+        run: |
+          echo "$APPLE_CERTIFICATE" | base64 --decode > "$RUNNER_TEMP/cert.p12"
+          security create-keychain -p ci "$RUNNER_TEMP/build.keychain"
+          security set-keychain-settings -lut 21600 "$RUNNER_TEMP/build.keychain"
+          security unlock-keychain -p ci "$RUNNER_TEMP/build.keychain"
+          security import "$RUNNER_TEMP/cert.p12" -k "$RUNNER_TEMP/build.keychain" -P "$APPLE_CERTIFICATE_PASSWORD" -T /usr/bin/codesign
+          security set-key-partition-list -S apple-tool:,apple:,codesign: -s -k ci "$RUNNER_TEMP/build.keychain"
+          security list-keychains -d user -s "$RUNNER_TEMP/build.keychain" login.keychain
+      - name: Install cargo-packager
+        run: cargo install cargo-packager --locked --version "$CARGO_PACKAGER_VERSION"
+      # cargo-packager signs the .app with APPLE_SIGNING_IDENTITY when it is set, and notarizes with
+      # APPLE_ID / APPLE_PASSWORD / APPLE_TEAM_ID when those are set.
+      - name: Package (.app + DMG)
+        run: cargo packager --config packaging/Packager.toml --release --formats app,dmg
+      - name: Collect
+        run: |
+          mkdir -p dist
+          cp target/packager/*.dmg "dist/Snapoleon-$V-macos-universal.dmg"
+      - name: Sign and notarize DMG
+        if: env.APPLE_CERTIFICATE != '' && env.APPLE_ID != ''
+        run: |
+          dmg="dist/Snapoleon-$V-macos-universal.dmg"
+          codesign --force --sign "$APPLE_SIGNING_IDENTITY" --timestamp "$dmg"
+          xcrun notarytool submit "$dmg" --apple-id "$APPLE_ID" --password "$APPLE_PASSWORD" --team-id "$APPLE_TEAM_ID" --wait
+          xcrun stapler staple "$dmg"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: dist-macos-universal
+          path: dist/*
+          if-no-files-found: error
+
+  linux:
+    name: linux-${{ matrix.arch }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { arch: x86_64, os: ubuntu-24.04, target: x86_64-unknown-linux-gnu }
+          - { arch: aarch64, os: ubuntu-24.04-arm, target: aarch64-unknown-linux-gnu }
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.target }}
+      - name: Install system libraries
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            libxcb1-dev libxcb-randr0-dev libxcb-shm0-dev libxkbcommon-dev \
+            libpipewire-0.3-dev libspa-0.2-dev libdbus-1-dev libegl1-mesa-dev \
+            libwayland-dev libasound2-dev clang pkg-config nasm \
+            libfuse2t64 file squashfs-tools desktop-file-utils xz-utils
+      - uses: Swatinem/rust-cache@v2
+        with:
+          key: release-${{ matrix.target }}
+      - name: Set version
+        run: |
+          v="${VERSION#v}"
+          echo "V=$v" >> "$GITHUB_ENV"
+          sed -i "s/^version = \".*\"/version = \"$v\"/" packaging/Packager.toml
+      - name: Build
+        run: |
+          cargo build --release --locked -p snapoleon --target ${{ matrix.target }}
+          mkdir -p target/release
+          cp "target/${{ matrix.target }}/release/snapoleon" target/release/snapoleon
+      - name: Install cargo-packager
+        run: cargo install cargo-packager --locked --version "$CARGO_PACKAGER_VERSION"
+      - name: Package (.deb)
+        run: cargo packager --config packaging/Packager.toml --release --formats deb
+      - name: Package (AppImage)
+        # cargo-packager downloads linuxdeploy tools at runtime; do not fail the release if that breaks on one arch.
+        continue-on-error: true
+        run: cargo packager --config packaging/Packager.toml --release --formats appimage
+      - name: Collect
+        run: |
+          mkdir -p dist
+          cp target/packager/*.deb "dist/Snapoleon-$V-linux-${{ matrix.arch }}.deb" || true
+          cp target/packager/*.AppImage "dist/Snapoleon-$V-linux-${{ matrix.arch }}.AppImage" || true
+          # Flat tarball consumed by the Flatpak manifest and the AUR PKGBUILD.
+          st="tarball-stage"
+          mkdir -p "$st"
+          cp target/release/snapoleon "$st/"
+          cp packaging/linux/app.snapoleon.Snapoleon.desktop packaging/linux/app.snapoleon.Snapoleon.metainfo.xml \
+             packaging/linux/app.snapoleon.Snapoleon.mime.xml packaging/policy/policy.toml.example \
+             LICENSE-MIT LICENSE-APACHE "$st/"
+          cp -r packaging/linux/icons "$st/icons"
+          tar -C "$st" -czf "dist/Snapoleon-$V-linux-${{ matrix.arch }}.tar.gz" .
+      - uses: actions/upload-artifact@v4
+        with:
+          name: dist-linux-${{ matrix.arch }}
+          path: dist/*
+          if-no-files-found: error
+
+  publish:
+    name: publish release
+    needs: [windows, macos, linux]
+    runs-on: ubuntu-24.04
+    env:
+      MINISIGN_SECRET_KEY: ${{ secrets.MINISIGN_SECRET_KEY }}
+      MINISIGN_PASSWORD: ${{ secrets.MINISIGN_PASSWORD }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          path: dist
+          pattern: dist-*
+          merge-multiple: true
+      - name: Checksums
+        working-directory: dist
+        run: |
+          ls -l
+          sha256sum * > SHA256SUMS
+          cat SHA256SUMS
+      - name: Minisign signature
+        if: env.MINISIGN_SECRET_KEY != ''
+        working-directory: dist
+        run: |
+          sudo apt-get update && sudo apt-get install -y --no-install-recommends minisign
+          echo "$MINISIGN_SECRET_KEY" > "$RUNNER_TEMP/minisign.key"
+          printf '%s\n' "$MINISIGN_PASSWORD" | minisign -S -s "$RUNNER_TEMP/minisign.key" -m SHA256SUMS -x SHA256SUMS.minisig
+          rm "$RUNNER_TEMP/minisign.key"
+      - name: Create GitHub release
+        if: github.event_name == 'push'
+        uses: softprops/action-gh-release@v2
+        with:
+          files: dist/*
+          generate_release_notes: true
+          draft: false
+          prerelease: ${{ contains(github.ref_name, '-') }}
+      - name: Keep dist for the manifest job
+        uses: actions/upload-artifact@v4
+        with:
+          name: release-files
+          path: dist/*
+
+  manifests:
+    name: render package manifests
+    needs: publish
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          name: release-files
+          path: dist
+      - name: Render winget / Scoop / Chocolatey / Homebrew / Flatpak / AUR
+        run: |
+          python3 packaging/render-manifests.py \
+            --version "${VERSION#v}" \
+            --sums dist/SHA256SUMS \
+            --repo "${{ github.repository }}" \
+            --out rendered
+          find rendered -type f | sort
+      - uses: actions/upload-artifact@v4
+        with:
+          name: package-manifests
+          path: rendered
+          if-no-files-found: error

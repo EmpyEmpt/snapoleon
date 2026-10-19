@@ -1,0 +1,7 @@
+# Rendered by the release workflow (packaging/render-manifests.py). dollar-brace tokens are placeholders.
+# yaml-language-server: $schema=https://aka.ms/winget-manifest.version.1.6.0.schema.json
+PackageIdentifier: Snapoleon.Snapoleon
+PackageVersion: ${{ VERSION }}
+DefaultLocale: en-US
+ManifestType: version
+ManifestVersion: 1.6.0

@@ -1,0 +1,124 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  CARGO_TERM_COLOR: always
+  CARGO_INCREMENTAL: 0
+  RUSTFLAGS: ""
+
+jobs:
+  fmt:
+    name: rustfmt
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt
+      - run: cargo fmt --all -- --check
+
+  lint:
+    name: clippy (ubuntu)
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: clippy
+      - name: Install system libraries
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            libxcb1-dev libxcb-randr0-dev libxcb-shm0-dev libxkbcommon-dev \
+            libpipewire-0.3-dev libspa-0.2-dev libdbus-1-dev libegl1-mesa-dev \
+            libwayland-dev libasound2-dev clang pkg-config nasm
+      - uses: Swatinem/rust-cache@v2
+      # Plain clippy: warnings are reported but do not block the build.
+      - run: cargo clippy --workspace --all-targets
+
+  build:
+    name: build (${{ matrix.name }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: windows-x64
+            os: windows-latest
+            target: x86_64-pc-windows-msvc
+          - name: windows-arm64
+            os: windows-11-arm
+            target: aarch64-pc-windows-msvc
+          - name: macos-universal
+            os: macos-14
+            target: universal
+          - name: linux-x64
+            os: ubuntu-24.04
+            target: x86_64-unknown-linux-gnu
+          - name: linux-arm64
+            os: ubuntu-24.04-arm
+            target: aarch64-unknown-linux-gnu
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Rust (single target)
+        if: matrix.target != 'universal'
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.target }}
+
+      - name: Install Rust (macOS universal)
+        if: matrix.target == 'universal'
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: aarch64-apple-darwin,x86_64-apple-darwin
+
+      - name: Install system libraries (Linux)
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          # Ubuntu 24.04 ships PipeWire 1.0, which the capture backend (xcap) needs.
+          sudo apt-get install -y --no-install-recommends \
+            libxcb1-dev libxcb-randr0-dev libxcb-shm0-dev libxkbcommon-dev \
+            libpipewire-0.3-dev libspa-0.2-dev libdbus-1-dev libegl1-mesa-dev \
+            libwayland-dev libasound2-dev clang pkg-config nasm
+
+      - name: Install nasm (Windows)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: choco install nasm -y --no-progress; "C:\Program Files\NASM" | Out-File -Append -Encoding utf8 $env:GITHUB_PATH
+
+      - name: Install nasm (macOS)
+        if: runner.os == 'macOS'
+        run: brew install nasm
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          key: ${{ matrix.name }}
+
+      - name: Build
+        if: matrix.target != 'universal'
+        run: cargo build --release -p snapoleon --target ${{ matrix.target }}
+
+      - name: Build (macOS universal)
+        if: matrix.target == 'universal'
+        run: |
+          cargo build --release -p snapoleon --target aarch64-apple-darwin
+          cargo build --release -p snapoleon --target x86_64-apple-darwin
+          mkdir -p target/universal
+          lipo -create -output target/universal/snapoleon \
+            target/aarch64-apple-darwin/release/snapoleon \
+            target/x86_64-apple-darwin/release/snapoleon
+          lipo -info target/universal/snapoleon
+
+      - name: Check server crate
+        if: runner.os == 'Linux' && matrix.name == 'linux-x64'
+        run: cargo check -p snapoleon-server

@@ -1,0 +1,35 @@
+<?xml version="1.0" encoding="utf-8"?>
+<policyDefinitionResources xmlns:xsd="http://www.w3.org/2001/XMLSchema" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" revision="1.0" schemaVersion="1.0" xmlns="http://schemas.microsoft.com/GroupPolicy/2006/07/PolicyDefinitions">
+  <displayName>Snapoleon policy settings</displayName>
+  <description>Snapoleon policy settings</description>
+  <resources>
+    <stringTable>
+      <string id="Snapoleon">Snapoleon</string>
+      <string id="SUPPORTED_Snapoleon_0_1">Snapoleon 0.1 or later</string>
+      <string id="DisableUploads">Disable uploads</string>
+      <string id="DisableUploads_Explain">Enabled: all upload destinations are removed and no capture can be sent to a remote service or server. Local saving and the clipboard still work. Not configured: users manage their own destinations.</string>
+      <string id="DisableRecording">Disable screen recording</string>
+      <string id="DisableRecording_Explain">Enabled: screen recording (video and GIF) is turned off. Screenshots are unaffected.</string>
+      <string id="DisableAI">Disable AI features</string>
+      <string id="DisableAI_Explain">Enabled: AI features (alt text, titles, translation, smart redaction) are turned off, so no image or text is sent to any AI endpoint.</string>
+      <string id="DisableHistory">Disable capture history</string>
+      <string id="DisableHistory_Explain">Enabled: the searchable capture history is turned off and nothing is recorded in it.</string>
+      <string id="ForceRedactBeforeUpload">Force redaction before upload</string>
+      <string id="ForceRedactBeforeUpload_Explain">Enabled: metadata is always stripped and automatic redaction of detected sensitive data is forced before any upload.</string>
+      <string id="RetentionDays">History retention (days)</string>
+      <string id="RetentionDays_Explain">Enabled: history entries older than the given number of days are deleted automatically.</string>
+      <string id="Language">Interface language</string>
+      <string id="Language_Explain">Enabled: forces the interface language to the given locale code (for example en or ru).</string>
+      <string id="DefaultDestination">Default destination</string>
+      <string id="DefaultDestination_Explain">Enabled: sets the identifier of the default upload destination. It should match the id of a destination from the forced destination list.</string>
+      <string id="DestinationsToml">Forced destinations (TOML)</string>
+      <string id="DestinationsToml_Explain">Enabled: replaces the user's destination list with the destinations defined here, as TOML text containing one or more [[destinations]] tables. Users cannot add others. Secrets are not stored here; use secret_ref entries provisioned in the user's keyring. The Group Policy editor limits this value to 1023 characters; for longer lists use policy.toml in %ProgramData%\Snapoleon.</string>
+    </stringTable>
+    <presentationTable>
+      <presentation id="RetentionDays"><decimalTextBox refId="RetentionDays_Value" defaultValue="30">History retention (days)</decimalTextBox></presentation>
+      <presentation id="Language"><textBox refId="Language_Value"><label>Interface language</label></textBox></presentation>
+      <presentation id="DefaultDestination"><textBox refId="DefaultDestination_Value"><label>Default destination</label></textBox></presentation>
+      <presentation id="DestinationsToml"><textBox refId="DestinationsToml_Value"><label>Forced destinations (TOML)</label></textBox></presentation>
+    </presentationTable>
+  </resources>
+</policyDefinitionResources>

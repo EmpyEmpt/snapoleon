@@ -1,0 +1,54 @@
+# Flatpak manifest for Snapoleon.
+#   flatpak-builder --user --install --force-clean build-dir packaging/linux/flatpak/app.snapoleon.Snapoleon.yml
+#
+# This repackages the prebuilt Linux release tarball (Snapoleon-<ver>-linux-<arch>.tar.gz, flat:
+# snapoleon, desktop, metainfo, mime xml, icons/, policy.toml.example, licenses). The release workflow fills the
+# placeholder tokens; for Flathub, build from a vendored source instead (see docs/INSTALL.md).
+app-id: app.snapoleon.Snapoleon
+runtime: org.freedesktop.Platform
+runtime-version: '24.08'
+sdk: org.freedesktop.Sdk
+command: snapoleon
+
+finish-args:
+  # Display
+  - --socket=wayland
+  - --socket=fallback-x11
+  - --share=ipc
+  - --device=dri
+  # Audio for narration while recording
+  - --socket=pulseaudio
+  # Uploads and OAuth
+  - --share=network
+  # Capture, global shortcuts, tray, notifications, file chooser, open-uri, secrets
+  - --talk-name=org.freedesktop.portal.*
+  - --talk-name=org.kde.StatusNotifierWatcher
+  - --talk-name=org.freedesktop.Notifications
+  - --talk-name=org.freedesktop.secrets
+  # Default save location
+  - --filesystem=xdg-pictures/Snapoleon:create
+  - --filesystem=xdg-videos/Snapoleon:create
+  # Single-instance IPC socket
+  - --filesystem=xdg-run/snapoleon:create
+
+modules:
+  - name: snapoleon
+    buildsystem: simple
+    build-commands:
+      - install -Dm755 snapoleon /app/bin/snapoleon
+      - install -Dm644 app.snapoleon.Snapoleon.desktop /app/share/applications/app.snapoleon.Snapoleon.desktop
+      - install -Dm644 app.snapoleon.Snapoleon.metainfo.xml /app/share/metainfo/app.snapoleon.Snapoleon.metainfo.xml
+      - install -Dm644 app.snapoleon.Snapoleon.mime.xml /app/share/mime/packages/app.snapoleon.Snapoleon.xml
+      - install -Dm644 icons/hicolor/scalable/apps/app.snapoleon.Snapoleon.svg /app/share/icons/hicolor/scalable/apps/app.snapoleon.Snapoleon.svg
+      - for s in 16 32 48 64 128 256 512; do install -Dm644 icons/hicolor/${s}x${s}/apps/app.snapoleon.Snapoleon.png /app/share/icons/hicolor/${s}x${s}/apps/app.snapoleon.Snapoleon.png; done
+    sources:
+      - type: archive
+        url: ${{ BASE_URL }}/Snapoleon-${{ VERSION }}-linux-x86_64.tar.gz
+        sha256: ${{ SHA256_LINUX_X86_64_TARBALL }}
+        only-arches: [x86_64]
+        strip-components: 0
+      - type: archive
+        url: ${{ BASE_URL }}/Snapoleon-${{ VERSION }}-linux-aarch64.tar.gz
+        sha256: ${{ SHA256_LINUX_AARCH64_TARBALL }}
+        only-arches: [aarch64]
+        strip-components: 0

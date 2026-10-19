@@ -1,0 +1,43 @@
+{
+    "$schema": "https://raw.githubusercontent.com/ScoopInstaller/Scoop/master/schema.json",
+    "version": "${{ VERSION }}",
+    "description": "Screenshots, screen recording, OCR and sharing in one small Rust app",
+    "homepage": "https://github.com/snapoleon/snapoleon",
+    "license": "MIT OR Apache-2.0",
+    "architecture": {
+        "64bit": {
+            "url": "${{ BASE_URL }}/Snapoleon-${{ VERSION }}-windows-x64-portable.zip",
+            "hash": "${{ SHA256_WINDOWS_X64_PORTABLE }}"
+        },
+        "arm64": {
+            "url": "${{ BASE_URL }}/Snapoleon-${{ VERSION }}-windows-arm64-portable.zip",
+            "hash": "${{ SHA256_WINDOWS_ARM64_PORTABLE }}"
+        }
+    },
+    "extract_dir": "Snapoleon",
+    "bin": "snapoleon.exe",
+    "shortcuts": [
+        [
+            "snapoleon.exe",
+            "Snapoleon"
+        ]
+    ],
+    "persist": "data",
+    "checkver": {
+        "github": "https://github.com/snapoleon/snapoleon"
+    },
+    "autoupdate": {
+        "architecture": {
+            "64bit": {
+                "url": "https://github.com/snapoleon/snapoleon/releases/download/v$version/Snapoleon-$version-windows-x64-portable.zip"
+            },
+            "arm64": {
+                "url": "https://github.com/snapoleon/snapoleon/releases/download/v$version/Snapoleon-$version-windows-arm64-portable.zip"
+            }
+        },
+        "hash": {
+            "url": "https://github.com/snapoleon/snapoleon/releases/download/v$version/SHA256SUMS",
+            "regex": "$sha256\\s+$basename"
+        }
+    }
+}

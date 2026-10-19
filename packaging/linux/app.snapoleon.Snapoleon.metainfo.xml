@@ -1,0 +1,74 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<component type="desktop-application">
+  <id>app.snapoleon.Snapoleon</id>
+  <metadata_license>CC0-1.0</metadata_license>
+  <project_license>MIT OR Apache-2.0</project_license>
+  <name>Snapoleon</name>
+  <summary>Screenshots, screen recording, OCR and sharing</summary>
+  <summary xml:lang="ru">Скриншоты, запись экрана, OCR и обмен ссылками</summary>
+  <developer id="app.snapoleon">
+    <name>The Snapoleon contributors</name>
+  </developer>
+  <description>
+    <p>
+      Snapoleon is a screenshot and screen recording tool written entirely in Rust. One hotkey selects
+      a region and opens an instant toolbar; pipelines, upload destinations, a command line interface and
+      an MCP server are there when you need them.
+    </p>
+    <p>
+      It includes an annotation editor, scrolling capture, text recognition (OCR), QR and barcode
+      decoding, automatic redaction of sensitive data, a searchable history, and uploads to S3, WebDAV,
+      FTP and other destinations or to a self-hosted Snapoleon server. Nothing is uploaded unless you
+      configure a destination.
+    </p>
+    <p>On Wayland, capture and global shortcuts go through the XDG desktop portals.</p>
+  </description>
+  <description xml:lang="ru">
+    <p>
+      Snapoleon - программа для скриншотов и записи экрана, целиком написанная на Rust. Одна горячая
+      клавиша выделяет область и открывает панель инструментов; конвейеры, места загрузки, командная
+      строка и MCP-сервер доступны, когда нужны.
+    </p>
+    <p>
+      Есть редактор аннотаций, прокручиваемый снимок, распознавание текста (OCR), чтение QR-кодов и
+      штрихкодов, автоматическое скрытие чувствительных данных, история с поиском и загрузка в S3,
+      WebDAV, FTP и другие места или на собственный сервер Snapoleon. Ничего не загружается, пока вы не
+      настроите место назначения.
+    </p>
+  </description>
+  <launchable type="desktop-id">app.snapoleon.Snapoleon.desktop</launchable>
+  <icon type="stock">app.snapoleon.Snapoleon</icon>
+  <url type="homepage">https://github.com/snapoleon/snapoleon</url>
+  <url type="bugtracker">https://github.com/snapoleon/snapoleon/issues</url>
+  <url type="vcs-browser">https://github.com/snapoleon/snapoleon</url>
+  <url type="contribute">https://github.com/snapoleon/snapoleon/blob/main/CONTRIBUTING.md</url>
+  <categories>
+    <category>Graphics</category>
+    <category>Utility</category>
+  </categories>
+  <keywords>
+    <keyword>screenshot</keyword>
+    <keyword>screen recording</keyword>
+    <keyword>OCR</keyword>
+    <keyword>annotate</keyword>
+  </keywords>
+  <provides>
+    <binary>snapoleon</binary>
+    <mediatype>application/vnd.snapoleon.project+zip</mediatype>
+  </provides>
+  <supports>
+    <control>pointing</control>
+    <control>keyboard</control>
+  </supports>
+  <content_rating type="oars-1.1"/>
+  <recommends>
+    <display_length compare="ge">768</display_length>
+  </recommends>
+  <releases>
+    <release version="0.1.0" date="2026-10-19">
+      <description>
+        <p>First public release.</p>
+      </description>
+    </release>
+  </releases>
+</component>

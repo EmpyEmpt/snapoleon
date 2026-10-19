@@ -1,0 +1,21 @@
+# Snapoleon managed policy (sample).
+#   Linux:   /etc/snapoleon/policy.toml
+#   macOS:   /Library/Application Support/Snapoleon/policy.toml
+#   Windows: %ProgramData%\Snapoleon\policy.toml   (the registry / ADMX route is preferred there)
+# Every key is optional. Anything set here overrides the user's settings.
+
+disable_uploads = false
+disable_recording = false
+disable_ai = true
+disable_history = false
+force_redact_before_upload = true   # strip metadata and force auto-redaction before any upload
+retention_days = 30                 # history entries older than this are deleted
+language = "en"                     # locale code, e.g. "en", "ru"
+default_destination = "team"        # id of a destination below
+
+# Forced destination list; users cannot add others.
+[[destinations]]
+id = "team"
+name = "Company Snapoleon server"
+type = "snap_server"
+url = "https://snap.example.com"

@@ -1,0 +1,25 @@
+# yaml-language-server: $schema=https://aka.ms/winget-manifest.locale.1.6.0.schema.json
+PackageIdentifier: Snapoleon.Snapoleon
+PackageVersion: ${{ VERSION }}
+PackageLocale: ru-RU
+Publisher: Snapoleon
+PublisherUrl: https://github.com/snapoleon
+PublisherSupportUrl: https://github.com/snapoleon/snapoleon/issues
+PackageName: Snapoleon
+PackageUrl: https://github.com/snapoleon/snapoleon
+License: MIT OR Apache-2.0
+LicenseUrl: https://github.com/snapoleon/snapoleon/blob/main/LICENSE-MIT
+Copyright: Copyright (c) The Snapoleon contributors
+ShortDescription: Скриншоты, запись экрана, OCR и обмен ссылками в одной небольшой программе на Rust.
+Description: |-
+  Snapoleon - программа для скриншотов и записи экрана, целиком написанная на Rust. Одна горячая клавиша
+  выделяет область и открывает панель инструментов; конвейеры, места загрузки, командная строка и
+  MCP-сервер доступны, когда нужны. Есть редактор аннотаций, прокручиваемый снимок, OCR, чтение QR-кодов
+  и штрихкодов, автоматическое скрытие данных и история с поиском. Приватность по умолчанию.
+Tags:
+  - скриншот
+  - запись-экрана
+  - ocr
+ReleaseNotesUrl: https://github.com/snapoleon/snapoleon/releases/tag/v${{ VERSION }}
+ManifestType: locale
+ManifestVersion: 1.6.0
