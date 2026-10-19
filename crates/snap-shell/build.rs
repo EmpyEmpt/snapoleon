@@ -1,14 +1,25 @@
-//! Picks the renderer backend once, so the sources only test `renderer_wgpu` / `renderer_glow`.
+//! Decides which renderer backends are compiled in, so the sources only test `renderer_gl` / `renderer_wgpu`.
 //!
-//! wgpu is used when the `wgpu` feature is on, on macOS (OpenGL is deprecated there) and when the `glow` feature is
-//! off; otherwise OpenGL through glutin and egui_glow.
+//! - OpenGL (glutin, egui_glow): the `glow` feature, except on macOS (OpenGL is deprecated there) and when the `wgpu`
+//!   feature forces wgpu.
+//! - wgpu: the `wgpu` feature, macOS, a build without `glow`, and Windows next to OpenGL: a PC with no usable OpenGL
+//!   (remote desktop, a VM, the Basic Display Adapter) falls back to it at run time.
+//!
+//! Linux with the default features is OpenGL only: Mesa always has a software rasteriser.
 
 fn main() {
+    println!("cargo::rustc-check-cfg=cfg(renderer_gl)");
     println!("cargo::rustc-check-cfg=cfg(renderer_wgpu)");
-    println!("cargo::rustc-check-cfg=cfg(renderer_glow)");
     println!("cargo::rerun-if-changed=build.rs");
-    let wgpu = std::env::var_os("CARGO_FEATURE_WGPU").is_some()
-        || std::env::var_os("CARGO_FEATURE_GLOW").is_none()
-        || std::env::var("CARGO_CFG_TARGET_OS").is_ok_and(|os| os == "macos");
-    println!("cargo::rustc-cfg={}", if wgpu { "renderer_wgpu" } else { "renderer_glow" });
+    let has = |f: &str| std::env::var_os(format!("CARGO_FEATURE_{f}")).is_some();
+    let os = std::env::var("CARGO_CFG_TARGET_OS").unwrap_or_default();
+    let (macos, windows) = (os == "macos", os == "windows");
+    let gl = has("GLOW") && !macos && !has("WGPU");
+    let wgpu = has("WGPU") || macos || !has("GLOW") || (windows && gl);
+    if gl {
+        println!("cargo::rustc-cfg=renderer_gl");
+    }
+    if wgpu {
+        println!("cargo::rustc-cfg=renderer_wgpu");
+    }
 }

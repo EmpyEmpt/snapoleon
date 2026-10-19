@@ -1,7 +1,5 @@
 //! Backend-independent assembly: stitching monitor grabs, window context, snapshots.
 
-use std::thread;
-
 use snap_core::{Capture, CaptureContext, CaptureKind, Error, Point, Rect, Result, RgbaImage};
 
 use crate::{
@@ -13,15 +11,12 @@ use crate::{
 const SHADOW_MARGIN: f32 = 32.0;
 
 /// Run `f` over `items`, in parallel when there is more than one.
-fn par_map<T: Sync, R: Send>(items: &[T], f: impl Fn(&T) -> R + Sync) -> Vec<R> {
+fn par_map<T: Sync, R: Send>(items: &[T], f: impl Fn(&T) -> R + Sync + Send) -> Vec<R> {
     if items.len() <= 1 {
         return items.iter().map(f).collect();
     }
-    thread::scope(|s| {
-        let f = &f;
-        let handles: Vec<_> = items.iter().map(|it| s.spawn(move || f(it))).collect();
-        handles.into_iter().map(|h| h.join().expect("capture worker panicked")).collect()
-    })
+    use rayon::prelude::*;
+    items.par_iter().map(&f).collect()
 }
 
 fn grab_parts(parts: &[(&MonitorInfo, Rect)], o: &CaptureOptions) -> Result<Vec<Grab>> {
@@ -88,11 +83,8 @@ pub(crate) fn capture_area(monitors: &[MonitorInfo], area: Rect, kind: CaptureKi
 }
 
 pub(crate) fn capture_window(id: u64, o: &CaptureOptions) -> Result<Capture> {
-    let (grab, info) = thread::scope(|s| {
-        let info = s.spawn(|| platform::windows().ok().and_then(|ws| ws.into_iter().find(|w| w.id == id)));
-        let grab = platform::grab_window(id, o);
-        (grab, info.join().expect("window lookup panicked"))
-    });
+    let (grab, info) =
+        rayon::join(|| platform::grab_window(id, o), || platform::windows().ok().and_then(|ws| ws.into_iter().find(|w| w.id == id)));
     let grab = grab?;
     let monitors = platform::monitors().unwrap_or_default();
     let scale = dominant(&monitors, grab.screen_rect).map_or(1.0, |m| m.scale_factor);
@@ -117,11 +109,7 @@ pub(crate) fn capture_window(id: u64, o: &CaptureOptions) -> Result<Capture> {
 pub(crate) fn freeze(o: &CaptureOptions) -> Result<Frozen> {
     let monitors = platform::monitors()?;
     let parts: Vec<_> = monitors.iter().map(|m| (m, m.rect)).collect();
-    let (windows, grabs) = thread::scope(|s| {
-        let windows = s.spawn(|| platform::windows().unwrap_or_default());
-        let grabs = grab_parts(&parts, o);
-        (windows.join().expect("window enumeration panicked"), grabs)
-    });
+    let (grabs, windows) = rayon::join(|| grab_parts(&parts, o), || platform::windows().unwrap_or_default());
     let grabs = grabs?;
     let cursor = platform::cursor_position();
     let taken_at_ms = snap_core::now_ms();

@@ -15,7 +15,7 @@ use winit::{
 use crate::{
     Shell, ShellApp, ShellConfig, WindowKey, platform,
     proxy::{Msg, Proxy},
-    render::{Gfx, Graphics, NAME as RENDERER},
+    render::{Gfx, Graphics},
     shell::{Core, monitor_list},
 };
 
@@ -32,7 +32,6 @@ pub fn run<E: Send + 'static>(cfg: ShellConfig, app: impl ShellApp<E>) -> Result
     event_loop.set_control_flow(ControlFlow::Wait);
 
     let display = event_loop.owned_display_handle();
-    tracing::info!(renderer = RENDERER, "snap-shell starting");
     let mut runner = Runner {
         app,
         core: Core {

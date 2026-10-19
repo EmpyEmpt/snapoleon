@@ -53,6 +53,9 @@ impl Gfx {
     }
 
     fn context(config: &Config, window: &Window) -> Result<NotCurrentContext> {
+        if std::env::var(super::ENV).is_ok_and(|v| v.eq_ignore_ascii_case("glow-fail")) {
+            return Err(other("simulated failure (SNAPOLEON_RENDERER=glow-fail)"));
+        }
         let handle = window.window_handle().ok().map(|h| h.as_raw());
         let display = config.display();
         let desktop = ContextAttributesBuilder::new().build(handle);
@@ -99,6 +102,17 @@ impl Graphics for Gfx {
                 let ctx = Self::context(&config, window)?.make_current(&surface).map_err(other)?;
                 // SAFETY: the context is current on this thread, and `get_proc_address` is the loader for it.
                 let gl = Arc::new(unsafe { glow::Context::from_loader_function_cstr(|name| display.get_proc_address(name)) });
+                let version = glow::HasContext::version(&*gl);
+                let usable = if version.is_embedded { version.major >= 2 } else { version.major >= 3 };
+                if !usable {
+                    // A software-only driver (Basic Display Adapter, remote desktop) offers OpenGL 1.1.
+                    return Err(other(format_args!(
+                        "OpenGL {}.{}{} is too old, need 3.0 or ES 2.0",
+                        version.major,
+                        version.minor,
+                        if version.is_embedded { " ES" } else { "" }
+                    )));
+                }
                 let shared = Rc::new(Shared { gl, ctx, _config: config });
                 self.shared = Some(shared.clone());
                 shared

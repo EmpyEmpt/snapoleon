@@ -1,6 +1,6 @@
 //! Fast screen copies with GDI BitBlt into a DIB section.
 
-use std::{ffi::c_void, mem, ptr, slice, thread};
+use std::{ffi::c_void, mem, ptr, slice};
 
 use snap_core::{Error, Rect, Result, RgbaImage};
 
@@ -87,11 +87,11 @@ fn bgra_to_rgba_opaque(src: &[u8], dst: &mut [u8]) {
     if src.len() < 4 << 20 {
         return convert(src, dst);
     }
-    let workers = thread::available_parallelism().map_or(4, |n| n.get()).min(8);
+    let workers = rayon::current_num_threads().min(8);
     let chunk = (src.len() / 4).div_ceil(workers) * 4;
-    thread::scope(|s| {
+    rayon::scope(|s| {
         for (s_chunk, d_chunk) in src.chunks(chunk).zip(dst.chunks_mut(chunk)) {
-            s.spawn(move || convert(s_chunk, d_chunk));
+            s.spawn(move |_| convert(s_chunk, d_chunk));
         }
     });
 }

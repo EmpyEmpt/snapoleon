@@ -18,7 +18,6 @@ mod spec;
 mod window;
 
 pub use proxy::Proxy;
-pub use render::NAME as RENDERER;
 pub use runner::run;
 pub use shell::{Shell, ShellApp};
 pub use spec::{ShellConfig, WindowKey, WindowSpec};

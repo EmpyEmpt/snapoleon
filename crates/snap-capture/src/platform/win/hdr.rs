@@ -1,6 +1,6 @@
 //! HDR detection and scRGB (FP16, linear, 1.0 = 80 nits) to SDR sRGB tone mapping.
 
-use std::{collections::HashSet, sync::OnceLock, thread};
+use std::{collections::HashSet, sync::OnceLock};
 
 use snap_core::RgbaImage;
 use windows::{
@@ -86,12 +86,12 @@ pub fn tone_map(fp16: &[u8], width: u32, height: u32, sdr_white_nits: f32, opaqu
     let (w, h) = (width as usize, height as usize);
     let mut out = vec![0u8; w * h * 4];
 
-    let workers = thread::available_parallelism().map_or(4, |n| n.get()).min(8);
+    let workers = rayon::current_num_threads().min(8);
     let rows_per = h.div_ceil(workers).max(1);
-    thread::scope(|s| {
+    rayon::scope(|s| {
         for (chunk_i, dst) in out.chunks_mut(rows_per * w * 4).enumerate() {
             let src = &fp16[chunk_i * rows_per * w * 8..];
-            s.spawn(move || {
+            s.spawn(move |_| {
                 for (px, dst) in src.as_chunks::<8>().0.iter().zip(dst.as_chunks_mut::<4>().0) {
                     let half = |i: usize| luts.half[u16::from_le_bytes([px[2 * i], px[2 * i + 1]]) as usize];
                     let alpha = if opaque { 1.0 } else { half(3).clamp(0.0, 1.0) };

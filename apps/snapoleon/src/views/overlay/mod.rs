@@ -230,16 +230,16 @@ impl OverlayView {
 }
 
 /// The monitor's snapshot as a texture. Alpha is forced opaque: a screen has none. The conversion of a few
-/// million pixels is split over threads so it stays well under a frame.
+/// million pixels is split over the shared worker pool (not fresh threads: with an OpenGL driver loaded every new
+/// thread costs it about 90 KB that is never returned) so it stays well under a frame.
 fn upload(ctx: &Context, image: &snap_core::RgbaImage) -> TextureHandle {
     let size = [image.width() as usize, image.height() as usize];
     let mut pixels = vec![Color32::BLACK; size[0] * size[1]];
-    let threads = std::thread::available_parallelism().map_or(1, |n| n.get().min(8));
-    let chunk = pixels.len().div_ceil(threads).max(1);
-    std::thread::scope(|scope| {
+    let chunk = pixels.len().div_ceil(rayon::current_num_threads().min(8)).max(1);
+    rayon::scope(|scope| {
         for (n, out) in pixels.chunks_mut(chunk).enumerate() {
             let source = &image.as_raw()[n * chunk * 4..];
-            scope.spawn(move || {
+            scope.spawn(move |_| {
                 for (px, rgba) in out.iter_mut().zip(source.as_chunks::<4>().0) {
                     *px = Color32::from_rgb(rgba[0], rgba[1], rgba[2]);
                 }

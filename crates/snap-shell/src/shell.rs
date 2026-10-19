@@ -10,13 +10,13 @@ use snap_core::{Error, Rect, Result};
 use winit::{
     dpi::{LogicalSize, PhysicalPosition, PhysicalSize},
     event_loop::ActiveEventLoop,
-    window::{Icon, Window, WindowId, WindowLevel},
+    window::{Icon, Window, WindowAttributes, WindowId, WindowLevel},
 };
 
 use crate::{
     WindowKey, WindowSpec, platform,
     proxy::Proxy,
-    render::{Gfx, Graphics},
+    render::{Gfx, Graphics, Target},
     window::{Setup, WindowState},
 };
 
@@ -109,14 +109,12 @@ impl<E: Send + 'static> Shell<'_, E> {
         }
         let attrs = platform::window_attributes(self.el, attrs, &spec, &self.core.app_id);
 
-        let window = Arc::new(self.core.gfx.create_window(self.el, attrs)?);
-        platform::configure_window(&window, &spec);
-        if spec.pill {
-            platform::set_pill(&window, true);
-        }
-        if let Some(r) = spec.cover {
-            platform::place_cover(&window, r, &monitor_list(self.el));
-        }
+        let (window, target) = match self.make_window(attrs.clone(), &spec) {
+            Ok(made) => made,
+            // The backend may have a second choice (OpenGL to wgpu); the window it failed on is gone.
+            Err(e) if self.core.gfx.fall_back(&e) => self.make_window(attrs, &spec)?,
+            Err(e) => return Err(e),
+        };
 
         let ctx = egui::Context::default();
         (self.core.theme_init)(&ctx);
@@ -132,12 +130,25 @@ impl<E: Send + 'static> Shell<'_, E> {
             activate: spec.activate,
             opened_at,
         };
-        let target = self.core.gfx.create_target(&window)?;
         let state = WindowState::new(window.clone(), target, setup, ctx);
         self.core.ids.insert(window.id(), key);
         self.core.windows.insert(key, state);
         // The first frame is rendered from the event loop's idle hook.
         Ok(())
+    }
+
+    /// The native window with its native tweaks and drawing surface.
+    fn make_window(&mut self, attrs: WindowAttributes, spec: &WindowSpec) -> Result<(Arc<Window>, Target)> {
+        let window = Arc::new(self.core.gfx.create_window(self.el, attrs)?);
+        platform::configure_window(&window, spec);
+        if spec.pill {
+            platform::set_pill(&window, true);
+        }
+        if let Some(r) = spec.cover {
+            platform::place_cover(&window, r, &monitor_list(self.el));
+        }
+        let target = self.core.gfx.create_target(&window)?;
+        Ok((window, target))
     }
 
     /// Destroy a window. The app is told through [`ShellApp::closed`](crate::ShellApp::closed)
