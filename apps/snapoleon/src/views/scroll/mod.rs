@@ -54,6 +54,8 @@ pub fn open(cx: &mut OpenCx, input: ScrollInput) {
         rounded: true,
         always_on_top: true,
         tool_window: true,
+        // The content under the area is what the user is looking at: keep its focus.
+        activate: false,
         exclude_from_capture: true,
         icon: Some(app_icon()),
         tag: TAG.into(),

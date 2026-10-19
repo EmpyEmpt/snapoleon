@@ -76,6 +76,8 @@ pub fn open(cx: &mut OpenCx, input: RecorderInput) {
         rounded: true,
         always_on_top: true,
         tool_window: true,
+        // The recorded app keeps the keyboard: the user starts working in it as soon as the countdown ends.
+        activate: false,
         exclude_from_capture: true,
         icon: Some(app_icon()),
         tag: TAG.into(),
@@ -100,6 +102,7 @@ pub fn open(cx: &mut OpenCx, input: RecorderInput) {
         for rect in frames::edges(area, scale, matches!(input.target, RecordTarget::Monitor(_))) {
             let spec = WindowSpec {
                 title: t("recorder.title").into_owned(),
+                activate: false,
                 exclude_from_capture: true,
                 icon: Some(app_icon()),
                 tag: FRAME_TAG.into(),

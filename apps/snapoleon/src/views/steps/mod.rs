@@ -50,6 +50,8 @@ pub fn open(cx: &mut OpenCx) {
         rounded: true,
         always_on_top: true,
         tool_window: true,
+        // The user is about to work in other apps: keep their focus.
+        activate: false,
         exclude_from_capture: true,
         icon: Some(app_icon()),
         tag: TAG.into(),

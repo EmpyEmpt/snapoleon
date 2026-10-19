@@ -83,6 +83,8 @@ pub fn open(cx: &mut OpenCx, image: RgbaImage, origin: Option<Rect>) {
         resizable: false,
         always_on_top: true,
         skip_taskbar: true,
+        // A pin sits over what the user works on: it must not take the keyboard from it.
+        activate: false,
         icon: Some(app_icon()),
         tag: TAG.into(),
         ..WindowSpec::default()
