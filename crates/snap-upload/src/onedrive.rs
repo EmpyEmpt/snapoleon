@@ -13,9 +13,9 @@ use crate::{
 
 const PROVIDER: &str = "OneDrive";
 const GRAPH: &str = "https://graph.microsoft.com/v1.0";
-const SIMPLE_LIMIT: usize = 4 * 1024 * 1024;
+const SIMPLE_LIMIT: u64 = 4 * 1024 * 1024;
 /// Upload-session fragments must be multiples of 320 KiB.
-const CHUNK: usize = 32 * 320 * 1024;
+const CHUNK: u64 = 32 * 320 * 1024;
 
 pub(crate) struct OneDrive {
     pub session: Session,
@@ -30,18 +30,18 @@ impl OneDrive {
     }
 
     fn put_simple(&self, path: &str, req: &UploadRequest, progress: &dyn Fn(u64, u64)) -> Result<Response> {
-        let total = req.data.len() as u64;
+        let total = req.body.size();
         self.session.send(|tok| {
             Call::put(format!("{path}:/content?@microsoft.graph.conflictBehavior=rename"))
                 .bearer(tok)
-                .bytes(req.data, "application/octet-stream")
+                .body(req.body, "application/octet-stream")
                 .progress(Progress::new(progress, total))
                 .send()
         })
     }
 
     fn put_session(&self, path: &str, req: &UploadRequest, progress: &dyn Fn(u64, u64)) -> Result<Response> {
-        let total = req.data.len() as u64;
+        let total = req.body.size();
         let created = self
             .session
             .send(|tok| {
@@ -54,13 +54,13 @@ impl OneDrive {
             .json()?;
         let upload_url = created["uploadUrl"].as_str().ok_or_else(|| Error::Network(t("upload.error.no_link").into_owned()))?.to_string();
 
-        let mut offset = 0usize;
+        let mut offset = 0u64;
         loop {
-            let end = (offset + CHUNK).min(req.data.len());
+            let end = (offset + CHUNK).min(total);
             let resp = Call::put(&upload_url)
                 .header("Content-Range", format!("bytes {offset}-{}/{total}", end.saturating_sub(1)))
-                .bytes(&req.data[offset..end], "application/octet-stream")
-                .progress(Progress::new(progress, total).at(offset as u64))
+                .body(req.body.slice(offset, end), "application/octet-stream")
+                .progress(Progress::new(progress, total).at(offset))
                 .send()?;
             if resp.status == 202 {
                 offset = end;
@@ -91,7 +91,7 @@ impl Uploader for OneDrive {
     fn upload(&self, req: &UploadRequest, progress: &dyn Fn(u64, u64)) -> Result<UploadResult> {
         let path = self.item_path(&safe_relative_path(req.file_name));
         let resp =
-            if req.data.len() <= SIMPLE_LIMIT { self.put_simple(&path, req, progress)? } else { self.put_session(&path, req, progress)? };
+            if req.body.size() <= SIMPLE_LIMIT { self.put_simple(&path, req, progress)? } else { self.put_session(&path, req, progress)? };
         let item: Value = resp.check(PROVIDER)?.json()?;
         let id = item["id"].as_str().ok_or_else(|| Error::Network(t("upload.error.no_link").into_owned()))?;
 
@@ -99,7 +99,7 @@ impl Uploader for OneDrive {
             Some(link) => link,
             None => item["webUrl"].as_str().map(String::from).ok_or_else(|| Error::Network(t("upload.error.no_link").into_owned()))?,
         };
-        let total = req.data.len() as u64;
+        let total = req.body.size();
         progress(total, total);
         Ok(UploadResult { url, thumbnail_url: None, delete_url: None, provider: PROVIDER.into() })
     }

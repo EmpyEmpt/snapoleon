@@ -5,7 +5,7 @@ use serde_json::{Value, json};
 use snap_core::{Error, Result, t};
 
 use crate::{
-    UploadRequest, UploadResult, Uploader,
+    Body, UploadRequest, UploadResult, Uploader,
     http::{Call, Progress},
     session::Session,
     util::safe_relative_path,
@@ -14,8 +14,8 @@ use crate::{
 const PROVIDER: &str = "Dropbox";
 const CONTENT: &str = "https://content.dropboxapi.com/2";
 const API: &str = "https://api.dropboxapi.com/2";
-const SINGLE_LIMIT: usize = 140 * 1024 * 1024;
-const CHUNK: usize = 8 * 1024 * 1024;
+const SINGLE_LIMIT: u64 = 140 * 1024 * 1024;
+const CHUNK: u64 = 8 * 1024 * 1024;
 
 pub(crate) struct Dropbox {
     pub session: Session,
@@ -49,13 +49,13 @@ impl Dropbox {
         endpoint: &str,
         token: &str,
         arg: &Value,
-        body: &'a [u8],
+        body: Body<'a>,
         progress: Option<Progress<'a>>,
     ) -> Result<crate::http::Response> {
         let mut call = Call::post(format!("{CONTENT}/{endpoint}"))
             .bearer(token)
             .header("Dropbox-API-Arg", api_arg(arg))
-            .bytes(body, "application/octet-stream");
+            .body(body, "application/octet-stream");
         if let Some(p) = progress {
             call = call.progress(p);
         }
@@ -63,10 +63,10 @@ impl Dropbox {
     }
 
     /// Uploads and returns the stored path (it may differ because of `autorename`).
-    fn upload_file(&self, path: &str, data: &[u8], progress: &dyn Fn(u64, u64)) -> Result<String> {
-        let total = data.len() as u64;
+    fn upload_file(&self, path: &str, data: Body, progress: &dyn Fn(u64, u64)) -> Result<String> {
+        let total = data.size();
         let commit = json!({ "path": path, "mode": "add", "autorename": true, "mute": true });
-        if data.len() <= SINGLE_LIMIT {
+        if total <= SINGLE_LIMIT {
             let meta = self
                 .session
                 .send(|tok| self.content_call("files/upload", tok, &commit, data, Some(Progress::new(progress, total))))?
@@ -75,8 +75,7 @@ impl Dropbox {
             return Ok(stored_path(&meta, path));
         }
 
-        let mut chunks = data.chunks(CHUNK);
-        let first = chunks.next().unwrap_or_default();
+        let first = data.slice(0, CHUNK);
         let start = self
             .session
             .send(|tok| {
@@ -91,12 +90,13 @@ impl Dropbox {
             .check(PROVIDER)?
             .json()?;
         let session_id = start["session_id"].as_str().ok_or_else(|| Error::Network(t("upload.error.no_link").into_owned()))?.to_string();
-        let mut offset = first.len() as u64;
-        let mut chunks = chunks.peekable();
-        while let Some(chunk) = chunks.next() {
+        let mut offset = first.size();
+        while offset < total {
+            let end = (offset + CHUNK).min(total);
+            let chunk = data.slice(offset, end);
             let cursor = json!({ "session_id": session_id, "offset": offset });
             let progress_here = Progress::new(progress, total).at(offset);
-            if chunks.peek().is_some() {
+            if end < total {
                 let arg = json!({ "cursor": cursor, "close": false });
                 self.session
                     .send(|tok| self.content_call("files/upload_session/append_v2", tok, &arg, chunk, Some(progress_here)))?
@@ -110,7 +110,7 @@ impl Dropbox {
                     .json()?;
                 return Ok(stored_path(&meta, path));
             }
-            offset += chunk.len() as u64;
+            offset = end;
         }
         Ok(path.to_string())
     }
@@ -150,9 +150,9 @@ fn raw_link(url: &str) -> String {
 impl Uploader for Dropbox {
     fn upload(&self, req: &UploadRequest, progress: &dyn Fn(u64, u64)) -> Result<UploadResult> {
         let path = self.remote_path(&safe_relative_path(req.file_name));
-        let stored = self.upload_file(&path, req.data, progress)?;
+        let stored = self.upload_file(&path, req.body, progress)?;
         let link = self.shared_link(&stored)?;
-        let total = req.data.len() as u64;
+        let total = req.body.size();
         progress(total, total);
         Ok(UploadResult { url: raw_link(&link), thumbnail_url: None, delete_url: None, provider: PROVIDER.into() })
     }

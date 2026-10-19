@@ -1,7 +1,7 @@
 //! FTP and explicit FTPS (`AUTH TLS`, rustls) uploads.
 
 use std::{
-    io::Write,
+    io::{self, Write},
     net::{TcpStream, ToSocketAddrs},
     sync::Arc,
     time::Duration,
@@ -15,7 +15,7 @@ use suppaftp::{
 };
 
 use crate::{
-    UploadRequest, UploadResult, Uploader,
+    Body, UploadRequest, UploadResult, Uploader,
     util::{join_url, pct_path, safe_relative_path},
 };
 
@@ -116,7 +116,7 @@ impl Ftp {
 trait Session {
     fn cwd(&mut self, path: &str) -> std::result::Result<(), FtpError>;
     fn mkdir(&mut self, path: &str) -> std::result::Result<(), FtpError>;
-    fn store(&mut self, name: &str, data: &[u8], progress: &dyn Fn(u64, u64)) -> std::result::Result<(), FtpError>;
+    fn store(&mut self, name: &str, body: Body, progress: &dyn Fn(u64, u64)) -> std::result::Result<(), FtpError>;
 }
 
 impl<T: TlsStream> Session for ImplFtpStream<T> {
@@ -126,16 +126,21 @@ impl<T: TlsStream> Session for ImplFtpStream<T> {
     fn mkdir(&mut self, path: &str) -> std::result::Result<(), FtpError> {
         ImplFtpStream::mkdir(self, path)
     }
-    fn store(&mut self, name: &str, data: &[u8], progress: &dyn Fn(u64, u64)) -> std::result::Result<(), FtpError> {
+    fn store(&mut self, name: &str, body: Body, progress: &dyn Fn(u64, u64)) -> std::result::Result<(), FtpError> {
+        let mut reader = body.reader().map_err(FtpError::ConnectionError)?;
         let mut stream = self.put_with_stream(name)?;
-        let total = data.len() as u64;
+        let total = body.size();
         let mut sent = 0u64;
-        for chunk in data.chunks(CHUNK) {
-            stream.write_all(chunk).map_err(FtpError::ConnectionError)?;
-            sent += chunk.len() as u64;
+        let mut buf = vec![0u8; CHUNK];
+        loop {
+            let n = io::Read::read(&mut reader, &mut buf).map_err(FtpError::ConnectionError)?;
+            if n == 0 {
+                return stream.finish();
+            }
+            stream.write_all(&buf[..n]).map_err(FtpError::ConnectionError)?;
+            sent += n as u64;
             progress(sent, total);
         }
-        stream.finish()
     }
 }
 
@@ -146,7 +151,7 @@ impl Uploader for Ftp {
             self.enter_dir(s, &self.dir)?;
             let (sub, leaf) = rel.rsplit_once('/').unwrap_or(("", &rel));
             self.enter_dir(s, sub)?;
-            s.store(leaf, req.data, progress).map_err(|e| ftp_err(&self.host, e))
+            s.store(leaf, req.body, progress).map_err(|e| ftp_err(&self.host, e))
         })?;
 
         let url = if self.public_base_url.trim().is_empty() {

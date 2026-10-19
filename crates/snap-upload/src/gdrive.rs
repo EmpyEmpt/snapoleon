@@ -17,9 +17,9 @@ const UPLOAD: &str = "https://www.googleapis.com/upload/drive/v3/files";
 const FILES: &str = "https://www.googleapis.com/drive/v3/files";
 const FIELDS: &str = "id,name,webViewLink";
 /// Google allows multipart uploads up to 5 MB; larger files use the resumable protocol.
-const MULTIPART_LIMIT: usize = 5 * 1024 * 1024;
+const MULTIPART_LIMIT: u64 = 5 * 1024 * 1024;
 /// Resumable chunks must be multiples of 256 KiB.
-const CHUNK: usize = 32 * 256 * 1024;
+const CHUNK: u64 = 32 * 256 * 1024;
 
 pub(crate) struct GoogleDrive {
     pub session: Session,
@@ -37,9 +37,9 @@ impl GoogleDrive {
 
     fn upload_multipart(&self, meta: &Value, req: &UploadRequest, progress: &dyn Fn(u64, u64)) -> Result<Response> {
         let meta = meta.to_string();
-        let total = req.data.len() as u64;
+        let total = req.body.size();
         self.session.send(|tok| {
-            let body = Multipart::related().inline("application/json; charset=UTF-8", &meta).part(mime_or_octet(req.mime), req.data);
+            let body = Multipart::related().inline("application/json; charset=UTF-8", &meta).part(mime_or_octet(req.mime), req.body);
             Call::post(format!("{UPLOAD}?uploadType=multipart&supportsAllDrives=true&fields={FIELDS}"))
                 .bearer(tok)
                 .multipart(body)
@@ -49,7 +49,7 @@ impl GoogleDrive {
     }
 
     fn upload_resumable(&self, meta: &Value, req: &UploadRequest, progress: &dyn Fn(u64, u64)) -> Result<Response> {
-        let total = req.data.len() as u64;
+        let total = req.body.size();
         let init = self
             .session
             .send(|tok| {
@@ -63,14 +63,14 @@ impl GoogleDrive {
             .check(PROVIDER)?;
         let location = init.header("location").ok_or_else(|| Error::Network(t("upload.error.no_link").into_owned()))?.to_string();
 
-        let mut offset = 0usize;
+        let mut offset = 0u64;
         loop {
-            let end = (offset + CHUNK).min(req.data.len());
-            let chunk = &req.data[offset..end];
+            let end = (offset + CHUNK).min(total);
+            let chunk = req.body.slice(offset, end);
             let resp = Call::put(&location)
                 .header("Content-Range", format!("bytes {offset}-{}/{total}", end.saturating_sub(1)))
-                .bytes(chunk, mime_or_octet(req.mime))
-                .progress(Progress::new(progress, total).at(offset as u64))
+                .body(chunk, mime_or_octet(req.mime))
+                .progress(Progress::new(progress, total).at(offset))
                 .manual_redirects()
                 .send()?;
             if resp.status == 308 {
@@ -86,7 +86,7 @@ impl Uploader for GoogleDrive {
     fn upload(&self, req: &UploadRequest, progress: &dyn Fn(u64, u64)) -> Result<UploadResult> {
         let name = base_name(&safe_relative_path(req.file_name)).to_string();
         let meta = self.metadata(&name);
-        let resp = if req.data.len() <= MULTIPART_LIMIT {
+        let resp = if req.body.size() <= MULTIPART_LIMIT {
             self.upload_multipart(&meta, req, progress)?
         } else {
             self.upload_resumable(&meta, req, progress)?
@@ -103,7 +103,7 @@ impl Uploader for GoogleDrive {
             })?
             .check(PROVIDER)?;
 
-        let total = req.data.len() as u64;
+        let total = req.body.size();
         progress(total, total);
         let url = file["webViewLink"].as_str().map(String::from).unwrap_or_else(|| format!("https://drive.google.com/file/d/{id}/view"));
         let thumbnail_url = Some(format!("https://drive.google.com/thumbnail?id={id}&sz=w1600"));

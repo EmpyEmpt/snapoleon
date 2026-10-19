@@ -11,9 +11,9 @@ use crate::{
 };
 
 const PROVIDER: &str = "Telegram";
-const PHOTO_LIMIT: usize = 10 * 1024 * 1024;
+const PHOTO_LIMIT: u64 = 10 * 1024 * 1024;
 /// Bot API ceiling for any uploaded file.
-const FILE_LIMIT: usize = 50 * 1024 * 1024;
+const FILE_LIMIT: u64 = 50 * 1024 * 1024;
 
 pub(crate) struct Telegram {
     pub token: String,
@@ -64,7 +64,7 @@ impl Telegram {
             Method::Animation
         } else if is_video(mime) {
             Method::Video
-        } else if is_image(mime) && matches!(mime, "image/png" | "image/jpeg" | "image/webp") && req.data.len() <= PHOTO_LIMIT {
+        } else if is_image(mime) && matches!(mime, "image/png" | "image/jpeg" | "image/webp") && req.body.size() <= PHOTO_LIMIT {
             Method::Photo
         } else {
             Method::Document
@@ -79,8 +79,8 @@ impl Telegram {
         if matches!(method, Method::Video) {
             form = form.text("supports_streaming", "true");
         }
-        let form = form.file(method.field(), req.file_name, mime_or_octet(req.mime), req.data);
-        Call::post(self.endpoint(method.api())).multipart(form).progress(Progress::new(progress, req.data.len() as u64)).send()
+        let form = form.file(method.field(), req.file_name, mime_or_octet(req.mime), req.body);
+        Call::post(self.endpoint(method.api())).multipart(form).progress(Progress::new(progress, req.body.size())).send()
     }
 
     /// Public link to the posted message when it can be derived.
@@ -102,11 +102,8 @@ impl Telegram {
 
 impl Uploader for Telegram {
     fn upload(&self, req: &UploadRequest, progress: &dyn Fn(u64, u64)) -> Result<UploadResult> {
-        if req.data.len() > FILE_LIMIT {
-            return Err(Error::invalid(tf(
-                "upload.error.file_too_large",
-                &[("provider", PROVIDER), ("limit", &human_size(FILE_LIMIT as u64))],
-            )));
+        if req.body.size() > FILE_LIMIT {
+            return Err(Error::invalid(tf("upload.error.file_too_large", &[("provider", PROVIDER), ("limit", &human_size(FILE_LIMIT))])));
         }
         let method = Self::pick_method(req);
         let mut resp = self.send(&method, req, progress)?;
@@ -119,7 +116,7 @@ impl Uploader for Telegram {
         if json["ok"].as_bool() != Some(true) {
             return Err(Error::Network(json["description"].as_str().unwrap_or("Telegram API error").to_string()));
         }
-        let total = req.data.len() as u64;
+        let total = req.body.size();
         progress(total, total);
         Ok(UploadResult { url: self.message_link(&json["result"]), thumbnail_url: None, delete_url: None, provider: PROVIDER.into() })
     }

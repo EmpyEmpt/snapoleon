@@ -10,7 +10,7 @@ use snap_core::{Error, Result, settings::CustomUploader, t, tf};
 use template::{Escape, ResponseView, Vars, expand};
 
 use crate::{
-    UploadRequest, UploadResult, Uploader,
+    Body, UploadRequest, UploadResult, Uploader,
     http::{Call, Progress},
     multipart::Multipart,
     util::mime_or_octet,
@@ -55,16 +55,20 @@ impl Custom {
         }
     }
 
-    fn vars<'a>(&'a self, req: &'a UploadRequest) -> Vars<'a> {
-        let input = if req.mime.starts_with("text/") { String::from_utf8_lossy(req.data).into_owned() } else { req.file_name.to_string() };
-        Vars {
+    fn vars<'a>(&'a self, req: &'a UploadRequest) -> Result<Vars<'a>> {
+        let input = if req.mime.starts_with("text/") {
+            String::from_utf8_lossy(&req.body.bytes()?).into_owned()
+        } else {
+            req.file_name.to_string()
+        };
+        Ok(Vars {
             file_name: req.file_name,
             input,
             mime: mime_or_octet(req.mime),
             title: req.title.unwrap_or_default(),
             secret: &self.secret,
-            file: req.data,
-        }
+            file: req.body,
+        })
     }
 
     fn request_url(&self, vars: &Vars) -> Result<String> {
@@ -82,11 +86,11 @@ impl Custom {
 
 impl Uploader for Custom {
     fn upload(&self, req: &UploadRequest, progress: &dyn Fn(u64, u64)) -> Result<UploadResult> {
-        let vars = self.vars(req);
+        let vars = self.vars(req)?;
         let ex = |s: &str| expand(s, &vars, None, Escape::None);
         let method = self.method();
         let kind = self.body_kind();
-        let total = req.data.len() as u64;
+        let total = req.body.size();
 
         let mut call = Call::new(&method, self.request_url(&vars)?).same_origin_redirects();
         let mut user_content_type = None;
@@ -107,11 +111,11 @@ impl Uploader for Custom {
                 for (k, v) in self.cfg.arguments.iter() {
                     form = form.text(&ex(k), &ex(v));
                 }
-                call.multipart(form.file(field, req.file_name, mime_or_octet(req.mime), req.data)).progress(Progress::new(progress, total))
+                call.multipart(form.file(field, req.file_name, mime_or_octet(req.mime), req.body)).progress(Progress::new(progress, total))
             }
             BodyKind::Binary => {
                 let ct = user_content_type.unwrap_or_else(|| mime_or_octet(req.mime).to_string());
-                call.bytes(req.data, &ct).progress(Progress::new(progress, total))
+                call.body(req.body, &ct).progress(Progress::new(progress, total))
             }
             BodyKind::Form => {
                 let pairs: Vec<(String, String)> = self.cfg.arguments.iter().map(|(k, v)| (ex(k), ex(v))).collect();
@@ -165,8 +169,15 @@ impl Uploader for Custom {
     /// Checks that the endpoint is configured and reachable without uploading
     /// anything: any HTTP answer, even an error status, proves the host responds.
     fn test(&self) -> Result<()> {
-        let dummy = UploadRequest { data: b"", file_name: "test.png", mime: "image/png", title: None, expiry_hours: None, password: None };
-        let vars = self.vars(&dummy);
+        let dummy = UploadRequest {
+            body: Body::Bytes(b""),
+            file_name: "test.png",
+            mime: "image/png",
+            title: None,
+            expiry_hours: None,
+            password: None,
+        };
+        let vars = self.vars(&dummy)?;
         let url = self.request_url(&vars)?;
         let parsed = url::Url::parse(&url).map_err(|_| Error::invalid(tf("upload.error.bad_url", &[("url", &url)])))?;
         Call::new("HEAD", parsed.origin().ascii_serialization()).send().map(|_| ())

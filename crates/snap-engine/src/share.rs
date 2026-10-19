@@ -1,6 +1,7 @@
 //! Settings persistence, saving, uploading, shortening and link copying.
 
 use std::{
+    io::Read,
     path::{Path, PathBuf},
     sync::atomic::Ordering,
 };
@@ -14,12 +15,15 @@ use snap_core::{
     t, tf,
 };
 use snap_history::LinkRecord;
-use snap_upload::UploadRequest;
+use snap_upload::{Body, UploadRequest};
 
 use crate::{Document, Engine, Link, LinkAccess, SaveOptions, meta, recording, redact, smart};
 
 /// File names stop here; the OS limit is 255 bytes and we leave room for `" (99).webp"`.
 const MAX_NAME_CHARS: usize = 150;
+
+/// Bytes of a file that tell what it is (the longest signature `meta::is_image` looks at).
+const HEAD_LEN: u64 = 16;
 
 // --- settings ---------------------------------------------------------------------------------------------------
 
@@ -206,14 +210,23 @@ pub(crate) fn upload_file_with(
     shorten: bool,
 ) -> Result<Link> {
     check_uploads_allowed(engine)?;
-    let bytes = std::fs::read(path).map_err(|e| match e.kind() {
+    let ext = path.extension().map(|e| e.to_string_lossy().into_owned()).unwrap_or_default();
+    let name = path.file_name().map_or_else(|| "file".to_string(), |n| n.to_string_lossy().into_owned());
+    // Images that must be rewritten are small and go from memory; everything else (recordings above all) is streamed
+    // from disk.
+    let rewritten = prepare_file(engine, path)?;
+    let body = match &rewritten {
+        Some(bytes) => Body::Bytes(bytes),
+        None => Body::file(path, std::fs::metadata(path).map_err(|e| file_error(path, e))?.len()),
+    };
+    finish_upload(engine, body, &name, mime_for(&ext), None, dest, id, access, progress, shorten)
+}
+
+fn file_error(path: &Path, e: std::io::Error) -> Error {
+    match e.kind() {
         std::io::ErrorKind::NotFound => Error::NotFound(path.display().to_string()),
         _ => Error::Io(e),
-    })?;
-    let ext = path.extension().map(|e| e.to_string_lossy().into_owned()).unwrap_or_default();
-    let bytes = prepare_file(engine, bytes)?;
-    let name = path.file_name().map_or_else(|| "file".to_string(), |n| n.to_string_lossy().into_owned());
-    finish_upload(engine, &bytes, &name, mime_for(&ext), None, dest, id, access, progress, shorten)
+    }
 }
 
 pub(crate) fn upload_image(
@@ -240,32 +253,43 @@ pub(crate) fn upload_image(
     let name = format!("{}.{}", file_stem(engine, &s.capture.filename_template, cap, ai_title.as_deref()), fmt.ext());
     // The window title is text the redaction never saw, and context the user may have turned off.
     let title = cap.context.window_title.as_deref().filter(|_| s.privacy.record_context && !forced).or(ai_title.as_deref());
-    finish_upload(engine, &bytes, &name, fmt.mime(), title, dest, Some(&cap.id), &LinkAccess::default(), progress, shorten)
+    finish_upload(engine, Body::Bytes(&bytes), &name, fmt.mime(), title, dest, Some(&cap.id), &LinkAccess::default(), progress, shorten)
 }
 
 fn check_uploads_allowed(engine: &Engine) -> Result<()> {
     if engine.uploads_allowed() { Ok(()) } else { Err(Error::Policy(t("engine.error.uploads_disabled").into_owned())) }
 }
 
-/// The bytes of a file as they may leave the machine. Under `ForceRedactBeforeUpload` only raster images qualify: they
-/// are decoded, covered and re-encoded; anything else cannot be redacted and is refused. Then metadata is stripped.
-fn prepare_file(engine: &Engine, bytes: Vec<u8>) -> Result<Vec<u8>> {
+/// The bytes of a file as they may leave the machine, or `None` when the file itself may be sent as it is. Under
+/// `ForceRedactBeforeUpload` only raster images qualify: they are decoded, covered and re-encoded; anything else cannot
+/// be redacted and is refused (decided from the first bytes, before the file is read). Then metadata is stripped from
+/// images.
+fn prepare_file(engine: &Engine, path: &Path) -> Result<Option<Vec<u8>>> {
     let s = engine.settings();
-    let bytes = if engine.policy().force_redact_before_upload {
-        let format = meta::image_format(&bytes).ok_or_else(|| Error::Policy(t("engine.error.redact_unsupported").into_owned()))?;
+    let forced = engine.policy().force_redact_before_upload;
+    let mut head = Vec::new();
+    std::fs::File::open(path).and_then(|f| f.take(HEAD_LEN).read_to_end(&mut head)).map_err(|e| file_error(path, e))?;
+    let format = meta::image_format(&head);
+    if forced && format.is_none() {
+        return Err(Error::Policy(t("engine.error.redact_unsupported").into_owned()));
+    }
+    let strip = s.privacy.strip_metadata && meta::is_image(&head);
+    if !forced && !strip {
+        return Ok(None);
+    }
+    let mut bytes = std::fs::read(path).map_err(|e| file_error(path, e))?;
+    if let Some(format) = format.filter(|_| forced) {
         let mut img = snap_image::encode::decode(&bytes)?;
         redact::auto_redact(engine, &mut img, &[], Some(RedactStyle::Solid))?;
-        snap_image::encode::encode(&img, format, quality(&s, format), s.capture.optimize_png)?
-    } else {
-        bytes
-    };
-    if s.privacy.strip_metadata { meta::strip(bytes) } else { Ok(bytes) }
+        bytes = snap_image::encode::encode(&img, format, quality(&s, format), s.capture.optimize_png)?;
+    }
+    if s.privacy.strip_metadata { meta::strip(bytes).map(Some) } else { Ok(Some(bytes)) }
 }
 
 #[allow(clippy::too_many_arguments)]
 fn finish_upload(
     engine: &Engine,
-    data: &[u8],
+    body: Body,
     name: &str,
     mime: &str,
     title: Option<&str>,
@@ -279,7 +303,7 @@ fn finish_upload(
     let expiry = access.expiry_hours.unwrap_or(engine.settings().links.expiry_hours);
     let uploader = snap_upload::uploader_for(&destination, &engine.secrets())?;
     let req = UploadRequest {
-        data,
+        body,
         file_name: name,
         mime,
         title,

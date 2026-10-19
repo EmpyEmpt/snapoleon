@@ -21,6 +21,11 @@ pub(crate) fn image_format(b: &[u8]) -> Option<ImageFormat> {
     }
 }
 
+/// Whether `head` (the first bytes of a file) starts an image that carries metadata, one [`strip`] works on or refuses.
+pub(crate) fn is_image(head: &[u8]) -> bool {
+    image_format(head).is_some() || is_unstrippable_image(head)
+}
+
 /// Image containers that carry metadata (HEIC / AVIF, TIFF) but that nothing here can rewrite.
 fn is_unstrippable_image(b: &[u8]) -> bool {
     let tiff = b.starts_with(b"II*\0") || b.starts_with(b"MM\0*");

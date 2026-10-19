@@ -3,7 +3,6 @@
 //! and a response type with the helpers the providers need.
 
 use std::{
-    borrow::Cow,
     io::{self, Read},
     sync::OnceLock,
     time::Duration,
@@ -14,7 +13,11 @@ use serde_json::Value;
 use snap_core::{Error, Result, tf};
 use ureq::{ResponseExt, SendBody, http};
 
-use crate::{multipart::Multipart, util::pct};
+use crate::{
+    body::{Body, Chunk},
+    multipart::Multipart,
+    util::pct,
+};
 
 const MAX_RESPONSE: u64 = 32 * 1024 * 1024;
 
@@ -59,32 +62,32 @@ impl<'a> Progress<'a> {
 }
 
 struct ChunkReader<'r, 'a> {
-    chunks: &'r [Cow<'a, [u8]>],
+    chunks: &'r [Chunk<'a>],
     idx: usize,
-    off: usize,
+    current: Option<Box<dyn Read + 'r>>,
     sent: u64,
     progress: Option<Progress<'r>>,
 }
 
 impl Read for ChunkReader<'_, '_> {
     fn read(&mut self, buf: &mut [u8]) -> io::Result<usize> {
-        while let Some(chunk) = self.chunks.get(self.idx) {
-            let rest = &chunk[self.off..];
-            if rest.is_empty() {
+        loop {
+            if self.current.is_none() {
+                let Some(chunk) = self.chunks.get(self.idx) else { return Ok(0) };
+                self.current = Some(chunk.reader()?);
+            }
+            let n = self.current.as_mut().map_or(Ok(0), |r| r.read(buf))?;
+            if n == 0 {
+                self.current = None;
                 self.idx += 1;
-                self.off = 0;
                 continue;
             }
-            let n = rest.len().min(buf.len());
-            buf[..n].copy_from_slice(&rest[..n]);
-            self.off += n;
             self.sent += n as u64;
             if let Some(p) = &self.progress {
                 (p.cb)((p.base + self.sent).min(p.total), p.total);
             }
             return Ok(n);
         }
-        Ok(0)
     }
 }
 
@@ -175,7 +178,7 @@ pub(crate) struct Call<'a> {
     method: String,
     url: String,
     headers: Vec<(String, String)>,
-    body: Vec<Cow<'a, [u8]>>,
+    body: Vec<Chunk<'a>>,
     progress: Option<Progress<'a>>,
     redirects: Redirects,
 }
@@ -216,19 +219,19 @@ impl<'a> Call<'a> {
         self.header("Authorization", format!("Basic {cred}"))
     }
 
-    pub fn bytes(mut self, data: &'a [u8], content_type: &str) -> Self {
-        self.body = vec![Cow::Borrowed(data)];
+    pub fn body(mut self, data: Body<'a>, content_type: &str) -> Self {
+        self.body = vec![Chunk::Payload(data)];
         self.header("Content-Type", content_type)
     }
 
     pub fn owned(mut self, data: Vec<u8>, content_type: &str) -> Self {
-        self.body = vec![Cow::Owned(data)];
+        self.body = vec![Chunk::Owned(data)];
         self.header("Content-Type", content_type)
     }
 
-    /// Body bytes without touching `Content-Type` (the caller set it already).
-    pub fn raw_body(mut self, data: &'a [u8]) -> Self {
-        self.body = vec![Cow::Borrowed(data)];
+    /// Body without touching `Content-Type` (the caller set it already).
+    pub fn raw_body(mut self, data: Body<'a>) -> Self {
+        self.body = vec![Chunk::Payload(data)];
         self
     }
 
@@ -291,7 +294,7 @@ impl<'a> Call<'a> {
     }
 
     fn exchange(&self, method: &str, url: &str, with_body: bool) -> Result<Response> {
-        let len: u64 = self.body.iter().map(|c| c.len() as u64).sum();
+        let len: u64 = self.body.iter().map(Chunk::size).sum();
         let mut builder = http::Request::builder().method(method).uri(url);
         for (k, v) in &self.headers {
             builder = builder.header(k, v);
@@ -300,7 +303,7 @@ impl<'a> Call<'a> {
         if has_body {
             builder = builder.header("Content-Length", len.to_string());
         }
-        let mut reader = ChunkReader { chunks: &self.body, idx: 0, off: 0, sent: 0, progress: self.progress };
+        let mut reader = ChunkReader { chunks: &self.body, idx: 0, current: None, sent: 0, progress: self.progress };
         let (parts, ()) = builder.body(()).map_err(|e| Error::invalid(format!("{url}: {e}")))?.into_parts();
         let agent = agent(self.redirects == Redirects::Follow);
         let result = if has_body {

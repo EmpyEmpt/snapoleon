@@ -2,7 +2,7 @@
 
 use std::{
     fs,
-    io::Write,
+    io::{Read, Write},
     path::{Path, PathBuf},
 };
 
@@ -43,15 +43,12 @@ impl Uploader for LocalFolder {
         if let Some(parent) = path.parent() {
             fs::create_dir_all(parent)?;
         }
-        let total = req.data.len() as u64;
         let mut file = fs::File::create_new(&path)?;
-        let mut written = 0u64;
-        for chunk in req.data.chunks(256 * 1024) {
-            file.write_all(chunk)?;
-            written += chunk.len() as u64;
-            progress(written, total);
+        if let Err(e) = copy(req, &mut file, progress) {
+            drop(file);
+            let _ = fs::remove_file(&path);
+            return Err(e.into());
         }
-        file.sync_all()?;
 
         let url =
             if self.public_base_url.trim().is_empty() { file_url(&path)? } else { join_url(self.public_base_url.trim(), &pct_path(&rel)) };
@@ -64,6 +61,22 @@ impl Uploader for LocalFolder {
         fs::write(&probe, b"snapoleon")?;
         fs::remove_file(&probe)?;
         Ok(())
+    }
+}
+
+fn copy(req: &UploadRequest, file: &mut fs::File, progress: &dyn Fn(u64, u64)) -> std::io::Result<()> {
+    let total = req.body.size();
+    let mut reader = req.body.reader()?;
+    let mut buf = vec![0u8; 256 * 1024];
+    let mut written = 0u64;
+    loop {
+        let n = reader.read(&mut buf)?;
+        if n == 0 {
+            return file.sync_all();
+        }
+        file.write_all(&buf[..n])?;
+        written += n as u64;
+        progress(written, total);
     }
 }
 

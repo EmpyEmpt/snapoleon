@@ -1,5 +1,6 @@
 //! S3-compatible object storage over plain HTTP with our own SigV4.
 
+use sha2::Sha256;
 use snap_core::{
     Error, Result,
     naming::{self, NameContext},
@@ -8,7 +9,7 @@ use snap_core::{
 use url::Url;
 
 use crate::{
-    UploadRequest, UploadResult, Uploader,
+    Body, UploadRequest, UploadResult, Uploader,
     http::{Call, Progress},
     sigv4::{self, Credentials},
     util::{join_url, mime_or_octet, pct_path, safe_relative_path, split_ext},
@@ -72,9 +73,9 @@ impl S3Uploader {
         (url, canonical)
     }
 
-    fn signed<'a>(&self, method: &str, key: &str, body: &'a [u8], content_type: Option<&str>) -> Call<'a> {
+    fn signed<'a>(&self, method: &str, key: &str, body: Body<'a>, content_type: Option<&str>) -> Result<Call<'a>> {
         let (url, canonical) = self.locate(key);
-        let payload_hash = sigv4::sha256_hex(body);
+        let payload_hash = hex::encode(body.digest::<Sha256>()?);
         let now = chrono::Utc::now().format("%Y%m%dT%H%M%SZ").to_string();
 
         let mut headers = vec![
@@ -96,7 +97,7 @@ impl S3Uploader {
         for (k, v) in headers.into_iter().filter(|(k, _)| k != "host") {
             call = call.header(&k, v);
         }
-        call.header("Authorization", signed.authorization).raw_body(body)
+        Ok(call.header("Authorization", signed.authorization).raw_body(body))
     }
 
     fn cache_control(&self) -> String {
@@ -131,8 +132,8 @@ impl S3Uploader {
 impl Uploader for S3Uploader {
     fn upload(&self, req: &UploadRequest, progress: &dyn Fn(u64, u64)) -> Result<UploadResult> {
         let key = self.object_key(req);
-        let total = req.data.len() as u64;
-        let call = self.signed("PUT", &key, req.data, Some(mime_or_octet(req.mime))).progress(Progress::new(progress, total));
+        let total = req.body.size();
+        let call = self.signed("PUT", &key, req.body, Some(mime_or_octet(req.mime)))?.progress(Progress::new(progress, total));
         call.send()?.check(PROVIDER)?;
         progress(total, total);
         Ok(UploadResult { url: self.public_url(&key), thumbnail_url: None, delete_url: None, provider: PROVIDER.into() })
@@ -143,9 +144,9 @@ impl Uploader for S3Uploader {
     fn test(&self) -> Result<()> {
         let key = format!("{}snapoleon-test-{}.txt", naming::expand(&self.cfg.prefix, &NameContext::now()), naming::random_code(8));
         let key = key.trim_start_matches('/');
-        self.signed("PUT", key, b"snapoleon", Some("text/plain")).send()?.check(PROVIDER)?;
+        self.signed("PUT", key, Body::Bytes(b"snapoleon"), Some("text/plain"))?.send()?.check(PROVIDER)?;
         // Best effort: a missing delete permission must not fail the test.
-        let _ = self.signed("DELETE", key, b"", None).send();
+        let _ = self.signed("DELETE", key, Body::Bytes(b""), None)?.send();
         Ok(())
     }
 }

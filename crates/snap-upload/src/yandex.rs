@@ -85,9 +85,9 @@ impl YandexDisk {
 impl Uploader for YandexDisk {
     fn upload(&self, req: &UploadRequest, progress: &dyn Fn(u64, u64)) -> Result<UploadResult> {
         let (href, path) = self.upload_href(&safe_relative_path(req.file_name))?;
-        let total = req.data.len() as u64;
+        let total = req.body.size();
         Call::put(href)
-            .bytes(req.data, crate::util::mime_or_octet(req.mime))
+            .body(req.body, crate::util::mime_or_octet(req.mime))
             .progress(Progress::new(progress, total))
             .send()?
             .check(PROVIDER)?;

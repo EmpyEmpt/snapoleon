@@ -362,7 +362,7 @@ fn main() {
     let secrets: Arc<dyn SecretStore> = Arc::new(MemoryStore::default());
     let png: Vec<u8> = (0..70_000u32).map(|i| 32 + (i * 31 % 90) as u8).collect();
     let req = UploadRequest {
-        data: &png,
+        body: snap_upload::Body::Bytes(&png),
         file_name: "My shot (1) ü.png",
         mime: "image/png",
         title: Some("Demo \"title\""),

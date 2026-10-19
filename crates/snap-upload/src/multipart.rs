@@ -1,14 +1,14 @@
 //! Minimal `multipart/form-data` (and `multipart/related`) body builder.
 //! File payloads are referenced, never copied, so large videos stay cheap.
 
-use std::borrow::Cow;
-
 use rand::{Rng, distr::Alphanumeric};
+
+use crate::body::{Body, Chunk};
 
 pub(crate) struct Multipart<'a> {
     boundary: String,
     subtype: &'static str,
-    parts: Vec<Cow<'a, [u8]>>,
+    parts: Vec<Chunk<'a>>,
     pending: Vec<u8>,
 }
 
@@ -46,7 +46,7 @@ impl<'a> Multipart<'a> {
         self
     }
 
-    pub fn file(mut self, name: &str, file_name: &str, mime: &str, data: &'a [u8]) -> Self {
+    pub fn file(mut self, name: &str, file_name: &str, mime: &str, data: Body<'a>) -> Self {
         self.open_part(&[
             ("Content-Disposition", format!("form-data; name=\"{}\"; filename=\"{}\"", quote(name), quote(file_name))),
             ("Content-Type", mime.to_string()),
@@ -56,7 +56,7 @@ impl<'a> Multipart<'a> {
 
     /// An unnamed part with a content type (for `multipart/related`). Inline
     /// text goes through [`Multipart::inline`].
-    pub fn part(mut self, content_type: &str, body: &'a [u8]) -> Self {
+    pub fn part(mut self, content_type: &str, body: Body<'a>) -> Self {
         self.open_part(&[("Content-Type", content_type.to_string())]);
         self.data(body)
     }
@@ -68,17 +68,17 @@ impl<'a> Multipart<'a> {
         self
     }
 
-    fn data(mut self, data: &'a [u8]) -> Self {
-        self.parts.push(Cow::Owned(std::mem::take(&mut self.pending)));
-        self.parts.push(Cow::Borrowed(data));
+    fn data(mut self, data: Body<'a>) -> Self {
+        self.parts.push(Chunk::Owned(std::mem::take(&mut self.pending)));
+        self.parts.push(Chunk::Payload(data));
         self.close_part();
         self
     }
 
     /// Returns the `Content-Type` header value and the body chunks.
-    pub fn finish(mut self) -> (String, Vec<Cow<'a, [u8]>>) {
+    pub fn finish(mut self) -> (String, Vec<Chunk<'a>>) {
         self.pending.extend_from_slice(format!("--{}--\r\n", self.boundary).as_bytes());
-        self.parts.push(Cow::Owned(self.pending));
+        self.parts.push(Chunk::Owned(self.pending));
         (format!("multipart/{}; boundary={}", self.subtype, self.boundary), self.parts)
     }
 }

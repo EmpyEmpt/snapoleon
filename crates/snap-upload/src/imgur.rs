@@ -29,8 +29,8 @@ impl Uploader for Imgur {
         if let Some(title) = req.title.filter(|t| !t.is_empty()) {
             form = form.text("title", title);
         }
-        let form = form.file(field, req.file_name, mime_or_octet(req.mime), req.data);
-        let total = req.data.len() as u64;
+        let form = form.file(field, req.file_name, mime_or_octet(req.mime), req.body);
+        let total = req.body.size();
         let resp = Call::post(format!("{API}/{}", if field == "video" { "upload" } else { "image" }))
             .header("Authorization", self.auth())
             .multipart(form)

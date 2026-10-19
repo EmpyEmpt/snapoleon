@@ -138,12 +138,12 @@ impl Client {
         if let Some(title) = req.title.filter(|t| !t.is_empty()) {
             form = form.text("title", title);
         }
-        let form = form.file("file", req.file_name, mime_or_octet(req.mime), req.data);
+        let form = form.file("file", req.file_name, mime_or_octet(req.mime), req.body);
         let resp = self.check(
             Call::post(self.url("api/v1/upload"))
                 .bearer(&self.token)
                 .multipart(form)
-                .progress(Progress::new(progress, req.data.len() as u64))
+                .progress(Progress::new(progress, req.body.size()))
                 .send()?,
         )?;
         let mut uploaded: Uploaded = serde_json::from_slice(&resp.body).map_err(|e| Error::Network(e.to_string()))?;
@@ -191,7 +191,7 @@ pub(crate) struct SnapServer {
 impl Uploader for SnapServer {
     fn upload(&self, req: &UploadRequest, progress: &dyn Fn(u64, u64)) -> Result<UploadResult> {
         let up = self.client.upload(req, progress)?;
-        let total = req.data.len() as u64;
+        let total = req.body.size();
         progress(total, total);
         Ok(UploadResult { url: up.url, thumbnail_url: up.raw_url, delete_url: up.delete_url, provider: PROVIDER.into() })
     }

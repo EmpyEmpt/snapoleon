@@ -11,7 +11,10 @@ use regex::Regex;
 use serde_json::Value;
 use snap_core::naming::{self, NameContext};
 
-use crate::util::{pct, split_ext};
+use crate::{
+    Body,
+    util::{pct, split_ext},
+};
 
 /// Values available when building the request.
 pub(crate) struct Vars<'a> {
@@ -20,7 +23,7 @@ pub(crate) struct Vars<'a> {
     pub mime: &'a str,
     pub title: &'a str,
     pub secret: &'a str,
-    pub file: &'a [u8],
+    pub file: Body<'a>,
 }
 
 /// The server's answer, for URL / error-message templates.
@@ -129,7 +132,7 @@ fn eval(inner: &str, vars: &Vars, resp: Option<&ResponseView>) -> Option<String>
         }),
         "base64" => Some(match arg {
             Some(a) => STANDARD.encode(a.as_bytes()),
-            None => STANDARD.encode(vars.file),
+            None => STANDARD.encode(vars.file.bytes().ok()?),
         }),
         "urlencode" => arg.map(pct),
         "response" => resp.map(|r| r.text.to_string()),

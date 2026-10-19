@@ -5,6 +5,7 @@
 //! `secret_ref` that is resolved through the [`SecretStore`] when the
 //! uploader is built.
 
+mod body;
 mod boxcom;
 mod dropbox;
 mod format;
@@ -29,6 +30,7 @@ pub mod presets;
 pub mod server;
 pub mod sigv4;
 
+pub use body::Body;
 pub use custom::sxcu;
 pub use format::format_link;
 pub use shorten::{shorten, snap_server_secret_key};
@@ -47,7 +49,7 @@ use session::Session;
 
 /// One file to upload.
 pub struct UploadRequest<'a> {
-    pub data: &'a [u8],
+    pub body: Body<'a>,
     /// Suggested remote name (may contain `/` for sub-folders on providers that support it).
     pub file_name: &'a str,
     pub mime: &'a str,

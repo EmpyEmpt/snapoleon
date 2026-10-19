@@ -41,8 +41,8 @@ impl WebDav {
     }
 
     fn put(&self, target: &str, req: &UploadRequest, progress: &dyn Fn(u64, u64)) -> Result<crate::http::Response> {
-        let total = req.data.len() as u64;
-        self.authed(Call::put(target).bytes(req.data, mime_or_octet(req.mime)).progress(Progress::new(progress, total))).send()
+        let total = req.body.size();
+        self.authed(Call::put(target).body(req.body, mime_or_octet(req.mime)).progress(Progress::new(progress, total))).send()
     }
 }
 
@@ -59,7 +59,7 @@ impl Uploader for WebDav {
             resp = self.put(&target, req, progress)?;
         }
         resp.check(PROVIDER)?;
-        let total = req.data.len() as u64;
+        let total = req.body.size();
         progress(total, total);
 
         let url = if self.public_base_url.trim().is_empty() { target } else { join_url(self.public_base_url.trim(), &pct_path(&rel)) };
