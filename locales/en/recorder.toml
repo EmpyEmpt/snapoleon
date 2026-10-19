@@ -1,0 +1,28 @@
+# Screen recording: the control pill, the countdown and the messages after a recording.
+
+[recorder]
+title = "Recording"
+starting = "Starting"
+starting_in = "Recording starts in {n}"
+saving = "Saving"
+discarding = "Discarding"
+pause = "Pause"
+resume = "Resume"
+stop = "Stop"
+stop_tip = "Stop and keep the recording"
+discard = "Discard"
+discard_ask = "Discard this recording?"
+keep = "Keep"
+mic_on = "Microphone is recorded"
+mic_off = "Microphone is off"
+system_on = "System audio is recorded"
+system_off = "System audio is off"
+
+[recorder.done]
+saved = "Recording saved"
+copied = "Recording saved and copied to the clipboard"
+
+[recorder.error]
+title = "Recording could not start"
+open_system_settings = "Open system settings"
+open_settings = "Open recording settings"

@@ -1,0 +1,27 @@
+# Pinned images: the pin window, its hover bar and its right-click menu.
+
+[pin]
+title = "Pin"
+
+[pin.menu]
+copy = "Copy"
+save = "Save as…"
+edit = "Edit"
+zoom_reset = "Actual size"
+opacity = "Opacity"
+click_through = "Click through"
+close = "Close pin"
+close_all = "Close all pins"
+
+[pin.tip]
+opacity = "Opacity"
+zoom = "Actual size"
+close = "Close"
+
+[pin.flash]
+saved = "Saved"
+click_through_on = "Click-through on. Hold Esc to turn it off"
+click_through_off = "Click-through off"
+
+[pin.save]
+title = "Save pinned image"
