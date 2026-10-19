@@ -24,4 +24,29 @@ tracing.workspace = true
 parking_lot.workspace = true
 crossbeam-channel.workspace = true
 image.workspace = true
+base64.workspace = true
+chrono.workspace = true
 clap = { version = "4", features = ["derive"] }
+ctrlc = "3"
+ab_glyph = "0.2"
+tiny-skia = { version = "0.12", default-features = false, features = ["std", "simd"] }
+
+[target.'cfg(windows)'.dependencies]
+windows = { version = "0.62", features = [
+    "Win32_Foundation",
+    "Win32_System_Threading",
+    "Win32_UI_WindowsAndMessaging",
+] }
+
+[target.'cfg(target_os = "macos")'.dependencies]
+core-foundation = "0.10"
+core-graphics = { version = "0.25", features = ["highsierra"] }
+
+[target.'cfg(target_os = "linux")'.dependencies]
+x11rb = { version = "0.13", features = ["record"] }
+
+[dev-dependencies]
+tracing-subscriber.workspace = true
+
+[target.'cfg(windows)'.dev-dependencies]
+windows = { version = "0.62", features = ["Win32_UI_Input_KeyboardAndMouse", "Win32_UI_WindowsAndMessaging"] }

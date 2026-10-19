@@ -1,0 +1,105 @@
+[cli]
+about = "Screenshots, recording, OCR and sharing"
+
+[cli.error]
+line = "Error: {message}"
+no_command = "Nothing to do. Run snapoleon --help to see the commands."
+need_target = "Choose what to capture: --region, --window, --monitor, --all or --element."
+needs_app = "This command is handled by the Snapoleon app, which is not running."
+bad_region = "Use four whole numbers: x,y,w,h. Width and height must be above zero."
+
+[cli.record]
+started = "Recording. Press Enter or Ctrl+C to stop."
+started_timed = "Recording."
+
+[cli.ocr]
+no_table = "No table was found in the image."
+
+[cli.qr]
+none_found = "No code was found in the image."
+
+[cli.cmd]
+url = "Handle a snapoleon:// link"
+edit = "Open an image or project in the editor"
+pin = "Pin an image to the screen"
+settings = "Open settings"
+mcp = "Run the MCP server on stdio"
+capture = "Take a screenshot; without a target the selection overlay opens"
+record = "Record the screen; without a target the recorder opens"
+ocr = "Recognize text in an image"
+qr = "Decode or draw QR codes"
+"qr.decode" = "Read the codes in an image"
+"qr.encode" = "Draw a QR code as a PNG"
+upload = "Upload a file and print its link"
+history = "Search the capture history"
+"history.search" = "Search by text, app, window title, URL or tag; without a query, list the latest"
+pipeline = "List or run pipelines"
+"pipeline.list" = "List the configured pipelines"
+"pipeline.run" = "Run a pipeline over an image file"
+
+[cli.arg]
+background = "Start in the tray without showing a window"
+
+[cli.arg.url]
+url = "The snapoleon:// link"
+
+[cli.arg.edit]
+path = "Image or .snap project"
+
+[cli.arg.pin]
+path = "Image to pin"
+
+[cli.arg.capture]
+region = "Capture a rectangle of the desktop, in physical pixels"
+window = "Capture the window whose title contains this text"
+monitor = "Capture one monitor (0 is the primary)"
+all = "Capture all monitors as one image"
+element = "Capture the interface element under the cursor"
+pipeline = "Run this pipeline instead of the plain save"
+out = 'Write the image here ("-" for stdout)'
+format = "Image format (default: from --out, else from settings)"
+copy = "Also put the image on the clipboard"
+delay = "Wait this many seconds before capturing"
+cursor = "Include the mouse cursor"
+
+[cli.arg.record]
+region = "Record a rectangle of the desktop, in physical pixels"
+window = "Record the window whose title contains this text"
+monitor = "Record one monitor (0 is the primary)"
+duration = "Stop after this many seconds (default: until Enter or Ctrl+C)"
+format = "Output format (default: from --out, else from settings)"
+out = "Write the video here"
+
+[cli.arg.ocr]
+input = 'Image file, or "-" to read the image from stdin'
+markdown = "Print a table as Markdown"
+tsv = "Print a table as tab-separated values"
+json = "Print lines, words and boxes as JSON"
+
+[cli.arg."qr.decode"]
+input = 'Image file, or "-" to read the image from stdin'
+json = "Print format, text and position as JSON"
+
+[cli.arg."qr.encode"]
+text = "Text to encode"
+out = 'Write the image here ("-" for stdout)'
+size = "Pixels per module"
+
+[cli.arg.upload]
+file = "File to upload"
+destination = "Destination id (default: the default destination)"
+format = "How to print the link (default: from settings)"
+copy = "Also copy the printed link to the clipboard"
+
+[cli.arg."history.search"]
+query = "Words to look for"
+json = "Print entries as JSON"
+limit = "Most results to return"
+
+[cli.arg."pipeline.list"]
+json = "Print pipelines as JSON"
+
+[cli.arg."pipeline.run"]
+id = "Pipeline id"
+image = "Image file to process"
+json = "Print the outcome as JSON"

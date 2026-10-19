@@ -10,12 +10,16 @@
 
 use std::{
     path::{Path, PathBuf},
-    sync::{Arc, atomic::AtomicBool},
+    sync::{
+        Arc,
+        atomic::{AtomicBool, AtomicU32},
+    },
 };
 
 use snap_core::{
-    Capture, CaptureContext, CaptureId, CaptureKind, Error, Point, Rect, Result, RgbaImage, Settings,
+    Capture, CaptureContext, CaptureId, CaptureKind, Point, Rect, Result, RgbaImage, Settings,
     pipeline::Step,
+    policy::Policy,
     secrets::SecretStore,
     settings::{ImageFormat, LinkFormat, RedactKind},
 };
@@ -29,6 +33,17 @@ pub use snap_redact::Hit;
 pub mod cli;
 pub mod mcp;
 pub mod steps;
+
+mod capture;
+mod exec;
+mod meta;
+mod platform;
+mod recording;
+mod redact;
+mod scroll;
+
+pub use scroll::stitch_scroll;
+mod share;
 
 /// A non-interactive capture.
 #[derive(Debug, Clone, PartialEq)]
@@ -173,35 +188,55 @@ pub struct Engine {
 
 struct Inner {
     settings: parking_lot::RwLock<Settings>,
+    policy: parking_lot::RwLock<Policy>,
     secrets: Arc<dyn SecretStore>,
-    history: Option<Arc<History>>,
+    history: parking_lot::RwLock<Option<Arc<History>>>,
+    /// Feeds the `{n}` naming token; counts saves in this process.
+    counter: AtomicU32,
 }
 
 impl Engine {
-    /// Uses the OS keyring and the default history database (if enabled).
+    /// Uses the OS keyring and the default history database. Loads the managed policy.
     pub fn new(settings: Settings) -> Self {
+        snap_platform::policy::load();
         let secrets = snap_platform::secrets::store();
-        let history = if settings.history.enabled { History::open_default().ok().map(Arc::new) } else { None };
-        Self::with_parts(settings, secrets, history)
+        let history = (settings.history.enabled || snap_core::paths::history_db().exists())
+            .then(|| History::open_default().map_err(|e| tracing::warn!("history unavailable: {e}")).ok().map(Arc::new))
+            .flatten();
+        let engine = Self::with_parts(settings, secrets, history);
+        engine.purge_history_in_background();
+        engine
     }
 
     pub fn with_parts(settings: Settings, secrets: Arc<dyn SecretStore>, history: Option<Arc<History>>) -> Self {
-        Self { inner: Arc::new(Inner { settings: parking_lot::RwLock::new(settings), secrets, history }) }
+        recording::apply_runtime_settings(&settings);
+        let inner = Inner {
+            settings: parking_lot::RwLock::new(settings),
+            policy: parking_lot::RwLock::new(Policy::load()),
+            secrets,
+            history: parking_lot::RwLock::new(history),
+            counter: AtomicU32::new(0),
+        };
+        Self { inner: Arc::new(inner) }
     }
 
     pub fn settings(&self) -> Settings {
         self.inner.settings.read().clone()
     }
 
+    /// Managed policy in force (IT-admin restrictions).
+    pub fn policy(&self) -> Policy {
+        self.inner.policy.read().clone()
+    }
+
     /// Mutate and persist settings (policy re-applied).
     pub fn update_settings(&self, f: impl FnOnce(&mut Settings)) -> Result<()> {
-        let _ = f;
-        Err(todo())
+        share::update_settings(self, f)
     }
 
     /// Re-read settings from disk.
     pub fn reload_settings(&self) -> Result<()> {
-        Err(todo())
+        share::reload_settings(self)
     }
 
     pub fn secrets(&self) -> Arc<dyn SecretStore> {
@@ -209,7 +244,7 @@ impl Engine {
     }
 
     pub fn history(&self) -> Option<Arc<History>> {
-        self.inner.history.clone()
+        self.inner.history.read().clone()
     }
 
     pub fn ai(&self) -> snap_ai::Ai {
@@ -217,57 +252,55 @@ impl Engine {
     }
 
     pub fn capture(&self, req: &CaptureRequest) -> Result<Capture> {
-        let _ = req;
-        Err(todo())
+        capture::capture(self, req)
     }
 
     /// Run a pipeline by id over a capture; records history. Policy-aware.
     pub fn run(&self, cap: Capture, pipeline: &str, ui: &dyn PipelineUi) -> Result<Outcome> {
-        let _ = (cap, pipeline, ui);
-        Err(todo())
+        let steps = self.settings().pipeline(pipeline).map(|p| p.steps.clone());
+        let steps = steps.ok_or_else(|| snap_core::Error::NotFound(snap_core::tf("engine.error.no_pipeline", &[("id", pipeline)])))?;
+        self.run_steps(cap, &steps, ui)
     }
 
     /// Run ad-hoc steps (instant-toolbar actions, editor buttons).
     pub fn run_steps(&self, cap: Capture, steps: &[Step], ui: &dyn PipelineUi) -> Result<Outcome> {
-        let _ = (cap, steps, ui);
-        Err(todo())
+        exec::run_capture(self, cap, steps, ui, &SaveOptions::default())
+    }
+
+    /// [`run_steps`](Self::run_steps) with defaults for every Save step, e.g. the exact output path of `capture --out`.
+    pub fn run_steps_with_save(&self, cap: Capture, steps: &[Step], save: &SaveOptions, ui: &dyn PipelineUi) -> Result<Outcome> {
+        exec::run_capture(self, cap, steps, ui, save)
     }
 
     /// Run steps over an existing file (recordings, CLI `upload`): image
     /// steps are skipped for non-images, Save is a no-op, Upload sends the file.
     pub fn run_file(&self, path: &Path, kind: CaptureKind, steps: &[Step], ui: &dyn PipelineUi) -> Result<Outcome> {
-        let _ = (path, kind, steps, ui);
-        Err(todo())
+        exec::run_file(self, path, kind, steps, ui)
     }
 
     pub fn save(&self, img: &RgbaImage, cap: &Capture, opts: &SaveOptions) -> Result<PathBuf> {
-        let _ = (img, cap, opts);
-        Err(todo())
+        share::save(self, img, cap, opts)
     }
 
     /// Save an editable project for `id` (in the data dir) and link it in history.
     pub fn save_project(&self, doc: &Document, id: &CaptureId) -> Result<PathBuf> {
-        let _ = (doc, id);
-        Err(todo())
+        share::save_project(self, doc, id)
     }
 
     /// Upload a file to `dest` (None = default destination), shorten if configured,
     /// record the link in history when `id` is known.
     pub fn upload_file(&self, path: &Path, dest: Option<&str>, id: Option<&CaptureId>, progress: &dyn Fn(u64, u64)) -> Result<Link> {
-        let _ = (path, dest, id, progress);
-        Err(todo())
+        share::upload_file(self, path, dest, id, progress, true)
     }
 
     /// Encode with the configured format and upload.
     pub fn upload_image(&self, img: &RgbaImage, cap: &Capture, dest: Option<&str>, progress: &dyn Fn(u64, u64)) -> Result<Link> {
-        let _ = (img, cap, dest, progress);
-        Err(todo())
+        share::upload_image(self, img, cap, dest, progress, true)
     }
 
     /// Format per settings (or `format`), put on the clipboard, return the text.
     pub fn copy_link(&self, link: &Link, format: Option<LinkFormat>, title: Option<&str>) -> Result<String> {
-        let _ = (link, format, title);
-        Err(todo())
+        share::copy_link(self, link, format, title, true)
     }
 
     pub fn copy_image(&self, img: &RgbaImage) -> Result<()> {
@@ -285,20 +318,18 @@ impl Engine {
     /// OCR + PII detection; `kinds` empty = settings.privacy.redact_kinds.
     /// Returns image-space hits without touching the image (the editor turns them into shapes).
     pub fn find_redactions(&self, img: &RgbaImage, kinds: &[RedactKind]) -> Result<Vec<Hit>> {
-        let _ = (img, kinds);
-        Err(todo())
+        redact::find_redactions(self, img, kinds)
     }
 
     /// [`find_redactions`](Self::find_redactions) then cover hits destructively with the configured style.
     pub fn auto_redact(&self, img: &mut RgbaImage) -> Result<Vec<Hit>> {
-        let _ = img;
-        Err(todo())
+        redact::auto_redact(self, img, &[], None)
     }
 
     /// `target = None` = settings.translate.target_lang.
     pub fn translate(&self, text: &str, target: Option<&str>) -> Result<String> {
-        let _ = (text, target);
-        Err(todo())
+        let s = self.settings();
+        snap_ai::translate(text, target.unwrap_or_default(), &s.translate, &s.ai, &*self.inner.secrets)
     }
 
     pub fn alt_text(&self, img: &RgbaImage, ctx: &CaptureContext) -> Result<String> {
@@ -308,28 +339,50 @@ impl Engine {
     /// Auto-scroll the content under `rect` and stitch until the page stops
     /// moving, `cancel` is set, or the height cap is reached.
     pub fn scrolling(&self, rect: Rect, cancel: &AtomicBool, on_progress: &dyn Fn(&ScrollProgress)) -> Result<Capture> {
-        let _ = (rect, cancel, on_progress);
-        Err(todo())
+        scroll::scrolling(self, rect, cancel, on_progress)
     }
 
     /// Recording options from settings for `target` (output path in the video dir).
+    /// Check [`recording_allowed`](Self::recording_allowed) first: policy may forbid recording.
     pub fn record_options(&self, target: RecordTarget, format: snap_core::settings::VideoFormat) -> RecordOptions {
-        let _ = (target, format);
-        unimplemented!()
+        recording::record_options(self, target, format)
     }
 
     /// Add a finished recording to history (with a poster thumbnail).
     pub fn add_recording(&self, rec: &Recording, context: CaptureContext) -> Result<CaptureId> {
-        let _ = (rec, context);
-        Err(todo())
+        recording::add_recording(self, rec, context)
     }
 
     /// The point is a physical virtual-desktop pixel; used by step capture and MCP.
     pub fn context_at(&self, p: Point) -> CaptureContext {
         snap_capture::context_at(p)
     }
-}
 
-fn todo() -> Error {
-    Error::unsupported("not implemented yet")
+    /// False when managed policy forbids recording.
+    pub fn recording_allowed(&self) -> bool {
+        !self.inner.policy.read().disable_recording
+    }
+
+    /// False when managed policy forbids uploads.
+    pub fn uploads_allowed(&self) -> bool {
+        !self.inner.policy.read().disable_uploads
+    }
+
+    /// Capture options (cursor, HDR, window shadow) from the current settings.
+    pub fn capture_options(&self) -> snap_capture::CaptureOptions {
+        snap_capture::CaptureOptions::from(&self.inner.settings.read().capture)
+    }
+
+    fn purge_history_in_background(&self) {
+        let days = self.inner.settings.read().history.retention_days;
+        let Some(history) = self.history().filter(|_| days > 0) else { return };
+        let spawned = std::thread::Builder::new().name("snap-history-purge".into()).spawn(move || match history.purge(days) {
+            Ok(0) => {}
+            Ok(n) => tracing::info!("history retention removed {n} entries"),
+            Err(e) => tracing::warn!("history retention failed: {e}"),
+        });
+        if let Err(e) = spawned {
+            tracing::warn!("cannot start history purge: {e}");
+        }
+    }
 }

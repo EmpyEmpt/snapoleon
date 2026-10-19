@@ -1,0 +1,82 @@
+[engine.error]
+no_pipeline = 'There is no pipeline with the id "{id}".'
+no_destination = "No upload destination is set up. Add one in Settings and make it the default."
+no_link = "There is no link yet. Add an Upload step first."
+uploads_disabled = "Uploads are turned off by your administrator."
+recording_disabled = "Recording is turned off by your administrator."
+clipboard_empty = "The clipboard has no image."
+no_last_region = "No region has been captured yet."
+no_foreground_window = "No window is in the foreground."
+no_monitor = "No display was found."
+no_window = 'No window matches "{title}".'
+no_element = "No interface element was found under the cursor."
+no_preset = 'There is no beautify preset named "{name}".'
+unknown_destination = 'There is no upload destination with the id "{id}".'
+scroll_too_small = "The area is too small to scroll. Select a larger one."
+cancelled = "Cancelled."
+unsupported = "Not supported on this system: {what}"
+network = "Network error: {what}"
+command_failed = "Could not start {program}: {error}"
+empty_guide = "The guide has no steps."
+no_click_listener = "Clicks cannot be observed on this system. Use the capture button for each step."
+input_permission = "Snapoleon needs permission to monitor input. Allow it in System Settings, Privacy & Security, Input Monitoring."
+
+[engine.notice]
+failed = "Something went wrong"
+link_copied = "Link copied"
+uploaded = "Uploaded"
+text_copied = "Text copied"
+code_copied = "Code copied"
+nothing_found = "Nothing found"
+saved = "Saved"
+copied = "Copied"
+done = "Done"
+
+[engine.notice.part]
+image_copied = "Image copied"
+saved = "Saved as {name}"
+link_copied = "Link copied"
+text_copied = "{n} characters copied"
+code_copied = "Code copied"
+nothing_found = "Nothing found"
+redacted = "{n} items hidden"
+
+[engine.progress]
+redacting = "Hiding personal data"
+ocr = "Recognizing text"
+translating = "Translating"
+uploading = "Uploading"
+alt_text = "Describing the image"
+
+[engine.text]
+recognized = "Recognized text"
+translated = "Translation"
+codes = "Codes"
+
+[engine.guide]
+default_title = "Step-by-step guide"
+step_count = "{n} steps"
+footer = "Made with Snapoleon"
+
+[engine.steps.caption]
+view_titled = "{app}: {title}"
+view = "{app}"
+view_screen = "Screen"
+click_named = 'Click "{name}" in {app}'
+click_named_bare = 'Click "{name}"'
+click_role = "Click the {role} in {app}"
+click_app = "Click in {app}"
+click_desktop = "Click on the desktop"
+
+[mcp.error]
+window_needs_target = "Give either a window title or a window id."
+missing_argument = "Missing required argument: {name}."
+empty_region = "The region must be at least 1 px wide and 1 px tall."
+needs_source = "Give either a path or a capture_id."
+no_file = "The image file for {id} is gone."
+no_history = "History is turned off."
+unknown_capture = "No capture with the id {id}."
+no_table = "No table was found in the image."
+
+[mcp.ocr]
+no_text = "No text found."

@@ -1,0 +1,82 @@
+[engine.error]
+no_pipeline = 'Конвейера с идентификатором «{id}» нет.'
+no_destination = "Не настроено ни одно место для загрузки. Добавьте его в настройках и сделайте основным."
+no_link = "Ссылки пока нет. Сначала добавьте шаг «Загрузить»."
+uploads_disabled = "Администратор отключил загрузку."
+recording_disabled = "Администратор отключил запись экрана."
+clipboard_empty = "В буфере обмена нет изображения."
+no_last_region = "Область ещё не снимали."
+no_foreground_window = "Нет активного окна."
+no_monitor = "Дисплеи не найдены."
+no_window = 'Нет окна, подходящего под «{title}».'
+no_element = "Под курсором не нашлось элемента интерфейса."
+no_preset = 'Стиля оформления «{name}» нет.'
+unknown_destination = 'Места загрузки с идентификатором «{id}» нет.'
+scroll_too_small = "Область слишком мала для прокрутки. Выберите побольше."
+cancelled = "Отменено."
+unsupported = "На этой системе не поддерживается: {what}"
+network = "Ошибка сети: {what}"
+command_failed = "Не удалось запустить {program}: {error}"
+empty_guide = "В инструкции нет шагов."
+no_click_listener = "На этой системе нельзя следить за щелчками. Делайте снимок кнопкой на каждом шаге."
+input_permission = "Snapoleon нужно разрешение на отслеживание ввода. Включите его в настройках системы: Конфиденциальность и безопасность, Мониторинг ввода."
+
+[engine.notice]
+failed = "Что-то пошло не так"
+link_copied = "Ссылка скопирована"
+uploaded = "Загружено"
+text_copied = "Текст скопирован"
+code_copied = "Код скопирован"
+nothing_found = "Ничего не найдено"
+saved = "Сохранено"
+copied = "Скопировано"
+done = "Готово"
+
+[engine.notice.part]
+image_copied = "Изображение скопировано"
+saved = "Сохранено как {name}"
+link_copied = "Ссылка скопирована"
+text_copied = "Скопировано символов: {n}"
+code_copied = "Код скопирован"
+nothing_found = "Ничего не найдено"
+redacted = "Скрыто объектов: {n}"
+
+[engine.progress]
+redacting = "Скрываем личные данные"
+ocr = "Распознаём текст"
+translating = "Переводим"
+uploading = "Загрузка"
+alt_text = "Описываем изображение"
+
+[engine.text]
+recognized = "Распознанный текст"
+translated = "Перевод"
+codes = "Коды"
+
+[engine.guide]
+default_title = "Пошаговая инструкция"
+step_count = "Шагов: {n}"
+footer = "Создано в Snapoleon"
+
+[engine.steps.caption]
+view_titled = "{app}: {title}"
+view = "{app}"
+view_screen = "Экран"
+click_named = "Нажмите «{name}» в {app}"
+click_named_bare = "Нажмите «{name}»"
+click_role = "Щёлкните элемент «{role}» в {app}"
+click_app = "Щёлкните в {app}"
+click_desktop = "Щёлкните на рабочем столе"
+
+[mcp.error]
+window_needs_target = "Укажите заголовок окна или его идентификатор."
+missing_argument = "Не хватает обязательного аргумента: {name}."
+empty_region = "Область должна быть не меньше 1 пикселя по ширине и высоте."
+needs_source = "Укажите path или capture_id."
+no_file = "Файла изображения для {id} больше нет."
+no_history = "История отключена."
+unknown_capture = "Снимка с идентификатором {id} нет."
+no_table = "В изображении не нашлось таблицы."
+
+[mcp.ocr]
+no_text = "Текст не найден."
