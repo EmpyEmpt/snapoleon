@@ -33,8 +33,9 @@ use thumbs::Thumbs;
 
 pub const TAG: &str = "library";
 
-/// How often a visible window checks whether new captures landed.
-const POLL: Duration = Duration::from_secs(2);
+/// How often a visible window checks for captures written by another process (the headless CLI).
+/// In-app changes arrive at once as `events::HistoryChanged`.
+const POLL: Duration = Duration::from_secs(15);
 /// Typing pauses this long before a search runs.
 const DEBOUNCE: Duration = Duration::from_millis(250);
 /// Longest side of the drawer preview, in pixels.
@@ -714,6 +715,12 @@ impl View for LibraryView {
     }
 
     fn on_msg(&mut self, cx: &mut ViewCx, msg: Box<dyn Any + Send>) {
+        if msg.is::<crate::events::HistoryChanged>() {
+            // A newer generation supersedes any page still in flight.
+            self.load(cx, Load::Refresh);
+            self.fetch_apps(cx);
+            return;
+        }
         let msg = match msg.downcast::<thumbs::Loaded>() {
             Ok(loaded) => {
                 self.decoded.push(*loaded);
