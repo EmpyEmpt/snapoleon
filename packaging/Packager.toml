@@ -58,11 +58,18 @@ installer-mode = "currentUser"
 languages = ["English", "Russian"]
 display-language-selector = false
 installer-icon = "windows/snapoleon.ico"
+# Solid LZMA is the strongest compression NSIS offers (smaller than zlib/bzip2 on the 28 MB exe).
+compression = "lzma"
+# Patched copy of cargo-packager 0.11.8's installer.nsi (see the header of that file for the changes).
+template = "windows/installer.nsi"
 # Authenticode signing is done by the release workflow (Azure Trusted Signing) after packaging.
 
 [wix]
-# Per-machine MSI for IT deployment: msiexec /i Snapoleon.msi /qn. Installs to Program Files.
-languages = ["en-US", "ru-RU"]
+# Per-machine MSI for IT deployment (needs elevation): msiexec /i Snapoleon.msi /qn. Installs to Program Files.
+# cargo-packager's WiX template hard-codes InstallScope="perMachine" and HKLM registrations; the per-user
+# installer is the NSIS setup.exe. One language only: every extra language emits another .msi and the
+# release workflow publishes a single file per architecture (the installer UI is English).
+languages = ["en-US"]
 
 # ---------------------------------------------------------------- macOS
 

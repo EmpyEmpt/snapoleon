@@ -30,5 +30,15 @@ Set-Content (Join-Path $dir "README-portable.txt") $readme
 New-Item -ItemType Directory -Force $Out | Out-Null
 $zip = Join-Path $Out "$name.zip"
 Remove-Item $zip -ErrorAction SilentlyContinue
-Compress-Archive -Path $dir -DestinationPath $zip
+# Build the zip by hand: Windows PowerShell 5.1's Compress-Archive writes backslash entry names.
+Add-Type -AssemblyName System.IO.Compression, System.IO.Compression.FileSystem
+$fs = [IO.File]::Open($zip, [IO.FileMode]::Create)
+$za = New-Object IO.Compression.ZipArchive($fs, [IO.Compression.ZipArchiveMode]::Create)
+try {
+  foreach ($f in Get-ChildItem $dir -File) {
+    $e = $za.CreateEntry("Snapoleon/$($f.Name)", [IO.Compression.CompressionLevel]::Optimal)
+    $es = $e.Open(); $in = [IO.File]::OpenRead($f.FullName)
+    try { $in.CopyTo($es) } finally { $in.Dispose(); $es.Dispose() }
+  }
+} finally { $za.Dispose(); $fs.Dispose() }
 Write-Host $zip

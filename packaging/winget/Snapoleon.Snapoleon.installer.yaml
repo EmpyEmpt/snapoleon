@@ -11,7 +11,7 @@ Protocols:
 Installers:
   # Per-user NSIS installer (no administrator rights needed).
   - Architecture: x64
-    InstallerType: nsis
+    InstallerType: nullsoft
     Scope: user
     InstallerUrl: ${{ BASE_URL }}/Snapoleon-${{ VERSION }}-windows-x64-setup.exe
     InstallerSha256: ${{ SHA256_WINDOWS_X64_SETUP }}
@@ -20,7 +20,7 @@ Installers:
       SilentWithProgress: /S
     UpgradeBehavior: install
   - Architecture: arm64
-    InstallerType: nsis
+    InstallerType: nullsoft
     Scope: user
     InstallerUrl: ${{ BASE_URL }}/Snapoleon-${{ VERSION }}-windows-arm64-setup.exe
     InstallerSha256: ${{ SHA256_WINDOWS_ARM64_SETUP }}
