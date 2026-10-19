@@ -8,7 +8,7 @@ use std::{
 };
 
 use egui::{Align, Frame, Layout, Margin, Stroke, Ui, Vec2};
-use snap_core::{CaptureContext, CaptureId, Result, settings::VideoFormat, t};
+use snap_core::{CaptureContext, CaptureId, Result, settings::VideoFormat, t, tf};
 use snap_engine::{Engine, Notice, NoticeKind};
 use snap_record::{
     Recording,
@@ -211,7 +211,7 @@ impl Editor {
     fn summary(&self) -> String {
         let info: &VideoInfo = &self.info;
         let audio = if info.has_audio { t("video.export.with_audio") } else { t("video.export.no_audio") };
-        format!("{}×{} · {:.0} fps · {}", info.width, info.height, info.fps, audio)
+        format!("{}×{} · {} · {}", info.width, info.height, tf("video.export.fps_unit", &[("n", &format!("{:.0}", info.fps))]), audio)
     }
 
     fn form_fields(&mut self, ui: &mut Ui) {
@@ -245,7 +245,16 @@ impl Editor {
             ui.spacing_mut().combo_width = ui.available_width();
             let labels: Vec<(u32, String)> = FRAME_RATES
                 .iter()
-                .map(|&f| (f, if f == 0 { t("video.export.original").into_owned() } else { format!("{f} fps") }))
+                .map(|&f| {
+                    (
+                        f,
+                        if f == 0 {
+                            t("video.export.original").into_owned()
+                        } else {
+                            tf("video.export.fps_unit", &[("n", &f.to_string())])
+                        },
+                    )
+                })
                 .collect();
             let options: Vec<(u32, &str)> = labels.iter().map(|(v, l)| (*v, l.as_str())).collect();
             dropdown(ui, "video-fps", &mut form.fps, &options);

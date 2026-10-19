@@ -148,6 +148,9 @@ impl<E: Send + 'static> Shell<'_, E> {
 
         let window = Arc::new(self.el.create_window(attrs).map_err(|e| Error::Other(anyhow!(e)))?);
         platform::configure_window(&window, &spec);
+        if spec.pill {
+            platform::set_pill(&window, true);
+        }
         if let Some(r) = spec.cover {
             platform::place_cover(&window, r, &monitor_list(self.el));
         }
@@ -173,6 +176,7 @@ impl<E: Send + 'static> Shell<'_, E> {
 
         let setup = Setup {
             tool_style: spec.is_tool(),
+            pill: spec.pill,
             tag: spec.tag,
             cover: spec.cover,
             want_visible: spec.visible,
@@ -257,6 +261,14 @@ impl<E: Send + 'static> Shell<'_, E> {
             platform::place_cover(&state.window, r, &monitor_list(self.el));
         } else {
             platform::set_outer_rect(&state.window, r);
+        }
+    }
+
+    /// Clip the window to a pill, or back to its full rectangle. Windows only.
+    pub fn set_pill(&mut self, w: WindowKey, on: bool) {
+        if let Some(state) = self.core.windows.get_mut(&w) {
+            state.pill = on;
+            platform::set_pill(&state.window, on);
         }
     }
 

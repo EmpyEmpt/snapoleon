@@ -4,6 +4,7 @@
 //! tokens in [`theme`]. See `docs/DESIGN.md` for the language these implement.
 
 mod brand;
+mod fallback_fonts;
 mod fonts;
 pub mod icon;
 mod platform;
@@ -13,6 +14,7 @@ mod toasts;
 pub mod widgets;
 
 pub use brand::{LogoColors, app_icon_rgba, app_icon_svg, logo, logo_colored, tray_icon_rgba, tray_icon_rgba_colored};
+pub use fallback_fonts::ensure_cjk;
 pub use platform::{reduce_motion, system_dark};
 pub use theme::{CONTROL_HEIGHT, CONTROL_HEIGHT_COMPACT, Palette, ThemeSpec, Tone, install, palette, parse_hex, radius, space, style_for};
 pub use toasts::{Toast, ToastKind, Toasts};

@@ -126,7 +126,7 @@ pub fn show(ui: &mut Ui, rc: &mut Rows, st: &mut State, cx: &mut ViewCx, set: &m
 /// Which pipeline each bound capture hotkey runs.
 fn pipeline_section(ui: &mut Ui, rc: &mut Rows, set: &mut snap_core::Settings) {
     let mut options: Vec<(Option<String>, String)> = vec![(None, s("hotkeys.pipeline.default"))];
-    options.extend(set.pipelines.iter().map(|p| (Some(p.id.clone()), p.name.clone())));
+    options.extend(set.pipelines.iter().map(|p| (Some(p.id.clone()), super::pipeline_label(p))));
     let bound: Vec<usize> =
         set.hotkeys.iter().enumerate().filter(|(_, b)| b.action.is_capture() && !b.accel.is_empty()).map(|(i, _)| i).collect();
     if bound.is_empty() {

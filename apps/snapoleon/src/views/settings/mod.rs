@@ -122,6 +122,11 @@ impl SettingsPage {
 }
 
 /// The localised name of a pipeline step.
+/// A pipeline's name in the current language.
+pub fn pipeline_label(pipeline: &snap_core::pipeline::Pipeline) -> String {
+    pipelines::display_name(pipeline)
+}
+
 pub fn step_label(step: &snap_core::pipeline::Step) -> String {
     pipelines::step_title(step)
 }

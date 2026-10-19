@@ -3,7 +3,7 @@
 use egui::Ui;
 use snap_core::{
     settings::{EncoderPref, RecordingSettings, VideoFormat},
-    tf,
+    t, tf,
 };
 use snap_ui::{Tone, space, text, widgets};
 
@@ -41,7 +41,7 @@ fn body(ui: &mut Ui, rc: &mut Rows, cx: &mut ViewCx, r: &mut RecordingSettings) 
         rc.choice(ui, "recording.gif_fps", &mut r.gif_fps, &gif_fps);
         rc.choice(ui, "recording.bitrate", &mut r.bitrate, &bitrate);
         rc.number(ui, "recording.max_gif_width", &mut r.max_gif_width, 160..=3840, " px");
-        rc.number(ui, "recording.countdown_secs", &mut r.countdown_secs, 0..=10, " s");
+        rc.number(ui, "recording.countdown_secs", &mut r.countdown_secs, 0..=10, &t("settings.recording.secs_unit"));
     });
 
     rc.section(ui, &s("recording.section.audio"), |ui, rc| {

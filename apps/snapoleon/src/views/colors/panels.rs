@@ -104,6 +104,12 @@ pub fn selected(ui: &mut Ui, shown: &Shown, out: &mut Out) {
     ui.add_space(space::XL);
 }
 
+/// The copy tooltip hangs off the glyph at the row's right edge, not the row's bottom-left corner.
+fn copy_tooltip(ui: &Ui, row: &Response, rect: Rect, copied: bool) {
+    let glyph = Rect::from_center_size(Pos2::new(rect.right() - 20.0, rect.center().y), Vec2::splat(24.0));
+    tooltip(ui.interact(glyph, row.id.with("copy-glyph"), Sense::hover()), &t(if copied { "colors.copied" } else { "colors.copy" }), None);
+}
+
 /// A format row: label, mono value, and a copy glyph that turns into a check after copying.
 fn copy_row(ui: &mut Ui, divider: bool, label: &str, value: &str, copied: bool) -> Response {
     let p = Palette::of(ui);
@@ -122,7 +128,8 @@ fn copy_row(ui: &mut Ui, divider: bool, label: &str, value: &str, copied: bool) 
         let (glyph, tint) = if copied { (icon::CHECK, p.success) } else { (icon::COPY, util::lerp_color(p.text_faint, p.text, hover)) };
         util::paint_icon(ui, Pos2::new(rect.right() - 20.0, rect.center().y), glyph, 15.0, tint);
     }
-    tooltip(resp, &t(if copied { "colors.copied" } else { "colors.copy" }), None)
+    copy_tooltip(ui, &resp, rect, copied);
+    resp
 }
 
 /// Swatches of the recent picks; clicking one selects it.
@@ -330,5 +337,6 @@ fn measurement_row(ui: &mut Ui, divider: bool, glyph: &str, value: &str, note: &
         let (glyph, tint) = if copied { (icon::CHECK, p.success) } else { (icon::COPY, util::lerp_color(p.text_faint, p.text, hover)) };
         util::paint_icon(ui, Pos2::new(rect.right() - 20.0, rect.center().y), glyph, 15.0, tint);
     }
-    tooltip(resp, &t(if copied { "colors.copied" } else { "colors.copy" }), None)
+    copy_tooltip(ui, &resp, rect, copied);
+    resp
 }

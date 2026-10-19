@@ -285,6 +285,13 @@ copy_name = "Копия: {name}"
 presets = "Пресеты оформления"
 presets_hint = "Фоны, поля и рамки, которые применяет шаг «Оформить»."
 
+[settings.pipelines.builtin]
+quick = "Быстро: копировать и сохранить"
+annotate = "Разметить, копировать и сохранить"
+share = "Скрыть данные, загрузить и скопировать Markdown"
+ocr = "Копировать текст (OCR)"
+pin = "Закрепить на экране"
+
 [settings.pipelines.section]
 defaults = "По умолчанию"
 
@@ -744,6 +751,7 @@ ffmpeg_hint = "Ищется автоматически"
 ffmpeg_missing = "ffmpeg не найден. В Linux он нужен для MP4, GIF и WebP, а для обрезки видео используется везде, где установлен."
 ffmpeg_found = "Используется {path}"
 fps_unit = "{n} к/с"
+secs_unit = " с"
 bitrate_unit = "{n} Мбит/с"
 mic_default = "Как в системе"
 

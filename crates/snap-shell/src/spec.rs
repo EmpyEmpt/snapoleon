@@ -38,6 +38,9 @@ pub struct WindowSpec {
     pub exclude_from_capture: bool,
     /// Rounded corners (Windows 11 DWM); no-op elsewhere.
     pub rounded: bool,
+    /// Clip the window to a pill (fully round ends). Windows only; elsewhere the window stays a rectangle.
+    /// Changeable later with [`Shell::set_pill`](crate::Shell::set_pill).
+    pub pill: bool,
     pub icon: Option<RgbaImage>,
     /// Free-form label for [`Shell::windows_with_tag`](crate::Shell::windows_with_tag).
     pub tag: String,
@@ -60,6 +63,7 @@ impl Default for WindowSpec {
             activate: true,
             exclude_from_capture: false,
             rounded: false,
+            pill: false,
             icon: None,
             tag: String::new(),
         }

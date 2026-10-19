@@ -48,6 +48,7 @@ pub fn open(cx: &mut OpenCx) {
         decorations: false,
         resizable: false,
         rounded: true,
+        pill: true,
         always_on_top: true,
         tool_window: true,
         // The user is about to work in other apps: keep their focus.

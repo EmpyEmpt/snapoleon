@@ -25,5 +25,5 @@ pub use layout::{
 pub use stroke::{DEFAULT_WIDTHS, stroke_picker, stroke_picker_with};
 pub use title_bar::{TITLE_BAR_HEIGHT, TitleBarActions, title_bar, title_bar_with};
 pub use toggle::{checkbox, segmented, toggle};
-pub use toolbar::{floating_toolbar, floating_toolbar_anchored, toolbar_pill, toolbar_separator};
+pub use toolbar::{floating_toolbar, floating_toolbar_anchored, pill_window_frame, toolbar_pill, toolbar_separator};
 pub use tooltip::tooltip;

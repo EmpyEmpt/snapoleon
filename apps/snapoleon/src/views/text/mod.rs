@@ -167,6 +167,10 @@ impl TextView {
         let ui = &mut inner;
         ui.set_clip_rect(ui.clip_rect().intersect(area.expand(MARGIN)));
 
+        snap_ui::ensure_cjk(ui.ctx(), &self.text);
+        if let Some(translation) = &self.translation {
+            snap_ui::ensure_cjk(ui.ctx(), &translation.text);
+        }
         self.analyze();
         self.toolbar(ui, cx);
         self.translate_bar(ui, cx);

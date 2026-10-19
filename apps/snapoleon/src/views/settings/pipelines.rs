@@ -71,6 +71,13 @@ pub fn step_title(step: &Step) -> String {
     s(&format!("pipelines.step.{}.title", kind_of(step)))
 }
 
+/// The name to show for a pipeline. A shipped pipeline that still carries its English default name is
+/// shown in the current language; a renamed one keeps the user's name.
+pub fn display_name(pipeline: &Pipeline) -> String {
+    let shipped = snap_core::pipeline::default_pipelines().into_iter().any(|d| d.id == pipeline.id && d.name == pipeline.name);
+    if shipped { s(&format!("pipelines.builtin.{}", pipeline.id)) } else { pipeline.name.clone() }
+}
+
 fn kind_icon(kind: &str) -> &'static str {
     match kind {
         "annotate" => icon::PENCIL_SIMPLE,
@@ -171,7 +178,7 @@ pub fn show(ui: &mut Ui, rc: &mut Rows, st: &mut State, cx: &mut ViewCx, set: &m
 }
 
 fn defaults(ui: &mut Ui, rc: &mut Rows, set: &mut Settings) {
-    let names: Vec<(String, String)> = set.pipelines.iter().map(|p| (p.id.clone(), p.name.clone())).collect();
+    let names: Vec<(String, String)> = set.pipelines.iter().map(|p| (p.id.clone(), display_name(p))).collect();
     rc.section(ui, &s("pipelines.section.defaults"), |ui, rc| {
         rc.row(ui, "pipelines.default", |ui| {
             dd(ui, "default-pipeline", &mut set.default_pipeline, &names);
@@ -190,7 +197,7 @@ fn overview(ui: &mut Ui, rc: &mut Rows, st: &mut State, cx: &mut ViewCx, set: &m
             p.steps.iter().map(step_title).collect::<Vec<_>>().join(" → ")
         };
         let default = p.id == set.default_pipeline;
-        let resp = list_row(ui, icon::FLOW_ARROW, &p.name, &subtitle, |ui| {
+        let resp = list_row(ui, icon::FLOW_ARROW, &display_name(p), &subtitle, |ui| {
             if default {
                 badge(ui, &s("pipelines.default_badge"), Tone::Accent);
             }
@@ -277,7 +284,7 @@ fn editor(ui: &mut Ui, st: &mut State, cx: &mut ViewCx, set: &mut Settings, id: 
         HeaderAction::MakeDefault => set.default_pipeline = id.to_owned(),
         HeaderAction::Duplicate => {
             let mut copy = set.pipelines[index].clone();
-            copy.name = tf("settings.pipelines.copy_name", &[("name", &copy.name)]);
+            copy.name = tf("settings.pipelines.copy_name", &[("name", &display_name(&copy))]);
             copy.id = unique_id(set, &copy.name);
             st.selected = Some(copy.id.clone());
             set.pipelines.insert(index + 1, copy);

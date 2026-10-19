@@ -56,7 +56,12 @@ pub fn show(ui: &mut Ui, rc: &mut Rows, st: &mut State, cx: &mut ViewCx, set: &m
 
     rc.section(ui, &s("general.section.behavior"), |ui, rc| {
         rc.row(ui, if portable { "general.launch_portable" } else { "general.launch_at_login" }, |ui| {
-            ui.add_enabled_ui(!portable, |ui| widgets::toggle(ui, &mut g.launch_at_login));
+            if portable {
+                // Disabled and shown off: the stored preference still applies to an installed copy.
+                ui.add_enabled_ui(false, |ui| widgets::toggle(ui, &mut false));
+            } else {
+                widgets::toggle(ui, &mut g.launch_at_login);
+            }
         });
         rc.choice(ui, "general.tray_click", &mut g.tray_click, &tray_actions);
         rc.toggle(ui, "general.show_notifications", &mut g.show_notifications);

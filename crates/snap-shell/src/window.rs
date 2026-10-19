@@ -28,6 +28,8 @@ pub(crate) struct WindowState {
     pub cover_dirty: bool,
     pub cover_attempts: u8,
     pub tool_style: bool,
+    /// The window is clipped to a pill; the clip follows every resize.
+    pub pill: bool,
     pub want_visible: bool,
     /// Ask the OS for the foreground when the window appears (`WindowSpec::activate`).
     pub activate: bool,
@@ -45,6 +47,7 @@ pub(crate) struct Setup {
     pub tag: String,
     pub cover: Option<Rect>,
     pub tool_style: bool,
+    pub pill: bool,
     pub want_visible: bool,
     pub activate: bool,
     pub opened_at: Instant,
@@ -94,6 +97,7 @@ impl WindowState {
             cover_dirty: setup.cover.is_some(),
             cover_attempts: 0,
             tool_style: setup.tool_style,
+            pill: setup.pill,
             want_visible: setup.want_visible,
             activate: setup.activate,
             first_pass_done: false,

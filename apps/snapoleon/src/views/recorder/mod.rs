@@ -2,8 +2,11 @@
 //!
 //! A session is several windows that all live and die together: four thin frame windows marking the
 //! area (see [`frames`]), a countdown tile before the start (see [`countdown`]) and the draggable control
-//! pill (see [`hud`]), which is also the view that owns the [`Recorder`]. Every HUD window is hidden from
-//! the recording, both through the window flag and through `RecordOptions::exclude_windows`.
+//! pill (see [`hud`]), which is also the view that owns the [`Recorder`]. On Windows and macOS every HUD
+//! window is hidden from the recording, both through the window flag and through
+//! `RecordOptions::exclude_windows`. X11 and Wayland cannot do that, so there the HUD is kept out of the
+//! picture instead: the pill moves to another monitor, or, when the recording fills the only monitor,
+//! it hides once recording runs (stop with the hotkey or the tray) and the frames are not drawn.
 
 use std::{
     any::Any,
@@ -33,6 +36,8 @@ const COUNTDOWN_TAG: &str = "recorder-countdown";
 /// Logical size of the control pill and of the error card it turns into.
 const PILL_SIZE: (f32, f32) = (400.0, 48.0);
 const CARD_SIZE: (f32, f32) = (420.0, 152.0);
+/// Whether the OS can keep a window out of a screen recording.
+const CAN_EXCLUDE: bool = cfg!(any(windows, target_os = "macos"));
 /// Frame thickness in logical pixels.
 const FRAME_THICKNESS: f32 = 2.0;
 /// Gap between the recorded area and the pill, in logical pixels.
@@ -66,14 +71,16 @@ pub fn open(cx: &mut OpenCx, input: RecorderInput) {
     let stop_hotkey =
         cx.settings.hotkeys.iter().find(|b| b.enabled && b.action == snap_core::hotkey::Action::StopRecording).map(|b| b.accel.clone());
 
+    let (pill_at, in_picture) = pill_position(area, screen, scale, &monitors);
     let shared = Rc::new(Shared::default());
     let spec = WindowSpec {
         title: t("recorder.title").into_owned(),
         size: Some(PILL_SIZE),
-        position: Some(pill_position(area, screen, scale)),
+        position: Some(pill_at),
         decorations: false,
         resizable: false,
         rounded: true,
+        pill: true,
         always_on_top: true,
         tool_window: true,
         // The recorded app keeps the keyboard: the user starts working in it as soon as the countdown ends.
@@ -94,11 +101,14 @@ pub fn open(cx: &mut OpenCx, input: RecorderInput) {
         discard_asked: None,
         failure: None,
         stop_when_started: false,
+        hide_while_recording: in_picture,
     };
     cx.open(spec, view);
 
     // The pill is the session's first window; the rest hang off it.
-    if let Some(area) = area {
+    // Edges inside a recorded monitor would end up in the picture when the OS cannot hide them.
+    let frame_area = area.filter(|_| CAN_EXCLUDE || !matches!(input.target, RecordTarget::Monitor(_)));
+    if let Some(area) = frame_area {
         for rect in frames::edges(area, scale, matches!(input.target, RecordTarget::Monitor(_))) {
             let spec = WindowSpec {
                 title: t("recorder.title").into_owned(),
@@ -133,23 +143,33 @@ fn target_rect(target: &RecordTarget) -> Option<Rect> {
     }
 }
 
-/// Below the recorded area, centred; above it when the monitor has no room below; inside its lower edge
-/// when it fills the monitor.
-fn pill_position(area: Option<Rect>, screen: Rect, scale: f32) -> Point {
+/// Below the recorded area, centred; above it when the monitor has no room below; on another monitor
+/// when the area fills this one and the OS cannot hide the pill from the recording; inside its lower
+/// edge otherwise. The flag says whether the pill ends up inside the recorded picture.
+fn pill_position(area: Option<Rect>, screen: Rect, scale: f32, monitors: &[(Rect, f32)]) -> (Point, bool) {
     let (w, h) = ((PILL_SIZE.0 * scale).round() as i32, (PILL_SIZE.1 * scale).round() as i32);
     let gap = (PILL_GAP * scale).round() as i32;
     let Some(area) = area else {
-        return Point::new(screen.x + (screen.w as i32 - w) / 2, screen.bottom() - h - 4 * gap);
+        return (Point::new(screen.x + (screen.w as i32 - w) / 2, screen.bottom() - h - 4 * gap), false);
     };
     let x = area.x + (area.w as i32 - w) / 2;
+    let mut in_picture = false;
     let y = if area.bottom() + gap + h <= screen.bottom() - gap {
         area.bottom() + gap
     } else if area.y - gap - h >= screen.y + gap {
         area.y - gap - h
+    } else if let Some(&(other, other_scale)) = monitors.iter().find(|(m, _)| !CAN_EXCLUDE && !overlaps(*m, area)) {
+        return pill_position(None, other, other_scale, monitors);
     } else {
+        in_picture = !CAN_EXCLUDE;
         area.bottom() - h - 2 * gap
     };
-    Point::new(x.clamp(screen.x + gap, (screen.right() - w - gap).max(screen.x + gap)), y.clamp(screen.y, screen.bottom() - h))
+    let at = Point::new(x.clamp(screen.x + gap, (screen.right() - w - gap).max(screen.x + gap)), y.clamp(screen.y, screen.bottom() - h));
+    (at, in_picture)
+}
+
+fn overlaps(a: Rect, b: Rect) -> bool {
+    a.x < b.right() && b.x < a.right() && a.y < b.bottom() && b.y < a.bottom()
 }
 
 /// State the session's windows share (the pill writes, the frames and the tile read).
@@ -217,6 +237,8 @@ struct RecorderView {
     failure: Option<Failure>,
     /// Stop arrived while the recorder was still starting.
     stop_when_started: bool,
+    /// The pill sits inside the recorded picture and the OS cannot exclude it: hide it while recording.
+    hide_while_recording: bool,
 }
 
 impl RecorderView {
@@ -250,6 +272,8 @@ impl RecorderView {
         self.close_session(cx);
         self.phase = Phase::Failed;
         self.failure = Some(failure);
+        cx.shell.set_pill(cx.win, false);
+        cx.shell.set_visible(cx.win, true);
         let scale = cx.shell.scale_factor(cx.win).unwrap_or(1.0);
         if let Some(current) = cx.shell.outer_rect(cx.win) {
             let (w, h) = ((CARD_SIZE.0 * scale).round() as u32, (CARD_SIZE.1 * scale).round() as u32);
@@ -363,6 +387,15 @@ impl View for RecorderView {
                 self.recorder = Some(recorder);
                 self.phase = Phase::Recording;
                 cx.push(Command::RecordingState { active: true });
+                if self.hide_while_recording {
+                    cx.shell.set_visible(cx.win, false);
+                    cx.notify(Notice {
+                        kind: NoticeKind::Info,
+                        title: t("recorder.hidden.title").into_owned(),
+                        body: t("recorder.hidden.body").into_owned(),
+                        ..Notice::default()
+                    });
+                }
                 if std::mem::take(&mut self.stop_when_started) {
                     self.stop(cx);
                 }

@@ -329,6 +329,7 @@ fn text_block(ui: &mut Ui, p: &Palette, props: &Props, out: &mut Vec<Out>) {
     });
     match text {
         Some(text) => {
+            snap_ui::ensure_cjk(ui.ctx(), text);
             egui::Frame::new().fill(p.surface_2).corner_radius(10).inner_margin(Margin::same(10)).show(ui, |ui| {
                 ui.set_width(ui.available_width());
                 let galley = paint::clamped(ui, text, body_style().resolve(ui.style()), p.text, ui.available_width(), 7);

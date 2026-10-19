@@ -3,11 +3,14 @@
 
 use std::f32::consts::TAU;
 
-use egui::{Align, Color32, Context, Frame, Id, LayerId, Layout, Margin, Order, PointerButton, Sense, Stroke, StrokeKind, Ui, Vec2, pos2};
+use egui::{Align, Color32, Context, Frame, Id, Layout, Margin, PointerButton, Sense, Stroke, Ui, Vec2, pos2};
 use snap_core::{t, tf};
 use snap_ui::{
     icon, palette, text,
-    widgets::{Button, ButtonKind, ghost_button, icon_button, primary_button, secondary_button, spinner, toolbar_separator, tooltip, util},
+    widgets::{
+        Button, ButtonKind, ghost_button, icon_button, pill_window_frame, primary_button, secondary_button, spinner, toolbar_separator,
+        tooltip, util,
+    },
 };
 
 use super::{Failure, Phase, RecorderView, ViewCx, apply_fix};
@@ -35,9 +38,14 @@ impl RecorderView {
         let p = palette(ctx);
         let mut act = None;
         let mut drag = false;
-        let margin = if matches!(self.phase, Phase::Failed) { Margin::same(16) } else { Margin::symmetric(12, 0) };
         ctx.root_ui(|ui| {
-            egui::CentralPanel::default().frame(Frame::new().fill(p.elevated).inner_margin(margin)).show(ui, |ui| {
+            // The control pill is a pill; the error card it turns into is a plain square-cornered card.
+            let frame = if matches!(self.phase, Phase::Failed) {
+                Frame::new().fill(p.elevated).stroke(Stroke::new(1.0, p.border)).inner_margin(Margin::same(16))
+            } else {
+                pill_window_frame(ui, 20)
+            };
+            egui::CentralPanel::default().frame(frame).show(ui, |ui| {
                 // Behind every control: dragging anywhere else moves the pill.
                 let surface = ui.interact(ctx.content_rect(), Id::unique("recorder-drag"), Sense::click_and_drag());
                 drag = surface.drag_started_by(PointerButton::Primary);
@@ -57,8 +65,6 @@ impl RecorderView {
                 }
             });
         });
-        let outline = ctx.layer_painter(LayerId::new(Order::Foreground, Id::unique("recorder-outline")));
-        outline.rect_stroke(ctx.content_rect(), 0.0, Stroke::new(1.0, p.border), StrokeKind::Inside);
 
         if drag {
             cx.shell.drag_window(cx.win);

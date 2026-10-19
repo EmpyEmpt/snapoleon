@@ -3,12 +3,12 @@
 
 use std::{any::Any, time::Instant};
 
-use egui::{Align, Color32, Context, Frame, Layout, Margin, Pos2, Rect, Sense, Stroke, StrokeKind, TextureHandle, Ui, Vec2};
+use egui::{Align, Color32, Context, Layout, Pos2, Rect, Sense, Stroke, StrokeKind, TextureHandle, Ui, Vec2};
 use snap_core::{hotkey::Action, t};
 use snap_engine::{Notice, NoticeKind};
 use snap_ui::{
     Palette, icon, text,
-    widgets::{Button, ButtonKind, icon_button, tooltip, util},
+    widgets::{Button, ButtonKind, icon_button, pill_window_frame, tooltip, util},
 };
 
 use super::{
@@ -173,14 +173,9 @@ impl View for HudView {
         self.start(cx);
         self.sync_pause(ctx);
         self.ensure_thumb(ctx);
-        let p = snap_ui::palette(ctx);
         ctx.root_ui(|ui| {
-            egui::CentralPanel::default()
-                .frame(Frame::new().fill(p.elevated).inner_margin(Margin::symmetric(14, 8)))
-                .show(ui, |ui| self.body(ui, cx));
+            egui::CentralPanel::default().frame(pill_window_frame(ui, 22)).show(ui, |ui| self.body(ui, cx));
         });
-        let painter = ctx.layer_painter(egui::LayerId::new(egui::Order::Foreground, egui::Id::unique("steps-hud-outline")));
-        painter.rect_stroke(ctx.content_rect(), 0.0, Stroke::new(1.0, p.border), StrokeKind::Inside);
     }
 
     fn close_requested(&mut self, _cx: &mut ViewCx) -> bool {

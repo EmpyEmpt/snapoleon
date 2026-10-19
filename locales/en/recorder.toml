@@ -18,6 +18,10 @@ mic_off = "Microphone is off"
 system_on = "System audio is recorded"
 system_off = "System audio is off"
 
+[recorder.hidden]
+title = "Recording"
+body = "The controls are hidden so they stay out of the video. Stop with the hotkey or from the tray icon."
+
 [recorder.done]
 saved = "Recording saved"
 copied = "Recording saved and copied to the clipboard"

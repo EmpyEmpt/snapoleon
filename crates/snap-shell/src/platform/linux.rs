@@ -44,6 +44,9 @@ pub(crate) fn configure_window(_window: &Window, spec: &WindowSpec) {
     }
 }
 
+/// X11 and Wayland have no portable window shape; the window stays a rectangle.
+pub(crate) fn set_pill(_window: &Window, _on: bool) {}
+
 pub(crate) fn refresh(_window: &Window, _tool_style: bool) {}
 
 pub(crate) fn set_exclude_from_capture(_window: &Window, _on: bool) -> Result<()> {
