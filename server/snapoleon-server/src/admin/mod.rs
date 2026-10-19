@@ -276,13 +276,20 @@ async fn login(State(state): State<AppState>, client: Client, Form(form): Form<L
         };
     }
     let username = form.username.trim().to_string();
-    state.limiter.check(&format!("login-user:{}", username.to_lowercase()), 10, Duration::from_secs(600))?;
+    // Failures are counted per source and account, so a stranger cannot lock the real owner out.
+    let failures = format!("login-fail:{}:{}", client.ip, username.to_lowercase());
+    if state.limiter.exceeded(&failures, 5, Duration::from_secs(600)) {
+        return Err(AppError::TooManyRequests.into());
+    }
     let user = state.db.user_by_username(username).await?;
     let hash = user.as_ref().and_then(|u| u.password_hash.clone()).unwrap_or_else(|| dummy_hash().to_string());
     let verified = auth::verify_password(hash, form.password).await;
     match user {
         Some(u) if verified && !u.disabled && u.password_hash.is_some() => start_session(&state, u.id, "/admin").await,
-        _ => bad(&state),
+        _ => {
+            state.limiter.allow(&failures, 5, Duration::from_secs(600));
+            bad(&state)
+        }
     }
 }
 

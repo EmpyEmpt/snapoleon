@@ -83,8 +83,15 @@ impl Db {
         .await
     }
 
+    /// Replace the password and sign the user out everywhere: a stolen session must not outlive the reset.
     pub async fn set_user_password(&self, id: String, hash: String) -> Result<(), AppError> {
-        self.run(move |c| c.execute("UPDATE users SET password_hash = ?2 WHERE id = ?1", (id, hash)).map(|_| ())).await
+        self.run(move |c| {
+            let tx = c.transaction()?;
+            tx.execute("UPDATE users SET password_hash = ?2 WHERE id = ?1", (&id, hash))?;
+            tx.execute("DELETE FROM sessions WHERE user_id = ?1", [&id])?;
+            tx.commit()
+        })
+        .await
     }
 
     pub async fn set_user_disabled(&self, id: String, disabled: bool) -> Result<(), AppError> {

@@ -13,20 +13,24 @@ use axum::{
 use bytes::Bytes;
 use serde::{Deserialize, Serialize, de::DeserializeOwned};
 use snap_core::now_ms;
+use tokio::sync::OwnedSemaphorePermit;
 
 use crate::{
     auth::{self, ApiUser},
-    db::{Event, Item, ItemScope, Membership, NewItem, Role, User, Workspace},
+    db::{Event, Inserted, Item, ItemScope, Membership, NewItem, Role, User, Workspace},
     error::{ApiError, ApiResult, AppError},
     og,
     state::AppState,
-    storage::{self, PUBLIC_CACHE, PutMeta, StreamUpload},
+    storage::{self, PUBLIC_CACHE, PutMeta, SHORT_CACHE, StreamUpload},
     util::{self, HOUR_MS, MediaKind, Sniffed, clean_file_name, new_code, new_id, new_secret, truncate},
     viewer,
 };
 
+/// Length of new item and short-link codes (older, shorter codes keep working).
 const CODE_LEN: usize = 8;
-const SHORT_CODE_LEN: usize = 6;
+/// Images are decoded in memory: cap their size and how many are held at once.
+const MAX_IMAGE_BYTES: u64 = 48 * 1024 * 1024;
+pub const IMAGE_SLOTS: usize = 8;
 const MAX_EXPIRY_HOURS: i64 = 24 * 365 * 10;
 
 pub fn routes(max_body: usize) -> Router<AppState> {
@@ -259,7 +263,7 @@ async fn shorten(
     }
     let workspace = resolve_workspace(&state, &user, "").await?;
     for attempt in 0..8 {
-        let code = new_code(SHORT_CODE_LEN + attempt / 4);
+        let code = new_code(CODE_LEN + attempt / 4);
         if state.db.create_link(code.clone(), url.clone(), user.id.clone(), workspace.id.clone()).await? {
             return Ok(Json(serde_json::json!({ "url": state.url(&format!("/s/{code}")), "code": code })));
         }
@@ -282,6 +286,8 @@ enum Stored {
 }
 
 struct Received {
+    /// Keeps one of the in-memory image slots until the upload is finalised.
+    _slot: Option<OwnedSemaphorePermit>,
     stored: Stored,
     media: Sniffed,
     size: u64,
@@ -294,6 +300,7 @@ struct Receiver<'a> {
     head: Vec<u8>,
     media: Option<Sniffed>,
     sink: Option<Collect>,
+    slot: Option<OwnedSemaphorePermit>,
     size: u64,
     tmp_key: String,
 }
@@ -305,7 +312,12 @@ impl Receiver<'_> {
             return Err(AppError::PayloadTooLarge);
         }
         match &mut self.sink {
-            Some(Collect::Memory(buf)) => buf.extend_from_slice(&chunk),
+            Some(Collect::Memory(buf)) => {
+                if self.size > MAX_IMAGE_BYTES {
+                    return Err(AppError::PayloadTooLarge);
+                }
+                buf.extend_from_slice(&chunk);
+            }
             Some(Collect::Stream(upload)) => upload.push(&chunk).await?,
             None => {
                 self.head.extend_from_slice(&chunk);
@@ -328,6 +340,10 @@ impl Receiver<'_> {
             upload.push(&head).await?;
             Collect::Stream(upload)
         } else {
+            if head.len() as u64 > MAX_IMAGE_BYTES {
+                return Err(AppError::PayloadTooLarge);
+            }
+            self.slot = Some(self.state.image_slots.clone().try_acquire_owned().map_err(|_| AppError::TooManyRequests)?);
             Collect::Memory(head)
         });
         Ok(())
@@ -346,7 +362,7 @@ impl Receiver<'_> {
             }
             None => return Err(AppError::UnsupportedMedia),
         };
-        Ok(Received { stored, media, size: self.size, file_name })
+        Ok(Received { _slot: self.slot, stored, media, size: self.size, file_name })
     }
 
     async fn abort(self) {
@@ -364,6 +380,7 @@ async fn receive_file(state: &AppState, mut field: Field<'_>, id: &str) -> Resul
         head: Vec::new(),
         media: None,
         sink: None,
+        slot: None,
         size: 0,
         tmp_key: format!("tmp/{id}"),
     };
@@ -469,9 +486,12 @@ async fn discard(state: &AppState, received: Option<&Received>) {
 async fn resolve_workspace(state: &AppState, user: &User, wanted: &str) -> Result<Workspace, AppError> {
     let memberships = state.db.memberships(user.id.clone()).await?;
     if wanted.is_empty() {
+        // Without any membership only admins fall back to the default workspace; removing a user
+        // from every workspace revokes their ability to post.
         return match memberships.into_iter().next() {
             Some(m) => Ok(m.workspace),
-            None => state.db.default_workspace().await,
+            None if user.is_admin => state.db.default_workspace().await,
+            None => Err(AppError::Forbidden),
         };
     }
     let ws = state.db.workspace(wanted.to_string()).await?.ok_or(AppError::NotFound)?;
@@ -496,14 +516,16 @@ async fn finalize(state: &AppState, user: &User, id: &str, fields: Fields, rx: &
         Stored::Memory(bytes) => Some(analyse(bytes.clone()).await?),
         Stored::Temp(_) => None,
     };
-    let meta = |mime| PutMeta { mime, cache_control: PUBLIC_CACHE, expires_ms };
+    // Expiring files get the short cache lifetime and the expiry metadata the CDN worker checks.
+    let meta = |mime| PutMeta { mime, cache_control: if expires_ms.is_some() { SHORT_CACHE } else { PUBLIC_CACHE }, expires_ms };
     let file_name = if fields.file_name.trim().is_empty() { rx.file_name.clone() } else { clean_file_name(&fields.file_name) };
     let delete_secret = new_secret(32);
+    let private_name = new_secret(32);
 
     for attempt in 0..8 {
         let code = new_code(CODE_LEN + attempt / 4);
-        let blob_key = storage::blob_key(id, &code, protected);
-        let thumb_key = analysed.as_ref().map(|_| storage::thumb_key(id, &code, protected));
+        let blob_key = storage::blob_key(&private_name, &code, protected);
+        let thumb_key = analysed.as_ref().map(|_| storage::thumb_key(&private_name, &code, protected));
         // Blobs go in before the row so a visible item always has its data.
         let written = async {
             if let Stored::Memory(bytes) = &rx.stored {
@@ -535,15 +557,16 @@ async fn finalize(state: &AppState, user: &User, id: &str, fields: Fields, rx: &
                         password_hash: password_hash.clone(),
                         delete_secret: delete_secret.clone(),
                         expires_ms,
+                        quota_bytes: ws.quota_mb * 1024 * 1024,
                     })
                     .await
             }
             Err(e) => Err(e),
         };
         match inserted {
-            Ok(Some(item)) => {
+            Ok(Inserted::Item(item)) => {
                 if let Stored::Temp(tmp) = &rx.stored
-                    && let Err(e) = state.blobs.rename(tmp, &blob_key).await
+                    && let Err(e) = state.blobs.promote(tmp, &blob_key, meta(rx.media.mime)).await
                 {
                     let _ = state.db.delete_item(item.id.clone()).await;
                     return Err(e);
@@ -562,14 +585,16 @@ async fn finalize(state: &AppState, user: &User, id: &str, fields: Fields, rx: &
                 });
             }
             other => {
-                // Code collision or a failure: drop what this attempt wrote.
+                // Code collision, quota or a failure: drop what this attempt wrote.
                 if matches!(rx.stored, Stored::Memory(_)) {
                     state.blobs.delete(&blob_key).await;
                 }
                 if let Some(k) = &thumb_key {
                     state.blobs.delete(k).await;
                 }
-                other?;
+                if matches!(other?, Inserted::OverQuota) {
+                    return Err(AppError::InsufficientStorage);
+                }
             }
         }
     }

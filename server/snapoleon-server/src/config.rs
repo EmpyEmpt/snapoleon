@@ -5,6 +5,8 @@ use std::path::{Path, PathBuf};
 use anyhow::{Context, Result, bail};
 use serde::Deserialize;
 
+use crate::util::Cidr;
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Deserialize)]
 #[serde(rename_all = "lowercase")]
 pub enum Registration {
@@ -94,8 +96,10 @@ pub struct Config {
     pub registration: Registration,
     /// UI language for pages the server renders (empty = `en`).
     pub language: String,
-    /// Trust `CF-Connecting-IP` / `X-Real-IP` / `X-Forwarded-For` from a reverse proxy.
-    pub trust_proxy: bool,
+    /// Reverse proxies (CIDR networks) whose `proxy_header` is believed; empty = never.
+    pub trusted_proxies: Vec<Cidr>,
+    /// Header the trusted proxy sets to the client address (`X-Forwarded-For`, `CF-Connecting-IP`, `X-Real-IP`).
+    pub proxy_header: String,
     pub storage: StorageConfig,
     pub oidc: OidcConfig,
 }
@@ -109,7 +113,8 @@ impl Default for Config {
             max_upload_mb: 100,
             registration: Registration::Closed,
             language: "en".into(),
-            trust_proxy: false,
+            trusted_proxies: Vec::new(),
+            proxy_header: "x-forwarded-for".into(),
             storage: StorageConfig::default(),
             oidc: OidcConfig::default(),
         }
@@ -144,9 +149,6 @@ impl Config {
                 *target = v;
             }
         }
-        fn flag(v: &str) -> bool {
-            matches!(v.to_ascii_lowercase().as_str(), "1" | "true" | "yes" | "on")
-        }
 
         set(&mut self.bind, "SNAPOLEON_BIND");
         set(&mut self.public_url, "SNAPOLEON_PUBLIC_URL");
@@ -164,9 +166,15 @@ impl Config {
                 other => bail!("SNAPOLEON_REGISTRATION must be open or closed, got {other}"),
             };
         }
-        if let Some(v) = var("SNAPOLEON_TRUST_PROXY") {
-            self.trust_proxy = flag(&v);
+        if let Some(v) = var("SNAPOLEON_TRUSTED_PROXIES") {
+            self.trusted_proxies = v
+                .split(',')
+                .filter(|n| !n.trim().is_empty())
+                .map(|n| n.parse::<Cidr>().map_err(anyhow::Error::msg))
+                .collect::<Result<_>>()
+                .context("SNAPOLEON_TRUSTED_PROXIES")?;
         }
+        set(&mut self.proxy_header, "SNAPOLEON_PROXY_HEADER");
         if let Some(v) = var("SNAPOLEON_STORAGE") {
             self.storage.kind = match v.to_ascii_lowercase().as_str() {
                 "fs" => StorageKind::Fs,
@@ -202,6 +210,7 @@ impl Config {
         if self.oidc.issuer.ends_with('/') {
             self.oidc.issuer.pop();
         }
+        self.proxy_header = self.proxy_header.trim().to_ascii_lowercase();
         self.max_upload_mb = self.max_upload_mb.clamp(1, 20_480);
         Ok(())
     }
