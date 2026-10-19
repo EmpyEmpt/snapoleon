@@ -1,0 +1,1060 @@
+# Settings window (apps/snapoleon/src/views/settings). Rows are tables with `label` and an optional `desc`.
+
+[settings]
+title = "Settings"
+search = "Search settings"
+search_results = "Results for “{query}”"
+managed = "Managed by your organization"
+managed_hint = "Your administrator controls this setting."
+probing = "Checking…"
+open = "Open"
+copy_path = "Copy path"
+copy_snippet = "Copy"
+choose_folder = "Choose a folder"
+choose_file = "Choose a file"
+
+[settings.search_empty]
+title = "No settings match"
+body = "Try another word, or browse the pages on the left."
+
+[settings.secret]
+stored = "Saved in the system keyring"
+empty = "Not set"
+remove = "Remove"
+
+[settings.page.general]
+title = "General"
+desc = "Language, appearance and how Snapoleon starts."
+
+[settings.page.capture]
+title = "Capture"
+desc = "Files, the selection overlay and the editor."
+
+[settings.page.hotkeys]
+title = "Hotkeys"
+desc = "Global shortcuts for every action."
+
+[settings.page.pipelines]
+title = "Pipelines"
+desc = "What happens after a capture, step by step."
+
+[settings.page.destinations]
+title = "Destinations"
+desc = "Where uploads go."
+
+[settings.page.links]
+title = "Links"
+desc = "How links are copied and shortened."
+
+[settings.page.recording]
+title = "Recording"
+desc = "Video and GIF capture."
+
+[settings.page.text_ai]
+title = "Text and AI"
+desc = "Text recognition, translation and the AI endpoint."
+
+[settings.page.privacy]
+title = "Privacy"
+desc = "Redaction, metadata and what is remembered."
+
+[settings.page.history]
+title = "History"
+desc = "The library of past captures."
+
+[settings.page.pins]
+title = "Pins"
+desc = "How pinned screenshots look."
+
+[settings.page.advanced]
+title = "Advanced"
+desc = "Policy, folders, command line and backup."
+
+# --- General -----------------------------------------------------------------------------------------------------
+
+[settings.general.section]
+appearance = "Appearance"
+behavior = "Behavior"
+help = "Help"
+
+[settings.general.language]
+label = "Language"
+desc = "Applies right away."
+system = "System default"
+
+[settings.general.theme]
+label = "Theme"
+desc = "Follow the system or pick one."
+system = "System"
+dark = "Dark"
+light = "Light"
+
+[settings.general.accent]
+label = "Accent color"
+desc = "Used for selection, focus and primary buttons."
+
+[settings.general.reduce_motion]
+label = "Reduce motion"
+desc = "Turns off interface animations."
+
+[settings.general.launch_at_login]
+label = "Launch at login"
+desc = "Start in the tray when you sign in."
+
+[settings.general.launch_portable]
+label = "Launch at login"
+desc = "Not available in portable mode."
+
+[settings.general.tray_click]
+label = "Tray icon click"
+desc = "What a left click on the tray icon does."
+
+[settings.general.show_notifications]
+label = "Show notifications"
+desc = "Tell me when a capture is saved or uploaded."
+
+[settings.general.play_sounds]
+label = "Play sounds"
+desc = "A short click when a screenshot is taken."
+
+[settings.general.welcome]
+label = "Welcome guide"
+desc = "Go through the first-run setup again."
+button = "Show guide"
+
+[settings.general.about]
+label = "About Snapoleon"
+desc = "Version, licenses and links."
+button = "About"
+
+# --- Capture -----------------------------------------------------------------------------------------------------
+
+[settings.capture.section]
+output = "Output"
+overlay = "Selection overlay"
+behavior = "Capture behavior"
+editor = "Editor"
+
+[settings.capture.format]
+label = "Image format"
+desc = "Used when saving and uploading."
+png = "PNG"
+jpeg = "JPEG"
+webp = "WebP"
+
+[settings.capture.jpeg_quality]
+label = "JPEG quality"
+desc = "Higher is sharper and larger."
+
+[settings.capture.webp_quality]
+label = "WebP quality"
+desc = "100 is lossless."
+
+[settings.capture.optimize_png]
+label = "Optimize PNG"
+desc = "Smaller files, a little slower to save."
+
+[settings.capture.save_dir]
+label = "Save folder"
+desc = "Where screenshots go. Empty uses your Pictures folder."
+
+[settings.capture.filename_template]
+label = "File name"
+desc = "Click a token to add it. Characters that file names cannot hold are replaced."
+
+[settings.capture]
+preview = "Preview"
+unknown_token = "Unknown token"
+add_token = "Add to the name"
+
+[settings.capture.show_magnifier]
+label = "Magnifier"
+desc = "A zoomed loupe with color values next to the cursor."
+
+[settings.capture.magnifier_zoom]
+label = "Magnifier zoom"
+desc = "How much the loupe enlarges."
+
+[settings.capture.show_crosshair]
+label = "Crosshair"
+desc = "Guide lines across the screen before you drag."
+
+[settings.capture.dim_outside]
+label = "Dim outside the selection"
+desc = "Darken everything you are not capturing."
+
+[settings.capture.snap_to_windows]
+label = "Snap to windows"
+desc = "The selection jumps to the window or element under the cursor."
+
+[settings.capture.include_cursor]
+label = "Include the mouse cursor"
+
+[settings.capture.hide_desktop_icons]
+label = "Hide desktop icons"
+desc = "Only while capturing."
+
+[settings.capture.delay_secs]
+label = "Delay"
+desc = "Used by delayed capture."
+
+[settings.capture.hdr]
+label = "HDR screens"
+desc = "Tone-map HDR captures so they look right in SDR."
+auto = "Automatic"
+off = "Off"
+
+[settings.capture.window_shadow]
+label = "Window shadow"
+desc = "Add a soft shadow around captured windows."
+
+[settings.editor.palette]
+label = "Annotation colors"
+desc = "The swatches in the editor toolbar."
+add = "Add a color"
+remove = "Remove the last color"
+reset = "Reset colors"
+
+[settings.editor.stroke_width]
+label = "Default stroke width"
+
+[settings.editor.font_size]
+label = "Default text size"
+
+[settings.editor.readable_downscale]
+label = "Keep annotations readable"
+desc = "Strengthens thin lines and small text when you export smaller."
+
+[settings.editor.max_export_width]
+label = "Maximum export width"
+desc = "0 keeps the original size."
+
+[settings.editor.step_badge_start]
+label = "First step number"
+desc = "Where numbered badges start counting."
+
+# --- Hotkeys -----------------------------------------------------------------------------------------------------
+
+[settings.hotkeys]
+enabled = "Enabled"
+conflict = "Conflict"
+invalid = "Invalid"
+conflict_with = "Also assigned to “{action}”"
+
+[settings.hotkeys.group]
+capture = "Capture"
+record = "Recording"
+text = "Text and tools"
+pin = "Pin and edit"
+app = "App"
+
+[settings.hotkeys.section]
+pipelines = "Pipeline per hotkey"
+reset = "Defaults"
+
+[settings.hotkeys.pipeline]
+default = "Default pipeline"
+
+[settings.hotkeys.reset]
+label = "Reset hotkeys"
+desc = "Restore the built-in shortcuts."
+button = "Reset"
+confirm = "Reset all hotkeys"
+
+# --- Pipelines ---------------------------------------------------------------------------------------------------
+
+[settings.pipelines]
+list = "Your pipelines"
+no_steps_short = "No steps"
+new = "New pipeline"
+new_name = "New pipeline"
+default_badge = "Default"
+back = "Pipelines"
+name = "Name"
+name_hint = "For example, Share with the team"
+id = "Identifier"
+id_hint = "used by the command line and hotkeys"
+make_default = "Make default"
+duplicate = "Duplicate"
+delete = "Delete"
+delete_confirm = "Delete pipeline"
+steps = "Steps"
+no_steps = "This pipeline has no steps yet. Add the first one below."
+add_step = "Add step"
+copy_name = "Copy of {name}"
+presets = "Beautify presets"
+presets_hint = "Backgrounds, padding and frames that the Beautify step can apply."
+
+[settings.pipelines.section]
+defaults = "Defaults"
+
+[settings.pipelines.default]
+label = "Default pipeline"
+desc = "Runs after a capture when a hotkey names none."
+
+[settings.pipelines.step]
+remove = "Remove step"
+up = "Move up"
+down = "Move down"
+
+[settings.pipelines.step.annotate]
+title = "Annotate"
+desc = "Open the editor and wait until you are done."
+
+[settings.pipelines.step.auto_redact]
+title = "Redact sensitive data"
+desc = "Find emails, cards, keys and similar data in the image and cover them."
+
+[settings.pipelines.step.beautify]
+title = "Beautify"
+desc = "Put the image on a background with padding, shadow and a frame."
+
+[settings.pipelines.step.resize]
+title = "Resize"
+desc = "Shrink large images to fit."
+
+[settings.pipelines.step.ocr]
+title = "Recognize text"
+desc = "Read the text in the image."
+
+[settings.pipelines.step.decode_codes]
+title = "Scan codes"
+desc = "Decode QR codes and barcodes."
+
+[settings.pipelines.step.translate]
+title = "Translate text"
+desc = "Translate the recognized text."
+
+[settings.pipelines.step.save]
+title = "Save to disk"
+desc = "Write the image to a file."
+
+[settings.pipelines.step.copy_image]
+title = "Copy image"
+desc = "Put the image on the clipboard."
+
+[settings.pipelines.step.upload]
+title = "Upload"
+desc = "Send the image to a destination."
+
+[settings.pipelines.step.shorten]
+title = "Shorten link"
+desc = "Shorten the uploaded link with your shortener."
+
+[settings.pipelines.step.copy_link]
+title = "Copy link"
+desc = "Put the link on the clipboard."
+
+[settings.pipelines.step.pin]
+title = "Pin to screen"
+desc = "Keep the image on top of other windows."
+
+[settings.pipelines.step.alt_text]
+title = "Describe with AI"
+desc = "Write alt text with your AI endpoint."
+
+[settings.pipelines.step.run_command]
+title = "Run a program"
+desc = "Start an external program with the result."
+
+[settings.pipelines.step.notify]
+title = "Notify"
+desc = "Show a notification when the pipeline finishes."
+
+[settings.pipelines.param]
+kinds = "Kinds of data"
+kinds_hint = "None selected means the kinds from Privacy settings."
+style = "Cover style"
+from_privacy = "From Privacy settings"
+preset = "Preset"
+max_width = "Maximum width"
+max_height = "Maximum height"
+size_hint = "0 means no limit."
+readable = "Keep text readable"
+copy_text = "Copy the text"
+markdown_table = "Copy tables as Markdown"
+target_lang = "Language"
+target_lang_hint = "Translation settings"
+folder = "Folder"
+from_capture = "From Capture settings"
+template = "File name"
+format = "Format"
+destination = "Destination"
+default_destination = "Default destination"
+no_destinations = "No destinations yet. Add one on the Destinations page."
+link_format = "Link format"
+from_links = "From Links settings"
+program = "Program"
+program_hint = "Path to an executable"
+arguments = "Arguments"
+add_arg = "Add argument"
+remove_arg = "Remove argument"
+placeholders = "Use {file}, {url} and {text} in arguments."
+
+[settings.pipelines.preset]
+new = "New preset"
+new_name = "New preset"
+edit = "Edit preset"
+name = "Name"
+background = "Background"
+color = "Color"
+colors = "Colors"
+angle = "Angle"
+image = "Image"
+padding = "Padding"
+radius = "Corner radius"
+shadow = "Shadow"
+aspect = "Aspect ratio"
+aspect_free = "Natural size"
+frame = "Frame"
+
+[settings.pipelines.bg]
+transparent = "Transparent"
+solid = "Solid color"
+gradient = "Gradient"
+blurred = "Blurred capture"
+image = "Image"
+
+[settings.pipelines.frame]
+none = "None"
+mac_window = "macOS window"
+mac_window_dark = "macOS window, dark"
+browser = "Browser"
+browser_dark = "Browser, dark"
+phone = "Phone"
+
+# --- Destinations ------------------------------------------------------------------------------------------------
+
+[settings.destinations]
+list = "Your destinations"
+add = "Add destination"
+import = "Import .sxcu"
+back = "Destinations"
+default_badge = "Default"
+signed_in = "Signed in"
+signed_in_badge = "Signed in"
+sign_out = "Sign out"
+sign_in = "Sign in with {provider}"
+waiting_browser = "Waiting for the browser…"
+no_default = "None"
+imported = "Custom uploader imported"
+exported = "Saved to {path}"
+testing = "Testing…"
+uploads_off = "Uploads are turned off by your administrator."
+managed_list = "Your administrator manages the list of destinations."
+
+[settings.destinations.empty]
+title = "No destinations yet"
+body = "Add S3 storage, an FTP server, Dropbox, Telegram or your own server, then send screenshots there from a pipeline."
+
+[settings.destinations.picker]
+title = "Add a destination"
+body = "Pick a service. You can change everything afterwards."
+
+[settings.destinations.group]
+s3 = "S3-compatible storage"
+servers = "Servers and folders"
+cloud = "Cloud drives"
+services = "Services"
+custom = "Custom"
+
+[settings.destinations.type]
+s3 = "S3 storage"
+ftp = "FTP"
+ftps = "FTPS"
+webdav = "WebDAV"
+local = "Local folder"
+imgur = "Imgur"
+telegram = "Telegram"
+yandex = "Yandex Disk"
+dropbox = "Dropbox"
+gdrive = "Google Drive"
+onedrive = "OneDrive"
+box = "Box"
+custom = "Custom HTTP"
+server = "Team server"
+
+[settings.destinations.section]
+general = "Destination"
+connection = "Connection"
+access = "Access"
+account = "Account"
+response = "Response"
+actions = "Actions"
+defaults = "Defaults"
+
+[settings.destinations.default]
+label = "Default destination"
+desc = "Used by Upload steps that name no destination."
+
+[settings.destinations.test]
+label = "Test connection"
+desc = "Checks the address and your credentials."
+button = "Test"
+ok = "Connected"
+failed = "Failed"
+
+[settings.destinations.make_default]
+label = "Default destination"
+desc = "Use this destination when none is named."
+button = "Make default"
+
+[settings.destinations.export]
+label = "Export"
+desc = "Save as a ShareX custom uploader file."
+button = "Export .sxcu"
+
+[settings.destinations.delete]
+label = "Delete destination"
+desc = "Also removes its saved credentials."
+button = "Delete"
+confirm = "Delete destination"
+
+[settings.destinations.method]
+post = "POST"
+put = "PUT"
+patch = "PATCH"
+
+[settings.destinations.body]
+multipart = "Form with file"
+binary = "File as body"
+form = "URL-encoded form"
+json = "JSON"
+
+[settings.destinations.kv]
+name = "Name"
+value = "Value"
+add = "Add"
+remove = "Remove"
+
+[settings.destinations.f.name]
+label = "Name"
+desc = "Shown in lists and menus."
+
+[settings.destinations.f.endpoint]
+label = "Endpoint"
+desc = "The service address, including https://."
+account_id = "Replace <account-id> in the address with your Cloudflare account id."
+
+[settings.destinations.f.region]
+label = "Region"
+
+[settings.destinations.f.bucket]
+label = "Bucket"
+
+[settings.destinations.f.path_style]
+label = "Path-style addresses"
+desc = "Put the bucket in the path instead of the host name. MinIO and most self-hosted stores need this."
+
+[settings.destinations.f.prefix]
+label = "Folder prefix"
+desc = "Added before every file name. End it with a slash."
+
+[settings.destinations.f.public_base_url]
+label = "Public address"
+desc = "Links are built from this address, for example your own domain or CDN. Empty uses the service address."
+
+[settings.destinations.f.random_code_len]
+label = "Random name length"
+desc = "Characters in the random file name. 0 keeps the original name."
+
+[settings.destinations.f.acl_public_read]
+label = "Make files public"
+desc = "Send a public-read ACL with each upload."
+
+[settings.destinations.f.access_key_id]
+label = "Access key ID"
+
+[settings.destinations.f.s3_secret]
+label = "Secret access key"
+desc = "Kept in the system keyring."
+
+[settings.destinations.f.host]
+label = "Host"
+
+[settings.destinations.f.port]
+label = "Port"
+
+[settings.destinations.f.secure]
+label = "Encrypt with TLS"
+desc = "Use explicit FTPS."
+
+[settings.destinations.f.dir]
+label = "Remote folder"
+desc = "Created if it does not exist."
+
+[settings.destinations.f.user]
+label = "User name"
+
+[settings.destinations.f.password]
+label = "Password"
+desc = "Kept in the system keyring."
+
+[settings.destinations.f.webdav_url]
+label = "Folder address"
+desc = "The WebDAV address of the folder to upload into."
+
+[settings.destinations.f.local_dir]
+label = "Folder"
+desc = "Files are copied here. A synced folder works well."
+
+[settings.destinations.f.imgur_client]
+label = "Client ID"
+desc = "From your Imgur application. Anonymous uploads need one."
+
+[settings.destinations.f.chat_id]
+label = "Chat"
+desc = "A channel such as @mychannel, or a numeric chat id."
+
+[settings.destinations.f.bot_token]
+label = "Bot token"
+desc = "From @BotFather. Kept in the system keyring."
+
+[settings.destinations.f.server_url]
+label = "Server address"
+desc = "The address of your Snapoleon team server."
+
+[settings.destinations.f.server_token]
+label = "Access token"
+desc = "Create one on the server's account page. Kept in the system keyring."
+
+[settings.destinations.f.folder]
+label = "Folder"
+
+[settings.destinations.f.folder_id]
+label = "Folder ID"
+desc = "Leave empty for the top level."
+
+[settings.destinations.f.publish]
+label = "Create a public link"
+
+[settings.destinations.f.oauth_client]
+label = "Client ID"
+desc = "From the application you registered with the provider."
+
+[settings.destinations.f.oauth_secret]
+label = "Client secret"
+desc = "Only some providers need one."
+hint = "Optional"
+
+[settings.destinations.f.oauth_account]
+label = "Account"
+desc = "Sign in through your browser. Tokens are kept in the system keyring."
+
+[settings.destinations.f.request]
+label = "Request"
+desc = "The method and address that receive the upload."
+
+[settings.destinations.f.body]
+label = "Body"
+
+[settings.destinations.f.file_form_name]
+label = "File field name"
+
+[settings.destinations.f.arguments]
+label = "Arguments"
+desc = "Form fields or JSON properties sent with the file."
+
+[settings.destinations.f.data]
+label = "JSON body"
+desc = "Template for the request body."
+
+[settings.destinations.f.headers]
+label = "Headers"
+
+[settings.destinations.f.parameters]
+label = "URL parameters"
+
+[settings.destinations.f.response_url]
+label = "Link"
+desc = "Where to find the link in the response, for example {json:data.link}."
+
+[settings.destinations.f.thumbnail_url]
+label = "Thumbnail"
+
+[settings.destinations.f.deletion_url]
+label = "Delete link"
+
+[settings.destinations.f.error_message]
+label = "Error message"
+
+[settings.destinations.f.custom_secret]
+label = "Secret"
+desc = "Available to the request as {secret}. Kept in the system keyring."
+
+# --- Links -------------------------------------------------------------------------------------------------------
+
+[settings.links.section]
+copy = "Copying"
+shortener = "Shortening"
+
+[settings.links.copy_format]
+label = "Copy links as"
+desc = "The format used by Copy link steps."
+
+[settings.links.format]
+url = "Plain link"
+markdown = "Markdown"
+html = "HTML"
+bbcode = "BBCode"
+
+[settings.links.expiry_hours]
+label = "Link expiry"
+desc = "For links on a team server."
+
+[settings.links.expiry]
+never = "Never"
+hour = "1 hour"
+day = "1 day"
+week = "1 week"
+month = "30 days"
+quarter = "90 days"
+custom = "{n} hours"
+
+[settings.links.shortener]
+label = "Link shortener"
+desc = "Applied by Shorten steps."
+none = "None"
+server = "Team server"
+yourls = "YOURLS"
+shlink = "Shlink"
+isgd = "is.gd"
+
+[settings.links.shortener_url]
+label = "Service address"
+
+[settings.links.shortener_secret_yourls]
+label = "Signature"
+desc = "From your YOURLS tools page. Kept in the system keyring."
+
+[settings.links.shortener_secret_shlink]
+label = "API key"
+desc = "Kept in the system keyring."
+
+# --- Recording ---------------------------------------------------------------------------------------------------
+
+[settings.recording]
+disabled = "Recording is turned off by your administrator."
+no_encoders = "No encoder was found."
+hardware = "Hardware"
+software = "Software"
+ffmpeg_hint = "Found automatically"
+ffmpeg_missing = "ffmpeg was not found. Linux needs it for MP4, GIF and WebP, and video trimming uses it everywhere it is present."
+ffmpeg_found = "Using {path}"
+fps_unit = "{n} fps"
+bitrate_unit = "{n} Mbit/s"
+mic_default = "System default"
+
+[settings.recording.section]
+output = "Output"
+audio = "Audio"
+overlays = "On screen"
+encoding = "Encoding"
+
+[settings.recording.format]
+label = "Format"
+desc = "Used when a recording starts without a choice."
+mp4 = "MP4"
+gif = "GIF"
+webp = "WebP"
+
+[settings.recording.fps]
+label = "Frame rate"
+desc = "For MP4 recordings."
+
+[settings.recording.gif_fps]
+label = "GIF frame rate"
+desc = "Lower is smaller."
+
+[settings.recording.bitrate]
+label = "MP4 quality"
+desc = "Bitrate. Automatic picks one from the picture size."
+auto = "Automatic"
+
+[settings.recording.max_gif_width]
+label = "Maximum GIF width"
+desc = "Wider pictures are scaled down."
+
+[settings.recording.countdown_secs]
+label = "Countdown"
+desc = "Seconds before recording starts."
+
+[settings.recording.system_audio]
+label = "Record system sound"
+
+[settings.recording.microphone]
+label = "Record the microphone"
+
+[settings.recording.mic_device]
+label = "Microphone"
+
+[settings.recording.show_cursor]
+label = "Show the cursor"
+
+[settings.recording.highlight_clicks]
+label = "Highlight clicks"
+desc = "A ripple where you click."
+
+[settings.recording.show_keystrokes]
+label = "Show keystrokes"
+desc = "Needs input monitoring permission on macOS."
+
+[settings.recording.encoder]
+label = "Encoder"
+desc = "Hardware is faster and lighter on the processor."
+auto = "Automatic"
+hardware = "Hardware"
+software = "Software"
+
+[settings.recording.encoders]
+label = "Available encoders"
+
+[settings.recording.ffmpeg_path]
+label = "ffmpeg"
+desc = "Optional. Used where no built-in encoder exists."
+
+# --- Text and AI -------------------------------------------------------------------------------------------------
+
+[settings.text_ai]
+available = "Available"
+unavailable = "Not available"
+check_again = "Check again"
+testing = "Testing…"
+ai_disabled = "AI features are turned off by your administrator."
+privacy_note = "Screenshots and text go only to the endpoint above. The default is a local server on this computer, and nothing is sent while AI is off."
+tesseract_hint = "Found automatically"
+
+[settings.text_ai.section]
+ocr = "Text recognition"
+translate = "Translation"
+ai = "AI"
+
+[settings.text_ai.engine]
+auto = "Automatic"
+native = "System engine"
+tesseract = "Tesseract"
+ocrs = "Built-in"
+
+[settings.text_ai.ocr_engine]
+label = "Recognition engine"
+desc = "Automatic uses the system engine and falls back to the others."
+
+[settings.text_ai.ocr_languages]
+label = "Languages"
+desc = "Pick the languages you read. They help the engine choose the right alphabet."
+system = "No language selected: the languages of your user profile are used."
+
+[settings.text_ai.tesseract_path]
+label = "Tesseract program"
+desc = "Optional. Used when tesseract is not on your PATH."
+
+[settings.text_ai.engines]
+label = "Engines on this computer"
+
+[settings.text_ai.provider]
+label = "Translation service"
+none = "None"
+libre = "LibreTranslate"
+deepl = "DeepL"
+ai = "AI endpoint"
+
+[settings.text_ai.target_lang]
+label = "Translate into"
+desc = "The default target language."
+
+[settings.text_ai.libre_url]
+label = "Server address"
+
+[settings.text_ai.deepl_free]
+label = "Free plan"
+desc = "Use the free DeepL API address."
+
+[settings.text_ai.translate_key]
+label = "API key"
+desc = "Kept in the system keyring."
+
+[settings.text_ai.ai_enabled]
+label = "Use AI"
+desc = "Alt text, titles and translation through your endpoint."
+
+[settings.text_ai.endpoint]
+label = "Endpoint"
+desc = "An OpenAI-compatible address: Ollama, LM Studio, OpenAI, OpenRouter or Anthropic."
+
+[settings.text_ai.model]
+label = "Text model"
+
+[settings.text_ai.vision_model]
+label = "Vision model"
+desc = "Used for images. Empty uses the text model."
+
+[settings.text_ai.ai_key]
+label = "API key"
+desc = "Not needed for local servers. Kept in the system keyring."
+
+[settings.text_ai.test]
+label = "Test connection"
+desc = "Contacts the endpoint and lists its models."
+button = "Test"
+
+# --- Privacy -----------------------------------------------------------------------------------------------------
+
+[settings.privacy.section]
+redaction = "Redaction"
+files = "Files and history"
+
+[settings.privacy.redact_kinds]
+label = "Cover automatically"
+desc = "Kinds of data that Redact steps look for."
+
+[settings.privacy.redact_style]
+label = "Cover style"
+desc = "Pixelation cannot be reversed."
+
+[settings.privacy.style]
+pixelate = "Pixelate"
+solid = "Solid"
+blur = "Blur"
+
+[settings.privacy.strip_metadata]
+label = "Strip metadata"
+desc = "Never write EXIF or text chunks into exported images."
+
+[settings.privacy.record_context]
+label = "Remember the source"
+desc = "Keep the window title and page address with each capture in the library."
+
+# --- History -----------------------------------------------------------------------------------------------------
+
+[settings.history]
+disabled = "The library is turned off by your administrator."
+off = "The library is turned off."
+count = "Items in the library: {n}"
+cleared = "Items removed from the library: {n}"
+
+[settings.history.section]
+library = "Library"
+data = "Data"
+
+[settings.history.enabled]
+label = "Keep a library"
+desc = "Remember every capture so you can search it later."
+
+[settings.history.retention_days]
+label = "Keep entries for"
+desc = "Older entries are removed from the library. Files on disk stay."
+
+[settings.history.retention]
+forever = "Forever"
+month = "30 days"
+quarter = "90 days"
+half_year = "180 days"
+year = "1 year"
+custom = "{n} days"
+
+[settings.history.index_text]
+label = "Index text for search"
+desc = "Read the text in screenshots in the background so search can find it."
+
+[settings.history.clear]
+label = "Clear the library"
+desc = "Removes every entry. Screenshot files stay on disk."
+button = "Clear…"
+confirm = "Clear the library"
+
+# --- Pins --------------------------------------------------------------------------------------------------------
+
+[settings.pins.section]
+look = "Appearance"
+
+[settings.pins.opacity]
+label = "Opacity"
+desc = "How see-through new pins are."
+
+[settings.pins.shadow]
+label = "Shadow"
+
+[settings.pins.border_color]
+label = "Border color"
+
+# --- Advanced ----------------------------------------------------------------------------------------------------
+
+[settings.advanced]
+imported = "Settings imported"
+exported = "Settings saved to {path}"
+show = "Show"
+
+[settings.advanced.section]
+policy = "Policy"
+install = "Installation"
+cli = "Command line and MCP"
+backup = "Backup and reset"
+
+[settings.advanced.policy]
+label = "Managed settings"
+desc = "Settings your administrator sets are locked here."
+none = "Not managed"
+on = "On"
+off = "Off"
+days = "{n} days"
+uploads = "Uploads"
+recording = "Recording"
+ai = "AI features"
+history = "Library"
+redact = "Redaction before upload"
+retention = "Library retention"
+language = "Language"
+destinations = "Destinations"
+default_destination = "Default destination"
+
+[settings.advanced.portable]
+label = "Portable mode"
+desc = "A portable copy keeps settings and data next to the program."
+yes = "Portable"
+no = "Installed"
+
+[settings.advanced.path.settings]
+label = "Settings file"
+
+[settings.advanced.path.data]
+label = "Data folder"
+
+[settings.advanced.path.history]
+label = "Library database"
+
+[settings.advanced.path.logs]
+label = "Logs"
+
+[settings.advanced.path.models]
+label = "Downloaded models"
+
+[settings.advanced.path.locales]
+label = "Extra translations"
+
+[settings.advanced.cli]
+label = "Command line"
+desc = "These commands reach the running app from a terminal, a script or a compositor key binding."
+
+[settings.advanced.mcp_desktop]
+label = "MCP for Claude Desktop"
+desc = "Add this to claude_desktop_config.json so assistants can capture and search your screen."
+
+[settings.advanced.mcp_code]
+label = "MCP for Claude Code"
+desc = "Run this once in a terminal."
+
+[settings.advanced.export]
+label = "Export settings"
+desc = "Save your settings as a TOML file. Secrets are not included."
+button = "Export…"
+
+[settings.advanced.import]
+label = "Import settings"
+desc = "Replace your settings with a TOML file."
+button = "Import…"
+
+[settings.advanced.reset]
+label = "Reset all settings"
+desc = "Back to the defaults. Destinations and saved secrets are kept."
+button = "Reset…"
+confirm = "Reset all settings"

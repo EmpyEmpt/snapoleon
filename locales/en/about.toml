@@ -1,0 +1,13 @@
+[about]
+title = "About Snapoleon"
+version = "Version {version}"
+tagline = "Screenshots, recording, OCR and sharing in one small app, written entirely in Rust."
+repository = "Project page"
+issues = "Report an issue"
+copy_info = "Copy version info"
+license = "License"
+license_name = "Snapoleon"
+license_desc = "Free software. Choose either license."
+credits = "Third-party software"
+open_site = "Open the website"
+credits_note = "Full license texts come with the source code."
