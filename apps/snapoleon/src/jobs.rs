@@ -83,7 +83,9 @@ pub fn spawn(
         move || {
             let ui = GuiPipelineUi::new(proxy.clone());
             ui.progress(&label, None);
-            let result = match run(&ui) {
+            // A panic inside the engine ends this job, not the app, and must not leave the progress pill spinning.
+            let ran = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| run(&ui)));
+            let result = match ran.unwrap_or_else(|_| Err(Error::Other(anyhow::anyhow!(t("app.error.job"))))) {
                 Ok(outcome) => Ok(outcome),
                 // The user dismissed an interactive step: not an error.
                 Err(Error::Cancelled) => Ok(Outcome { cancelled: true, ..Outcome::default() }),
