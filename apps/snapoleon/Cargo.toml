@@ -4,6 +4,44 @@ description = "Snapoleon: screenshots, recording, OCR and sharing"
 version.workspace = true
 edition.workspace = true
 license.workspace = true
+repository.workspace = true
+rust-version.workspace = true
+build = "build.rs"
+
+[[bin]]
+name = "snapoleon"
+path = "src/main.rs"
 
 [dependencies]
 snap-core.workspace = true
+snap-capture.workspace = true
+snap-image.workspace = true
+snap-annotate.workspace = true
+snap-ocr.workspace = true
+snap-redact.workspace = true
+snap-upload.workspace = true
+snap-history.workspace = true
+snap-platform = { workspace = true, features = ["egui"] }
+snap-record.workspace = true
+snap-ai.workspace = true
+snap-ui.workspace = true
+snap-shell.workspace = true
+snap-engine.workspace = true
+
+egui.workspace = true
+image.workspace = true
+crossbeam-channel.workspace = true
+parking_lot.workspace = true
+tracing.workspace = true
+tracing-subscriber.workspace = true
+anyhow.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+toml.workspace = true
+chrono.workspace = true
+clap = { version = "4", default-features = false, features = ["std"] }
+# Native file dialogs. Linux goes through the xdg-desktop-portal, so no GTK is linked.
+rfd = { version = "0.17", default-features = false, features = ["xdg-portal"] }
+
+[build-dependencies]
+embed-resource = "3"

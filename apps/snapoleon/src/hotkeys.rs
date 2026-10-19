@@ -1,0 +1,117 @@
+//! Global hotkeys: owns the platform `HotkeyManager` and maps its events to bindings.
+
+use snap_core::{Error, Result, hotkey::HotkeyBinding, t, tf};
+use snap_engine::{Notice, NoticeKind};
+use snap_platform::hotkeys::{self, HotkeyEvent, HotkeyManager};
+use snap_shell::{Proxy, Shell};
+
+use crate::{app::App, events::AppEvent};
+
+/// A binding the OS refused, for the conflict notice.
+pub struct Conflict {
+    pub accel: String,
+    pub reason: String,
+}
+
+impl Conflict {
+    pub fn message(&self) -> String {
+        tf("app.hotkey.conflict_body", &[("accel", &hotkeys::display(&self.accel)), ("reason", &self.reason)])
+    }
+}
+
+pub struct Hotkeys {
+    manager: HotkeyManager,
+    /// The bindings as last registered; `AppEvent::Hotkey(i)` indexes into this.
+    bindings: Vec<HotkeyBinding>,
+}
+
+impl Hotkeys {
+    /// Must be called on the UI thread after the event loop started.
+    pub fn new(proxy: Proxy<AppEvent>) -> Result<Self> {
+        let manager = HotkeyManager::new(move |event| {
+            if let HotkeyEvent::Pressed(index) = event {
+                proxy.send(AppEvent::Hotkey(index));
+            }
+        })?;
+        Ok(Self { manager, bindings: Vec::new() })
+    }
+
+    /// Replace every registration. Returns the bindings that could not be registered.
+    pub fn apply(&mut self, bindings: &[HotkeyBinding]) -> Vec<Conflict> {
+        self.bindings = bindings.to_vec();
+        self.manager
+            .register(bindings)
+            .into_iter()
+            .filter_map(|(index, result)| {
+                let reason = match result.err()? {
+                    Error::Invalid(reason) => reason,
+                    other => other.to_string(),
+                };
+                Some(Conflict { accel: bindings[index].accel.clone(), reason })
+            })
+            .collect()
+    }
+
+    pub fn binding(&self, index: usize) -> Option<&HotkeyBinding> {
+        self.bindings.get(index)
+    }
+
+    /// Whether `bindings` is what is registered right now.
+    pub fn is_current(&self, bindings: &[HotkeyBinding]) -> bool {
+        self.bindings == bindings
+    }
+
+    /// Pause while a hotkey recorder field is focused.
+    pub fn pause(&mut self, paused: bool) {
+        self.manager.pause(paused);
+    }
+}
+
+impl App {
+    pub(crate) fn apply_hotkeys(&mut self, sh: &mut Shell<AppEvent>) {
+        let Some(hotkeys) = &mut self.hotkeys else { return };
+        if hotkeys.is_current(&self.settings.hotkeys) {
+            return;
+        }
+        for conflict in hotkeys.apply(&self.settings.hotkeys) {
+            tracing::warn!("hotkey {} not registered: {}", conflict.accel, conflict.reason);
+            let notice = Notice {
+                kind: NoticeKind::Warning,
+                title: t("app.hotkey.conflict_title").into_owned(),
+                body: conflict.message(),
+                ..Notice::default()
+            };
+            self.notice(sh, notice);
+        }
+    }
+
+    pub(crate) fn on_hotkey(&mut self, sh: &mut Shell<AppEvent>, index: usize) {
+        let binding = self.hotkeys.as_ref().and_then(|h| h.binding(index)).cloned();
+        match binding {
+            Some(binding) => self.start_action(sh, binding.action, binding.pipeline),
+            None => tracing::debug!("hotkey {index} has no binding"),
+        }
+    }
+
+    pub(crate) fn start_hotkeys(&mut self, sh: &mut Shell<AppEvent>) {
+        match Hotkeys::new(sh.proxy()) {
+            Ok(hotkeys) => {
+                self.hotkeys = Some(hotkeys);
+                self.apply_hotkeys(sh);
+                tracing::info!("hotkeys ready");
+            }
+            Err(e) => {
+                tracing::warn!("global hotkeys unavailable: {e}");
+                self.notice(
+                    sh,
+                    Notice {
+                        kind: NoticeKind::Warning,
+                        title: t("app.hotkey.unavailable").into_owned(),
+                        body: e.to_string(),
+                        ..Notice::default()
+                    },
+                );
+            }
+        }
+    }
+}

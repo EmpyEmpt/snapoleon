@@ -1,0 +1,98 @@
+# Strings owned by the app shell (apps/snapoleon: tray, jobs, notices, routing).
+# Each view owns its own file; nothing under [app.stub] outlives its view.
+
+[app]
+countdown = "Capturing in {n}"
+
+[app.tray]
+tooltip = "Snapoleon"
+tooltip_recording = "Snapoleon: recording"
+recent = "Recent captures"
+no_recent = "No captures yet"
+quit = "Quit Snapoleon"
+
+[app.job]
+working = "Working"
+capturing = "Capturing"
+cancelled = "Cancelled"
+
+[app.error]
+window = "Could not open the window"
+capture = "Could not capture the screen"
+job = "Something went wrong"
+no_pipeline = "There is no pipeline named {id}"
+no_file = "File not found: {path}"
+open_file = "Could not open the file"
+
+[app.notice]
+copy_link = "Copy link"
+show_in_folder = "Show in folder"
+
+[app.hotkey]
+conflict_title = "A hotkey could not be registered"
+conflict_body = "{accel}: {reason}"
+unavailable = "Global hotkeys are not available"
+
+[app.recording]
+disabled = "Recording is turned off by your administrator"
+already = "A recording is already running"
+
+[app.clipboard]
+no_image = "The clipboard has no image"
+
+[app.text]
+title = "Recognised text"
+none = "No text found"
+
+[app.ipc]
+no_answer = "Snapoleon did not answer in time"
+
+[app.stub]
+body = "This view is not built yet."
+
+[app.stub.about]
+title = "About"
+
+[app.stub.onboarding]
+title = "Welcome"
+
+[app.stub.library]
+title = "Library"
+
+[app.stub.text]
+title = "Text"
+
+[app.stub.video]
+title = "Video editor"
+
+[app.stub.combine]
+title = "Combine"
+
+[app.stub.diff]
+title = "Compare"
+
+[app.stub.editor]
+title = "Editor"
+
+[app.stub.settings]
+title = "Settings"
+
+[app.stub.colors]
+title = "Color and measure"
+
+[app.stub.steps]
+title = "Step capture"
+
+[app.stub.overlay]
+title = "Capture"
+hint = "Click or press Enter to capture this screen, Esc to cancel"
+
+[app.stub.pin]
+title = "Pin"
+
+[app.stub.recorder]
+title = "Recording"
+stop = "Stop"
+
+[app.stub.scroll]
+title = "Scrolling capture"

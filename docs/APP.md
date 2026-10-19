@@ -1,0 +1,281 @@
+# apps/snapoleon: architecture for view builders
+
+This document is the contract between the app skeleton and the people (or agents) who build the
+views. Read it together with `docs/SPEC.md` (what each view must do) and `docs/DESIGN.md` (how it
+must look).
+
+**The one rule:** a view builder touches only `apps/snapoleon/src/views/<their dirs>/` and their own
+locale files `locales/{en,ru}/<view>.toml`. Everything else (the `View` trait, `ViewCx`, commands,
+routing, jobs, tray, hotkeys, IPC, `Cargo.toml`, `app.toml`) is owned by the skeleton. If you need a
+change there, write it down in your report; do not edit it.
+
+## Map
+
+```
+apps/snapoleon/
+  build.rs            Windows icon, version info, manifest (assets/snapoleon.{ico,manifest})
+  src/main.rs         startup: dpi, console, logging, policy, settings, i18n, CLI dispatch, shell
+  src/app.rs          App: window registry, shell callbacks, lifecycle, settings re-apply
+  src/routing.rs      what the app does for every Command
+  src/notices.rs      notices (toast or OS notification), progress pill, end of jobs
+  src/events.rs       AppEvent: everything the UI thread can be woken with
+  src/commands.rs     Command: the cross-view vocabulary
+  src/actions.rs      hotkey Action -> Command routing; OverlayResult -> Command routing
+  src/jobs.rs         worker threads, GuiPipelineUi (the engine's PipelineUi)
+  src/tray.rs         tray icon and menu       src/hotkeys.rs  global hotkeys
+  src/ipc.rs          single instance, CLI/URL requests
+  src/theme.rs        active theme shared by all windows
+  src/logging.rs      stderr + %APPDATA%/.../logs/snapoleon.log
+  src/dev.rs          dev harness (SNAPOLEON_DEV=...)
+  src/views/mod.rs    View, ViewCx, OpenCx, ViewHandle, Chrome, window_spec
+  src/views/<view>/   one directory per view, each starts as a stub with its final entry point
+```
+
+## Threading model
+
+- **One UI thread** runs winit, egui and every `View`. All callbacks (`ui`, `on_msg`, `closed`,
+  commands) run on it, one at a time. Views are not `Send` and may hold `Rc<RefCell<..>>`.
+- **Worker threads** (`std::thread`, no tokio) run everything that blocks: capture, OCR, encode,
+  upload, file I/O, history queries that may be slow. They never touch egui or the shell.
+- Workers reach the UI thread through `Proxy<AppEvent>` (a `Send + Sync` handle):
+  `proxy.send(AppEvent::..)`. Views get a narrower `ViewHandle` that delivers a message to one
+  window's `View::on_msg`.
+- The shell repaints a window only on input or when asked. After a message arrives the app
+  repaints the target window; for animations call `ctx.request_repaint_after(..)` yourself.
+- Never block the UI thread for more than a few milliseconds. `Engine` methods block: call them
+  from `cx.spawn(..)` or a job, not from `ui`.
+
+## The View contract
+
+```rust
+pub trait View {
+    fn ui(&mut self, cx: &mut ViewCx, ctx: &egui::Context);                 // every frame of this window
+    fn close_requested(&mut self, cx: &mut ViewCx) -> bool { true }         // false = keep open (unsaved changes)
+    fn closed(&mut self, cx: &mut ViewCx) {}                                // window is gone; last chance to push commands
+    fn on_msg(&mut self, cx: &mut ViewCx, msg: Box<dyn Any + Send>) {}      // see "Messages and background work"
+}
+```
+
+`ViewCx` (passed to every call):
+
+| field / method | meaning |
+|---|---|
+| `shell` | `&mut Shell<AppEvent>`: `close`, `focus`, `set_outer_rect`, `drag_window`, `monitors`, `native_id`, `set_always_on_top`, `set_passthrough`, `set_exclude_from_capture`, ... |
+| `win` | this window's `WindowKey` |
+| `engine` | `&Engine` (clone it to move into a thread) |
+| `settings` | `&Settings` snapshot, refreshed after a settings change |
+| `cmds` / `push(cmd)` | deferred commands, processed right after the current call returns |
+| `toasts` | this window's toast stack; `toast(kind, text)`, `toast_action(kind, text, label, command)`, `toast_error(&err)` |
+| `proxy` | `Proxy<AppEvent>` for threads |
+| `handle()` | `ViewHandle` (clone, `Send`): `handle.send(msg)` -> your `on_msg` |
+| `spawn(work)` | run `work` on a thread; its return value arrives as `on_msg(Box<T>)` |
+| `notify(Notice)` | app-level notice: in-app toast when an app window is focused, OS notification otherwise |
+| `update_settings(\|s\| ..)` | persist a settings change and make the app re-apply it |
+| `close()` | close this window (does not call `close_requested`) |
+
+### Opening windows
+
+Each view module exposes `pub const TAG: &str` and `pub fn open(cx: &mut OpenCx, ..)`. The app
+calls `open` when the matching command arrives (table below). Inside `open`:
+
+```rust
+cx.open(window_spec(t("editor.title"), TAG, (1100.0, 760.0), (720.0, 480.0)), MyView::new(..));
+```
+
+- `window_spec(title, tag, size, min_size)` gives the standard app window: no OS decorations
+  (custom title bar), rounded, resizable, app icon. Sizes are logical pixels. Build other kinds
+  (pins, HUDs, overlays) from `WindowSpec` directly; see the stubs for `pin`, `recorder`,
+  `scroll`, `overlay`.
+- `cx.open(spec, view)` returns the `WindowKey`. A window whose `spec` is not a plain app window
+  (cover, tool window, always-on-top, skip-taskbar) is not used for toasts or the progress pill.
+- **Singletons** (library, settings, about, onboarding, colors, steps): start `open` with
+  `if cx.focus_tagged(TAG) { return; }`. To pass data to the existing window use
+  `cx.post(win, msg)` (see `settings::open` for a page change).
+- **Several windows, one session** (the overlay's per-monitor covers): create one
+  `Rc<RefCell<Session>>`, give a clone to each window's view, store the sibling `WindowKey`s in
+  it. When the session ends, `cx.shell.close(..)` every sibling from whichever window noticed.
+  See `views/overlay/mod.rs`.
+- A view that needs another window while running pushes
+  `Command::Open(Box::new(|cx| my_view::open_something(cx, data)))`. Build the new view *inside*
+  the closure (views are not `Send`).
+
+### The standard chrome
+
+```rust
+Chrome::new(&title).show(cx, ctx, |ui, cx| { /* body: a vertical Ui below the title bar */ });
+Chrome::new(&title).center(|ui| search_field(ui, &mut q, hint)).no_maximize().show(..)
+```
+
+`Chrome` draws the title bar (`snap_ui::widgets::title_bar`: drag, minimize/maximize/close, logo,
+optional center slot), the 1 px window outline, and performs the requested window actions. The
+body gets the rest of the window. Use `snap_ui::widgets` and `Palette` for everything inside; never
+hand-pick colors, radii or fonts (`docs/DESIGN.md`).
+
+## Messages and background work
+
+```rust
+enum Msg { Loaded(Vec<Entry>), Saved(Result<PathBuf, String>) }          // your own type
+
+// in ui(), on a click:
+let engine = cx.engine.clone();
+cx.spawn(move || Msg::Saved(engine.save(..).map_err(|e| e.to_string())));
+
+// later:
+fn on_msg(&mut self, cx: &mut ViewCx, msg: Box<dyn Any + Send>) {
+    if let Ok(msg) = msg.downcast::<Msg>() { match *msg { .. } }
+}
+```
+
+For streaming results (progress of a scrolling capture, frames of a recorder) clone
+`cx.handle()` into the thread and call `handle.send(..)` as often as needed. Messages for a window
+that no longer exists are dropped. A thread outliving its window should check a shared
+`AtomicBool`/channel you close in `closed`.
+
+## Commands and routing
+
+Views never open each other. They push a `Command`; the app routes it. The rows are the whole
+vocabulary; the "view must send back" column is what the receiving view owes the rest of the app.
+
+| Command | goes to | the view must... |
+|---|---|---|
+| `StartCapture { action, pipeline }` | `actions::start_action`: overlay, immediate capture job, or the view an `Action` names | (app-internal) |
+| `OpenOverlay(OverlayRequest)` | `overlay::open` | on finish push `actions::overlay_commands(result, &request, cx.settings)` and close every window of the session. `OverlayMode`: Region, Window, Element, Ocr, Codes, Translate, Pin, Record(format), Scroll, ColorPicker, Measure. `OverlayResult`: `Selected(capture)` (selection confirmed), `Action(OverlayAction, capture)` (instant-toolbar button), `Color(ColorSample)`, `Measured(Measurement)`, `Cancelled`. Only one overlay at a time (`open` returns if one exists). |
+| `CaptureAndRun { request, work, reply }` | worker job: `engine.capture` then pipeline or steps | (no view) |
+| `RunPipeline { capture, pipeline }` / `RunSteps { capture, steps }` | worker job: `engine.run` / `engine.run_steps` with `GuiPipelineUi` | (no view). Use `RunSteps` for editor/overlay buttons (Copy, Save, Upload, Pin...). Progress, notices and errors are shown by the app. |
+| `ProcessFile { path, pipeline, reply }` | worker job: `engine.run_file` | (no view) |
+| `OpenEditor(EditorInput)` | `editor::open` | when `input.reply` is `Some`, send **exactly once** on close: `Some(Annotated { image, document })` if the user finished (Done / Copy / Save), `None` if they discarded. A dropped sender counts as `None`. The pipeline's `Annotate` step blocks on this. |
+| `EditFile(path)` | loads on a thread, then `OpenEditor` | (no view) |
+| `OpenPin { image, origin }` | `pin::open` | `origin` is the physical screen rect of the source pixels: appear exactly over them. |
+| `PinFile(path)` | loads on a thread, then `OpenPin` | (no view) |
+| `OpenLibrary` | `library::open` (singleton) | |
+| `OpenSettings { page }` | `settings::open` (singleton); an open window gets `on_msg(Box<SettingsPage>)` | switch to the page. Pages: General, Capture, Hotkeys, Pipelines, Destinations, Links, Recording, TextAi, Privacy, History, Advanced. |
+| `OpenOnboarding` | `onboarding::open` (singleton) | set `general.first_run_done = true` via `cx.update_settings` when finished. |
+| `OpenAbout` | `about::open` (singleton) | |
+| `ShowText { title, text }` | `text::open` | |
+| `StartRecording { target, format }` | `recorder::open(RecorderInput)`; refused with a notice if policy disables recording, ignored if one runs | start `snap_record`; push `Command::RecordingState { active: true }` when recording starts and `{ active: false }` when it ends (tray icon, quit handling). On stop: `engine.add_recording(..)`, then a notice or `Command::OpenVideoEditor`. |
+| `StopRecording` | `on_msg(Box<RecorderMsg::Stop>)` of every recorder window | finish and keep the recording. |
+| `RecordingState { active }` | tray icon + menu | sent by the recorder view only. |
+| `OpenVideoEditor { path }` | `video::open` | |
+| `StartScrolling { rect, pipeline }` | `scroll::open(ScrollInput)` | run `engine.scrolling(rect, &cancel, ..)` on a thread, stream `ScrollProgress` previews, then push `RunPipeline { capture, pipeline: pipeline or settings.default_pipeline }`. |
+| `StartStepCapture` | `steps::open` (singleton). The step-capture hotkey while a session runs sends `on_msg(Box<StepsMsg::Toggle>)` | session HUD via `engine::steps::StepRecorder`; afterwards the guide editor. |
+| `OpenCombine { images }` | `combine::open` | empty `images` = start empty. |
+| `OpenDiff { a, b }` | `diff::open` | |
+| `OpenColorTool(ColorToolInput)` | `colors::open` (singleton); a sample or measurement reaches an open window as `on_msg(Box<ColorSample>)` / `Box<Measurement>` | keep a history of picks and measurements. |
+| `PauseHotkeys(bool)` | hotkey manager | the Settings hotkey recorder sends `true` on focus and `false` on blur. |
+| `CopyText`, `Reveal`, `OpenPath`, `OpenUrl` | platform helpers (errors become a notice) | |
+| `Open(closure)` | runs the closure with an `OpenCx` | see "Opening windows". |
+| `Quit` | stops a running recording first, closes windows, exits | |
+
+### Where actions come from
+
+- **Hotkeys** (`settings.hotkeys`) and the **tray** (menu, left click = `settings.general.tray_click`)
+  become `Command::StartCapture { action, pipeline }`.
+- **IPC** (`snapoleon capture ...`, `snapoleon://...`, a second launch) arrives as
+  `snap_core::ipc::Request`; `ipc.rs` maps each variant. A request that already carries what the
+  overlay would ask (a region, a window title, a monitor) runs without UI; the CLI gets the file
+  path, link or text back when the job finishes.
+- `actions::start_action` is the single table from `Action` to flow:
+  CaptureRegion/Window/Element/Scrolling -> overlay; CaptureMonitor/AllMonitors/LastRegion ->
+  immediate job; CaptureDelayed -> countdown (progress pill) then the region overlay; RecordRegion/Gif
+  -> overlay in record mode; RecordScreen -> `StartRecording` on the monitor under the cursor;
+  Ocr/DecodeCodes/Translate/PinRegion/ColorPicker/Measure -> overlay modes; PinClipboard,
+  OpenEditorFromClipboard -> clipboard image or a notice; StepCaptureToggle, OpenLibrary,
+  OpenSettings -> their views.
+
+## Jobs
+
+Engine calls run in `jobs::spawn`: a named worker thread with a `GuiPipelineUi`:
+
+- `annotate` sends `Command::OpenEditor` with a reply channel and blocks the worker;
+- `pin` -> `Command::OpenPin`; `show_text` -> `Command::ShowText`;
+- `notify` -> `AppEvent::Notice`; `progress(label, frac)` -> the progress pill (bottom-left of the
+  last focused app window) and the tray tooltip. An empty label clears it.
+
+When the job ends, `AppEvent::JobDone` clears progress, answers an IPC `reply`, and reports an
+error as a notice. Steps that yield text without copying it (`Ocr { copy: false }`, `Translate`)
+open the text window with `Outcome.text` unless the engine already called `show_text`.
+`Error::Cancelled` (the user dismissed the editor) is not an error.
+
+If your view needs the *result* of an engine call (upload link in the editor, OCR text for the
+side panel) do not use a job: `cx.spawn` it and handle the typed result in `on_msg`.
+
+## Toasts and notices
+
+- **View-local feedback** ("Copied", "Saved as ..."): `cx.toast(ToastKind::Success, t("editor.copied"))`.
+  A toast with a button: `cx.toast_action(kind, text, label, Command::Reveal(path))`.
+- **Results that matter even when no window is focused** (job results, hotkey conflicts, background
+  failures): `cx.notify(Notice { kind, title, body, url, file, image })`. The app shows an in-app
+  toast (with "Copy link" / "Show in folder") when an app window is focused and an OS notification
+  otherwise (respecting `general.show_notifications`; errors are always shown).
+- Errors: `cx.toast_error(&err)` uses the localised message for known error types.
+
+## Settings
+
+Read `cx.settings` (snapshot). Change with `cx.update_settings(|s| s.capture.delay_secs = 5)`:
+it persists through the engine and the app re-applies theme, language, hotkeys, autostart and the
+tray menu. Settings are applied immediately (no Save button, per DESIGN.md). Reduce motion
+(`general.reduce_motion`) and the system light/dark switch are handled by the app, not by views.
+Secrets never go in settings: use `cx.engine.secrets()`.
+
+## File dialogs and the clipboard
+
+`rfd` (native dialogs; the xdg-desktop-portal on Linux, so no GTK) blocks until the user answers, so
+call it from a worker, never from `ui`:
+
+```rust
+cx.spawn(|| Msg::Picked(rfd::FileDialog::new().add_filter("Images", &["png", "jpg", "webp"]).pick_file()));
+```
+
+The clipboard is `snap_platform::clipboard` (`set_image`, `set_text`, `get_image`, ...); opening and
+revealing files is `snap_platform::open`. Both are safe to call from any thread; from a view,
+`Command::CopyText` / `Reveal` / `OpenPath` / `OpenUrl` also report failures as a notice.
+
+## i18n
+
+Every user-visible string goes through `snap_core::t("view.key")` / `tf(..)`. Each view owns
+`locales/en/<view>.toml` and `locales/ru/<view>.toml` (create both, same keys, natural Russian,
+sentence case, no exclamation marks). Use the shared `common.*` and `action.*` keys where they fit.
+Never edit another area's locale file. Keys under `app.*` belong to the skeleton; the `app.stub.*`
+strings go away with the stubs.
+
+## Dev harness
+
+Run one view in isolation with realistic demo data:
+
+```
+export PATH="$HOME/.cargo/bin:$PATH"; export CARGO_TARGET_DIR=C:/Users/3mpti/snapoleon/target/agents/<you>
+SNAPOLEON_DEV=editor cargo run -p snapoleon
+SNAPOLEON_DEV=settings SNAPOLEON_DEV_PAGE=hotkeys SNAPOLEON_DEV_THEME=light cargo run -p snapoleon
+SNAPOLEON_DEV=library SNAPOLEON_DEV_SHOT=$TEMP/library.png cargo run -p snapoleon   # saves a screenshot and quits
+```
+
+| variable | effect |
+|---|---|
+| `SNAPOLEON_DEV=<view>` | `overlay editor pin recorder video library text settings onboarding about steps combine diff scroll colors`. Opens that view; no tray, hotkeys, IPC, autostart or URL scheme; the process ends with the last window. |
+| `SNAPOLEON_DEV_PAGE` | settings page key: `general capture hotkeys pipelines destinations links recording text_ai privacy history advanced` |
+| `SNAPOLEON_DEV_MODE` | overlay mode: `region window element ocr codes translate pin record gif scroll color measure` |
+| `SNAPOLEON_DEV_VIDEO` | video file for the `video` view (default: a generated slideshow) |
+| `SNAPOLEON_DEV_THEME` | `light` or `dark` |
+| `SNAPOLEON_DEV_LANG` | `en` or `ru` |
+| `SNAPOLEON_DEV_SHOT=<path.png>` | after `SNAPOLEON_DEV_SHOT_DELAY_MS` (default 1500) screenshot the view's first window via `snap_capture::capture_window` on its native id (falls back to cropping the screen at its outer rect), print the path, quit. Windows that hide themselves from captures (recorder and scroll HUDs) are un-hidden for the shot. |
+| `SNAPOLEON_DEV_SHARED_DATA` | use the real settings, history and logs instead of the private ones |
+
+Demo data: `editor`, `pin`, `combine` and `diff` use real crops of a screenshot of the primary
+monitor taken at startup; `library` seeds an empty history with 14 entries (files, thumbnails,
+OCR text, tags, favorites, links) the first time; `text` shows a mixed English and Russian
+sample; `settings` opens the requested page; `video` generates a slideshow MP4 when possible.
+
+Dev runs use **portable data** (`<exe dir>/data`, which sits in your private `CARGO_TARGET_DIR`), so
+they never touch the installed app's settings or history. The log is in `data/logs/snapoleon.log`.
+Read your screenshots (the Read tool shows PNGs) and fix what looks off before you report.
+
+## Startup, for reference
+
+`main`: `dev::prepare` (dev data dir) -> `dpi::init` -> `console::attach` -> logging -> CLI parse
+-> headless subcommands run in-process; GUI ones forward to a running instance
+(`ipc::instance_running`) or start the shell. In `App::init` (first callback, after the event
+loop started): serve IPC (a lost race forwards and exits), register hotkeys (conflicts become
+notices), create the tray, sync autostart, set the toast icon, purge history by retention on a
+thread; on first run register the URL scheme and open onboarding; a plain non-background launch
+opens the Library; `--background` (autostart) stays in the tray. Portable installs never register
+autostart or the URL scheme.

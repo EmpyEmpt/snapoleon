@@ -1374,6 +1374,17 @@ dependencies = [
 ]
 
 [[package]]
+name = "ctrlc"
+version = "3.5.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "e0b1fab2ae45819af2d0731d60f2afe17227ebb1a1538a236da84c93e9a60162"
+dependencies = [
+ "dispatch2",
+ "nix",
+ "windows-sys 0.61.2",
+]
+
+[[package]]
 name = "ctutils"
 version = "0.4.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1711,6 +1722,20 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "e73ce90f54750be8672c02be0743fe47530e6f251e066f0ee2869b59eb297af5"
 dependencies = [
  "bytemuck",
+]
+
+[[package]]
+name = "embed-resource"
+version = "3.0.12"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "6168487b5e7eb2673e6efe1200b1848016e436a6ca0b8031bf04bd9d493a249f"
+dependencies = [
+ "cc",
+ "memchr",
+ "rustc_version",
+ "toml 1.1.8+spec-1.1.0",
+ "vswhom",
+ "winreg",
 ]
 
 [[package]]
@@ -5290,6 +5315,30 @@ dependencies = [
 ]
 
 [[package]]
+name = "rfd"
+version = "0.17.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "20dafead71c16a34e1ff357ddefc8afc11e7d51d6d2b9fbd07eaa48e3e540220"
+dependencies = [
+ "block2 0.6.2",
+ "dispatch2",
+ "js-sys",
+ "libc",
+ "log",
+ "objc2 0.6.5",
+ "objc2-app-kit 0.3.2",
+ "objc2-core-foundation",
+ "objc2-foundation 0.3.2",
+ "percent-encoding",
+ "pollster",
+ "raw-window-handle",
+ "wasm-bindgen",
+ "wasm-bindgen-futures",
+ "web-sys",
+ "windows-sys 0.61.2",
+]
+
+[[package]]
 name = "rgb"
 version = "0.8.53"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -6089,9 +6138,15 @@ dependencies = [
 name = "snap-engine"
 version = "0.1.0"
 dependencies = [
+ "ab_glyph",
  "anyhow",
+ "base64 0.22.1",
+ "chrono",
  "clap",
+ "core-foundation 0.10.1",
+ "core-graphics 0.25.0",
  "crossbeam-channel",
+ "ctrlc",
  "image",
  "parking_lot",
  "serde",
@@ -6107,7 +6162,11 @@ dependencies = [
  "snap-record",
  "snap-redact",
  "snap-upload",
+ "tiny-skia 0.12.0",
  "tracing",
+ "tracing-subscriber",
+ "windows",
+ "x11rb",
 ]
 
 [[package]]
@@ -6296,7 +6355,34 @@ dependencies = [
 name = "snapoleon"
 version = "0.1.0"
 dependencies = [
+ "anyhow",
+ "chrono",
+ "clap",
+ "crossbeam-channel",
+ "egui",
+ "embed-resource",
+ "image",
+ "parking_lot",
+ "rfd",
+ "serde",
+ "serde_json",
+ "snap-ai",
+ "snap-annotate",
+ "snap-capture",
  "snap-core",
+ "snap-engine",
+ "snap-history",
+ "snap-image",
+ "snap-ocr",
+ "snap-platform",
+ "snap-record",
+ "snap-redact",
+ "snap-shell",
+ "snap-ui",
+ "snap-upload",
+ "toml 1.1.8+spec-1.1.0",
+ "tracing",
+ "tracing-subscriber",
 ]
 
 [[package]]
@@ -7224,6 +7310,26 @@ name = "version_check"
 version = "0.9.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "0b928f33d975fc6ad9f86c8f283853ad26bdd5b10b7f1542aa2fa15e2289105a"
+
+[[package]]
+name = "vswhom"
+version = "0.1.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "be979b7f07507105799e854203b470ff7c78a1639e330a58f183b5fea574608b"
+dependencies = [
+ "libc",
+ "vswhom-sys",
+]
+
+[[package]]
+name = "vswhom-sys"
+version = "0.1.3"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "fb067e4cbd1ff067d1df46c9194b5de0e98efd2810bbc95c5d5e5f25a3231150"
+dependencies = [
+ "cc",
+ "libc",
+]
 
 [[package]]
 name = "walkdir"

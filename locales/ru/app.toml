@@ -1,0 +1,98 @@
+# Строки оболочки приложения (apps/snapoleon: трей, задачи, уведомления, маршрутизация).
+# У каждого окна свой файл; всё в [app.stub] исчезнет вместе с заглушками.
+
+[app]
+countdown = "Снимок через {n}"
+
+[app.tray]
+tooltip = "Snapoleon"
+tooltip_recording = "Snapoleon: идёт запись"
+recent = "Недавние снимки"
+no_recent = "Снимков пока нет"
+quit = "Выйти из Snapoleon"
+
+[app.job]
+working = "Выполняется"
+capturing = "Снимаем"
+cancelled = "Отменено"
+
+[app.error]
+window = "Не удалось открыть окно"
+capture = "Не удалось сделать снимок экрана"
+job = "Что-то пошло не так"
+no_pipeline = "Сценария с именем {id} нет"
+no_file = "Файл не найден: {path}"
+open_file = "Не удалось открыть файл"
+
+[app.notice]
+copy_link = "Скопировать ссылку"
+show_in_folder = "Показать в папке"
+
+[app.hotkey]
+conflict_title = "Не удалось назначить сочетание клавиш"
+conflict_body = "{accel}: {reason}"
+unavailable = "Глобальные сочетания клавиш недоступны"
+
+[app.recording]
+disabled = "Запись экрана отключена администратором"
+already = "Запись уже идёт"
+
+[app.clipboard]
+no_image = "В буфере обмена нет изображения"
+
+[app.text]
+title = "Распознанный текст"
+none = "Текст не найден"
+
+[app.ipc]
+no_answer = "Snapoleon не ответил вовремя"
+
+[app.stub]
+body = "Это окно ещё не готово."
+
+[app.stub.about]
+title = "О программе"
+
+[app.stub.onboarding]
+title = "Добро пожаловать"
+
+[app.stub.library]
+title = "Библиотека"
+
+[app.stub.text]
+title = "Текст"
+
+[app.stub.video]
+title = "Видеоредактор"
+
+[app.stub.combine]
+title = "Склейка"
+
+[app.stub.diff]
+title = "Сравнение"
+
+[app.stub.editor]
+title = "Редактор"
+
+[app.stub.settings]
+title = "Настройки"
+
+[app.stub.colors]
+title = "Цвет и измерения"
+
+[app.stub.steps]
+title = "Пошаговая съёмка"
+
+[app.stub.overlay]
+title = "Снимок"
+hint = "Нажмите или Enter, чтобы снять этот экран, или Esc для отмены"
+
+[app.stub.pin]
+title = "Закрепить"
+
+[app.stub.recorder]
+title = "Запись"
+stop = "Остановить"
+
+[app.stub.scroll]
+title = "Снимок с прокруткой"
