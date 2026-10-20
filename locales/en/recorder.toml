@@ -20,7 +20,7 @@ system_off = "System audio is off"
 
 [recorder.hidden]
 title = "Recording"
-body = "The controls are hidden so they stay out of the video. Stop with the hotkey or from the tray icon."
+body = "The controls are hidden so they stay out of the video. Stop with {accel} or from the tray icon."
 
 [recorder.done]
 saved = "Recording saved"

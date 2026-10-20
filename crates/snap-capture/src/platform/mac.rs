@@ -4,7 +4,9 @@
 use std::{
     ffi::c_void,
     process::Command,
-    ptr, thread,
+    ptr,
+    sync::{Mutex, MutexGuard, PoisonError},
+    thread,
     time::{Duration, Instant},
 };
 
@@ -243,11 +245,27 @@ pub fn browser_url(w: &WindowInfo) -> Option<String> {
     None
 }
 
-/// Restores the Finder desktop on drop.
-pub struct IconsGuard {
-    /// Value of `CreateDesktop` before we changed it; `None` when it was unset (= shown).
-    original: Option<bool>,
+/// Hiding the icons rewrites Finder's `CreateDesktop` and restarts Finder, which flickers the desktop and reloads its
+/// windows. Captures follow each other, so the hide is shared by everyone who holds a guard and the restore waits
+/// [`RESTORE_GRACE`] after the last guard is gone: a run of captures hides and restores once, and dropping a guard
+/// never blocks.
+struct Icons {
+    /// The value `CreateDesktop` had before we hid the icons (`None` = unset, shown); the outer `None` when not hidden.
+    hidden: Option<Option<bool>>,
+    holders: usize,
+    /// Bumped by every hide and release, so a postponed restore can tell it was overtaken.
+    epoch: u64,
 }
+
+static ICONS: Mutex<Icons> = Mutex::new(Icons { hidden: None, holders: 0, epoch: 0 });
+const RESTORE_GRACE: Duration = Duration::from_secs(4);
+
+fn icons() -> MutexGuard<'static, Icons> {
+    ICONS.lock().unwrap_or_else(PoisonError::into_inner)
+}
+
+/// Keeps the desktop icons hidden until dropped (and then for a short while longer, see [`Icons`]).
+pub struct IconsGuard;
 
 fn defaults(args: &[&str]) -> Option<String> {
     let out = Command::new("defaults").args(args).output().ok().filter(|o| o.status.success())?;
@@ -258,29 +276,75 @@ fn restart_finder() {
     let _ = Command::new("killall").arg("Finder").status();
 }
 
-pub fn hide_desktop_icons() -> Option<IconsGuard> {
-    let original = defaults(&["read", "com.apple.finder", "CreateDesktop"]).map(|v| !matches!(v.as_str(), "0" | "false"));
-    if original == Some(false) {
-        return None;
-    }
-    Command::new("defaults")
-        .args(["write", "com.apple.finder", "CreateDesktop", "-bool", "false"])
-        .status()
-        .ok()
-        .filter(|s| s.success())?;
+fn restore(original: Option<bool>) {
+    let _ = match original {
+        Some(v) => Command::new("defaults")
+            .args(["write", "com.apple.finder", "CreateDesktop", "-bool", if v { "true" } else { "false" }])
+            .status(),
+        None => Command::new("defaults").args(["delete", "com.apple.finder", "CreateDesktop"]).status(),
+    };
     restart_finder();
-    Some(IconsGuard { original })
+}
+
+/// Slow (process spawns and a Finder restart) the first time: call it off the UI thread.
+pub fn hide_desktop_icons() -> Option<IconsGuard> {
+    let mut icons = icons();
+    if icons.hidden.is_none() {
+        let original = defaults(&["read", "com.apple.finder", "CreateDesktop"]).map(|v| !matches!(v.as_str(), "0" | "false"));
+        if original == Some(false) {
+            return None;
+        }
+        Command::new("defaults")
+            .args(["write", "com.apple.finder", "CreateDesktop", "-bool", "false"])
+            .status()
+            .ok()
+            .filter(|s| s.success())?;
+        restart_finder();
+        icons.hidden = Some(original);
+    }
+    icons.holders += 1;
+    icons.epoch += 1;
+    Some(IconsGuard)
+}
+
+/// Whether the icons are hidden at the moment, so that taking a guard is instant.
+pub fn desktop_icons_hidden() -> bool {
+    icons().hidden.is_some()
+}
+
+/// Put the icons back now, whoever still holds a guard. For shutdown, when no postponed restore would get to run.
+pub fn restore_desktop_icons() {
+    let mut icons = icons();
+    if let Some(original) = icons.hidden.take() {
+        icons.epoch += 1;
+        restore(original);
+    }
 }
 
 impl Drop for IconsGuard {
     fn drop(&mut self) {
-        let _ = match self.original {
-            Some(v) => Command::new("defaults")
-                .args(["write", "com.apple.finder", "CreateDesktop", "-bool", if v { "true" } else { "false" }])
-                .status(),
-            None => Command::new("defaults").args(["delete", "com.apple.finder", "CreateDesktop"]).status(),
+        let epoch = {
+            let mut icons = icons();
+            icons.holders -= 1;
+            icons.epoch += 1;
+            if icons.holders > 0 {
+                return;
+            }
+            icons.epoch
         };
-        restart_finder();
+        let later = thread::Builder::new().name("snap-icons".into()).spawn(move || {
+            thread::sleep(RESTORE_GRACE);
+            let mut icons = icons();
+            if icons.holders == 0
+                && icons.epoch == epoch
+                && let Some(original) = icons.hidden.take()
+            {
+                restore(original);
+            }
+        });
+        if later.is_err() {
+            restore_desktop_icons();
+        }
     }
 }
 

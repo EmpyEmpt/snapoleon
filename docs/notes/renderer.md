@@ -1,7 +1,7 @@
 # Renderer: OpenGL (glutin + egui_glow) versus wgpu
 
-`snap-shell` draws with OpenGL on Windows and Linux and with wgpu on macOS. Windows carries both backends and falls back
-to wgpu at run time when OpenGL is not usable. `crates/snap-shell/build.rs` decides which backends are compiled in;
+`snap-shell` draws with OpenGL on Windows and Linux and with wgpu on macOS. Windows and Linux carry both backends and
+fall back to wgpu at run time when OpenGL is not usable. `crates/snap-shell/build.rs` decides which backends are compiled in;
 `crates/snap-shell/src/render/` holds them behind the `Graphics` and `Surface` traits, with `Gfx` and `Target` enums
 dispatching between them. How to pick one: `docs/APP.md`, "Renderer".
 
@@ -9,7 +9,7 @@ dispatching between them. How to pick one: `docs/APP.md`, "Renderer".
 |---|---|
 | Windows, default | OpenGL first, wgpu as the fallback |
 | Windows, `--no-default-features --features wgpu` (`snapoleon`) | wgpu only |
-| Linux, default | OpenGL only (Mesa always has llvmpipe) |
+| Linux, default | OpenGL first (desktop GL, then GLES 3.0 and 2.0), wgpu (Vulkan, or GL) as the fallback |
 | Linux with the `wgpu` feature | wgpu only |
 | macOS | wgpu (Metal) only |
 

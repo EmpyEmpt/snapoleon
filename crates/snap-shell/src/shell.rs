@@ -10,6 +10,7 @@ use snap_core::{Error, Rect, Result};
 use winit::{
     dpi::{LogicalSize, PhysicalPosition, PhysicalSize},
     event_loop::ActiveEventLoop,
+    raw_window_handle::{HasWindowHandle, RawWindowHandle},
     window::{Icon, Window, WindowAttributes, WindowId, WindowLevel},
 };
 
@@ -176,6 +177,19 @@ impl<E: Send + 'static> Shell<'_, E> {
             state.window.request_redraw();
         }
         platform::refresh(&state.window, state.tool_style);
+    }
+
+    /// Take the window off the screen for as long as a screen recording runs. Wayland cannot unmap a toplevel, so
+    /// there it is minimized instead, and compositors ignore a client's request to restore it: the result says
+    /// whether [`set_visible`](Self::set_visible) can bring the window back.
+    pub fn conceal(&mut self, w: WindowKey) -> bool {
+        let Some(state) = self.core.windows.get(&w) else { return true };
+        if matches!(state.window.window_handle().map(|h| h.as_raw()), Ok(RawWindowHandle::Wayland(_))) {
+            state.window.set_minimized(true);
+            return false;
+        }
+        self.set_visible(w, false);
+        true
     }
 
     /// Show a hidden window again with a fresh frame: it renders while still hidden and appears with that frame, so

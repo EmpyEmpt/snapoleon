@@ -32,6 +32,8 @@ pub(crate) use win::*;
 mod xcap_backend;
 #[cfg(not(windows))]
 pub(crate) use os::{IconsGuard, browser_url, elements_at, hide_desktop_icons, scroll_at};
+#[cfg(target_os = "macos")]
+pub(crate) use os::{desktop_icons_hidden, restore_desktop_icons};
 #[cfg(not(windows))]
 pub(crate) use xcap_backend::*;
 

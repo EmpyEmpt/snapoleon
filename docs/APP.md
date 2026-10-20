@@ -304,10 +304,11 @@ Read your screenshots (the Read tool shows PNGs) and fix what looks off before y
 ## Renderer
 
 `snap-shell` draws with OpenGL (glutin + egui_glow, one context shared by all windows) on Windows and Linux and with
-wgpu on macOS. Windows builds carry both: at the first window the shell tries OpenGL and, if the context cannot be
-made or is older than OpenGL 3.0 / ES 2.0 (remote desktop, a VM, the Basic Display Adapter), logs why
-(`OpenGL is not usable (...); falling back to wgpu`) and uses wgpu (DX12 including WARP, or Vulkan) from then on.
-Linux is OpenGL only (Mesa always has llvmpipe); the `wgpu` cargo feature of `snapoleon` forces wgpu alone on every
+wgpu on macOS. Windows and Linux builds carry both: at the first window the shell tries OpenGL (on Linux desktop GL, then
+OpenGL ES 3.0 and 2.0 through EGL) and, if no context can be made or it is older than OpenGL 3.0 / ES 2.0 (remote
+desktop, a VM, the Basic Display Adapter, an old GPU), logs why (`OpenGL is not usable (...); falling back to wgpu`) and
+uses wgpu from then on: DX12 including WARP, or Vulkan, on Windows; Vulkan, or GL through wgpu-hal, on Linux. The `wgpu`
+cargo feature of `snapoleon` forces wgpu alone on every
 OS. `SNAPOLEON_RENDERER=wgpu|glow` picks one at run time where both are compiled in. Measurements:
 `docs/notes/renderer.md`.
 

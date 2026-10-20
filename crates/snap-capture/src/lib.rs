@@ -129,6 +129,20 @@ pub fn hide_desktop_icons() -> Option<DesktopIconsGuard> {
     platform::hide_desktop_icons().map(|g| DesktopIconsGuard { _restore: g })
 }
 
+/// Whether the desktop icons are hidden at the moment, so that [`hide_desktop_icons`] returns at once. On macOS, hiding
+/// them restarts Finder and the icons stay hidden for a few seconds after the last guard is dropped, so a run of
+/// captures shares one hide and one restore.
+#[cfg(target_os = "macos")]
+pub fn desktop_icons_hidden() -> bool {
+    platform::desktop_icons_hidden()
+}
+
+/// Bring the desktop icons back now, even if a guard is still alive or a postponed restore is pending (macOS). For shutdown.
+#[cfg(target_os = "macos")]
+pub fn restore_desktop_icons() {
+    platform::restore_desktop_icons();
+}
+
 /// Scroll the wheel over `p`: positive `notches` scroll down (content moves up), negative scroll up. The
 /// cursor is moved to `p`.
 pub fn scroll_at(p: Point, notches: i32) -> Result<()> {
