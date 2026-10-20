@@ -18,13 +18,12 @@ use crate::{
     tray,
 };
 
-/// User-facing text for an error: the localised sentence for permission problems, the bare message for
-/// the kinds whose `Display` only adds an English prefix ("not found: ..."), `Display` otherwise.
+/// User-facing text for an error: the bare message for the kinds whose `Display` only adds an English prefix
+/// ("not found: ..."), `Display` otherwise.
 pub fn error_text(e: &Error) -> String {
     match e {
-        Error::Permission(_) => snap_capture::error_message(e),
         Error::NotFound(message) | Error::Invalid(message) | Error::Network(message) | Error::Policy(message) => message.clone(),
-        Error::Unsupported(message) => message.to_string(),
+        Error::Permission(message) | Error::Unsupported(message) => message.to_string(),
         other => other.to_string(),
     }
 }

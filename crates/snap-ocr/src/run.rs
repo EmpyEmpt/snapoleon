@@ -2,9 +2,9 @@
 //! small text on a 2x upscaled copy.
 
 use image::imageops::{self, FilterType};
-use snap_core::{Result, RgbaImage};
+use snap_core::{RectF, Result, RgbaImage};
 
-use crate::OcrResult;
+use crate::{OcrLine, OcrResult, OcrWord};
 
 /// Images taller than this are recognised in bands.
 const BAND_TRIGGER: u32 = 4000;
@@ -12,6 +12,9 @@ const BAND_HEIGHT: u32 = 3000;
 /// Images wider than this are recognised in column tiles (Windows OCR rejects anything over ~10000 px).
 const TILE_TRIGGER: u32 = 8000;
 const TILE_WIDTH: u32 = 6000;
+/// Neighbouring tiles share this many pixels, more than twice the widest word, so a word cut by one tile's edge sits
+/// whole in the other.
+const TILE_OVERLAP: u32 = 800;
 /// How far above the nominal cut we look for an empty pixel row.
 const CUT_SEARCH: u32 = 400;
 /// Median word-box height (px) under which a x2 pass is tried.
@@ -26,20 +29,60 @@ pub(crate) fn run(img: &RgbaImage, backend: Backend) -> Result<OcrResult> {
         return run_bands(img, backend);
     }
     let mut merged = OcrResult::default();
-    let mut x = 0;
+    // Each tile keeps the words between the middles of its overlaps; the pieces of a row are joined again across a seam.
+    let (mut x, mut seam_in) = (0, f32::NEG_INFINITY);
     while x < img.width() {
-        let end = if img.width() - x <= TILE_TRIGGER { img.width() } else { cut_column(img, x + TILE_WIDTH) };
+        let last = img.width() - x <= TILE_TRIGGER;
+        let cut = if last { img.width() } else { cut_column(img, x + TILE_WIDTH) };
+        let end = if last { cut } else { (cut + TILE_OVERLAP).min(img.width()) };
+        let seam_out = if last { f32::INFINITY } else { (cut + TILE_OVERLAP / 2) as f32 };
         let tile = imageops::crop_imm(img, x, 0, end - x, img.height()).to_image();
         let part = run_bands(&tile, backend)?;
         merged.engine = part.engine;
         merged.language = merged.language.or(part.language);
+        let earlier = merged.lines.len();
         for mut line in part.lines {
             shift(&mut line, x as f32, 0.0);
-            merged.lines.push(line);
+            let Some(line) = owned(line, seam_in, seam_out) else { continue };
+            match merged.lines[..earlier].iter().position(|before| continues(before, &line)) {
+                Some(i) => merged.lines[i] = join(&merged.lines[i], line),
+                None => merged.lines.push(line),
+            }
         }
-        x = end;
+        x = cut;
+        seam_in = seam_out;
     }
     Ok(merged)
+}
+
+/// The part of `line` whose words centre in `from..to`.
+fn owned(line: OcrLine, from: f32, to: f32) -> Option<OcrLine> {
+    let mine = |rect: RectF| (from..to).contains(&rect.center().x);
+    if line.words.is_empty() {
+        return mine(line.rect).then_some(line);
+    }
+    if line.words.iter().all(|w| mine(w.rect)) {
+        return Some(line);
+    }
+    let words: Vec<OcrWord> = line.words.into_iter().filter(|w| mine(w.rect)).collect();
+    let rect = words.iter().map(|w| w.rect).reduce(RectF::union)?;
+    let text = words.iter().map(|w| w.text.as_str()).collect::<Vec<_>>().join(" ");
+    Some(OcrLine { text, rect, words })
+}
+
+/// Whether `next`, from the tile to the right of a seam, is the rest of the row that `before` begins: the same
+/// height and no more than a couple of characters apart.
+fn continues(before: &OcrLine, next: &OcrLine) -> bool {
+    let (a, b) = (before.rect, next.rect);
+    let height = a.h.max(b.h);
+    let shared = a.bottom().min(b.bottom()) - a.y.max(b.y);
+    shared > 0.5 * a.h.min(b.h) && (b.x - a.right()).abs() <= 2.0 * height
+}
+
+fn join(before: &OcrLine, next: OcrLine) -> OcrLine {
+    let mut words = before.words.clone();
+    words.extend(next.words);
+    OcrLine { text: format!("{} {}", before.text, next.text), rect: before.rect.union(next.rect), words }
 }
 
 fn run_bands(img: &RgbaImage, backend: Backend) -> Result<OcrResult> {

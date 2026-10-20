@@ -579,7 +579,7 @@ fn skipped_for_files(step: &Step) -> bool {
 pub(crate) fn error_text(e: &Error) -> String {
     match e {
         Error::Cancelled => t("engine.error.cancelled").into_owned(),
-        Error::Permission(_) => snap_capture::error_message(e),
+        Error::Permission(what) => what.to_string(),
         Error::Unsupported(what) => tf("engine.error.unsupported", &[("what", what)]),
         Error::Network(what) => tf("engine.error.network", &[("what", what)]),
         Error::NotFound(m) | Error::Invalid(m) | Error::Policy(m) => m.clone(),

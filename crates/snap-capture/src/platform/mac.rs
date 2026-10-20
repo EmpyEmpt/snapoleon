@@ -22,7 +22,7 @@ use core_graphics::{
 use snap_core::{Error, Point, Rect, Result, RgbaImage};
 
 use super::xcap_backend::{native_rect_to_physical, to_native, windows};
-use crate::{ElementInfo, WindowInfo};
+use crate::{ElementInfo, WindowInfo, labels::permission_error};
 
 type AxElementRef = *const c_void;
 
@@ -62,7 +62,7 @@ pub fn exe_path(pid: u32) -> Option<String> {
 
 /// Screen Recording permission, required for any pixel (and window title) access.
 pub fn check_capture_access() -> Result<()> {
-    if unsafe { CGPreflightScreenCaptureAccess() } { Ok(()) } else { Err(Error::permission("Screen Recording")) }
+    if unsafe { CGPreflightScreenCaptureAccess() } { Ok(()) } else { Err(permission_error("capture.permission.screen_recording")) }
 }
 
 /// `CGWindowListCreateImage` includes the window shadow; cut the image back to the opaque window body.
@@ -136,7 +136,7 @@ fn role_name(role: &str) -> String {
 }
 
 fn require_trust() -> Result<()> {
-    if unsafe { AXIsProcessTrusted() } { Ok(()) } else { Err(Error::permission("Accessibility")) }
+    if unsafe { AXIsProcessTrusted() } { Ok(()) } else { Err(permission_error("capture.permission.accessibility")) }
 }
 
 pub fn elements_at(p: Point) -> Result<Vec<ElementInfo>> {

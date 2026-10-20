@@ -5,7 +5,7 @@
 //! surface. All of it runs on the UI thread, so there is no worker-thread start-up as with wgpu: the first window
 //! brings up the display, which WGL cannot do without a window anyway.
 
-use std::{num::NonZeroU32, rc::Rc, sync::Arc};
+use std::{cell::RefCell, num::NonZeroU32, rc::Rc, sync::Arc};
 
 use anyhow::anyhow;
 use egui::FullOutput;
@@ -38,6 +38,29 @@ struct Shared {
     gl: Arc<glow::Context>,
     ctx: PossiblyCurrentContext,
     _config: Config,
+    /// The one window whose swap waits for the display's blank. A wait in every window would serialise the repaints of
+    /// a multi-monitor overlay to one frame per window per blank, dividing the frame rate by the number of windows.
+    vsync: RefCell<Option<Arc<Window>>>,
+}
+
+impl Shared {
+    /// Whether `window` is the one that waits for the blank this frame. The role goes to whoever asks while it is
+    /// free, and moves on when its holder is hidden (a hidden window does not paint, so nothing would wait at all).
+    fn claim_vsync(&self, window: &Arc<Window>) -> bool {
+        let mut holder = self.vsync.borrow_mut();
+        let free = holder.as_ref().is_none_or(|h| h.id() == window.id() || h.is_visible() == Some(false) || h.is_minimized() == Some(true));
+        if free {
+            *holder = Some(window.clone());
+        }
+        holder.as_ref().is_some_and(|h| h.id() == window.id())
+    }
+
+    fn release_vsync(&self, window: &Window) {
+        let mut holder = self.vsync.borrow_mut();
+        if holder.as_ref().is_some_and(|h| h.id() == window.id()) {
+            *holder = None;
+        }
+    }
 }
 
 pub(crate) struct Gfx {
@@ -113,17 +136,25 @@ impl Graphics for Gfx {
                         if version.is_embedded { " ES" } else { "" }
                     )));
                 }
-                let shared = Rc::new(Shared { gl, ctx, _config: config });
+                let shared = Rc::new(Shared { gl, ctx, _config: config, vsync: RefCell::new(None) });
                 self.shared = Some(shared.clone());
                 shared
             }
         };
-        // Vsync, one blank per frame; hidden or occluded windows are free to refuse.
-        if let Err(e) = surface.set_swap_interval(&shared.ctx, SwapInterval::Wait(NonZeroU32::MIN)) {
+        // Windows start without a wait; `paint` gives the vsync role to one of them.
+        if let Err(e) = surface.set_swap_interval(&shared.ctx, SwapInterval::DontWait) {
             tracing::debug!("swap interval: {e}");
         }
         let painter = Painter::new(shared.gl.clone(), "", None, true).map_err(|e| other(format_args!("egui_glow painter: {e}")))?;
-        Ok(Target { painter: Some(painter), surface, size: window.inner_size(), window: window.clone(), shared })
+        Ok(Target {
+            painter: Some(painter),
+            surface,
+            size: window.inner_size(),
+            window: window.clone(),
+            shared,
+            waits: false,
+            pending: egui::TexturesDelta::default(),
+        })
     }
 }
 
@@ -134,6 +165,10 @@ pub(crate) struct Target {
     size: PhysicalSize<u32>,
     window: Arc<Window>,
     shared: Rc<Shared>,
+    /// Whether this surface's swap interval is set to wait for the blank.
+    waits: bool,
+    /// Texture changes from frames that could not be drawn; they go ahead of the next frame's own.
+    pending: egui::TexturesDelta,
 }
 
 impl Target {
@@ -151,6 +186,20 @@ impl Target {
         }
         true
     }
+
+    /// Keep the swap interval in step with whether this window holds the vsync role (hidden or occluded windows are
+    /// free to refuse the wait).
+    fn sync_vsync(&mut self) {
+        let waits = self.shared.claim_vsync(&self.window);
+        if waits == self.waits {
+            return;
+        }
+        let interval = if waits { SwapInterval::Wait(NonZeroU32::MIN) } else { SwapInterval::DontWait };
+        match self.surface.set_swap_interval(&self.shared.ctx, interval) {
+            Ok(()) => self.waits = waits,
+            Err(e) => tracing::debug!("swap interval: {e}"),
+        }
+    }
 }
 
 impl Surface for Target {
@@ -161,8 +210,14 @@ impl Surface for Target {
     fn paint(&mut self, ctx: &egui::Context, mut out: FullOutput) -> Paint {
         let size = self.window.inner_size();
         if !self.bind(size) {
-            out.textures_delta.clear();
+            // Uploads need a current context, so they wait for one; dropping them would leave the atlas short.
+            self.pending.append(std::mem::take(&mut out.textures_delta));
             return Paint::Skipped;
+        }
+        if !self.pending.is_empty() {
+            let mut backlog = std::mem::take(&mut self.pending);
+            backlog.append(std::mem::take(&mut out.textures_delta));
+            out.textures_delta = backlog;
         }
         let Some(painter) = self.painter.as_mut() else { return Paint::Skipped };
         let screen = [size.width, size.height];
@@ -176,6 +231,7 @@ impl Surface for Target {
         painter.clear(screen, [r, g, b, 1.0]);
         painter.paint_and_update_textures(screen, out.pixels_per_point, &primitives, &mut out.textures_delta);
 
+        self.sync_vsync();
         self.window.pre_present_notify();
         match self.surface.swap_buffers(&self.shared.ctx) {
             Ok(()) => Paint::Presented,
@@ -189,6 +245,7 @@ impl Surface for Target {
 
 impl Drop for Target {
     fn drop(&mut self) {
+        self.shared.release_vsync(&self.window);
         if let Some(mut painter) = self.painter.take() {
             if self.shared.ctx.make_current(&self.surface).is_ok() {
                 painter.destroy();

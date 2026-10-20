@@ -14,7 +14,7 @@ mod types;
 
 use snap_core::{Capture, CaptureContext, CaptureKind, Error, Point, Rect, Result};
 
-pub use labels::{error_message, monitor_label, role_label};
+pub use labels::{monitor_label, role_label};
 pub use types::{CaptureOptions, ElementInfo, Frozen, MonitorInfo, WindowInfo};
 
 /// Make the process per-monitor-v2 DPI aware (Windows). Every entry point calls this; it is also safe to

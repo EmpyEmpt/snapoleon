@@ -20,6 +20,8 @@ const BLUR_WORK_DIV: u32 = 8;
 /// Sanity caps so a corrupt preset cannot request an absurd canvas.
 const MAX_PADDING: u32 = 4096;
 const MAX_SHADOW: u32 = 512;
+/// Most pixels the aspect-ratio step may grow the canvas to (512 MiB of RGBA).
+const MAX_CANVAS_PIXELS: u64 = 1 << 27;
 
 /// Applies `p` to `img`. Window frames get generic labels; use [`apply_with`] to put the real
 /// window title and URL into the chrome.
@@ -36,10 +38,11 @@ pub fn apply_with(img: &RgbaImage, p: &BeautifyPreset, cx: &CaptureContext) -> R
 
     if let Some((aw, ah)) = p.aspect.filter(|(a, b)| *a > 0 && *b > 0) {
         let target = aw as f64 / ah as f64;
-        if (w as f64 / h as f64) < target {
-            w = (h as f64 * target).ceil() as u32;
-        } else {
-            h = (w as f64 / target).ceil() as u32;
+        let (fit_w, fit_h) =
+            if (w as f64 / h as f64) < target { ((h as f64 * target).ceil() as u32, h) } else { (w, (w as f64 / target).ceil() as u32) };
+        // An extreme ratio would ask for a canvas that cannot be allocated; keep the natural size instead.
+        if u64::from(fit_w) * u64::from(fit_h) <= MAX_CANVAS_PIXELS {
+            (w, h) = (fit_w, fit_h);
         }
     }
 

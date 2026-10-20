@@ -129,7 +129,7 @@ impl Client {
 
     pub fn upload(&self, req: &UploadRequest, progress: &dyn Fn(u64, u64)) -> Result<Uploaded> {
         let mut form = Multipart::form();
-        if let Some(h) = req.expiry_hours.filter(|h| *h > 0) {
+        if let Some(h) = req.expiry_hours {
             form = form.text("expiry_hours", &h.to_string());
         }
         if let Some(p) = req.password.filter(|p| !p.is_empty()) {

@@ -6197,6 +6197,7 @@ dependencies = [
  "tauri-winrt-notification",
  "tracing",
  "tray-icon",
+ "widestring",
  "windows",
  "windows-core",
  "windows-native-keyring-store",
