@@ -109,12 +109,12 @@ priority = "optional"
 desktop-template = "linux/app.snapoleon.Snapoleon.desktop"
 
 [deb.files]
-"/usr/share/metainfo/app.snapoleon.Snapoleon.metainfo.xml" = "linux/app.snapoleon.Snapoleon.metainfo.xml"
-"/usr/share/icons/hicolor/scalable/apps/app.snapoleon.Snapoleon.svg" = "linux/icons/hicolor/scalable/apps/app.snapoleon.Snapoleon.svg"
-"/usr/share/icons/hicolor/256x256/apps/app.snapoleon.Snapoleon.png" = "linux/icons/hicolor/256x256/apps/app.snapoleon.Snapoleon.png"
-"/usr/share/icons/hicolor/48x48/apps/app.snapoleon.Snapoleon.png" = "linux/icons/hicolor/48x48/apps/app.snapoleon.Snapoleon.png"
-"/usr/share/mime/packages/app.snapoleon.Snapoleon.xml" = "linux/app.snapoleon.Snapoleon.mime.xml"
-"/etc/snapoleon/policy.toml.example" = "policy/policy.toml.example"
+"linux/app.snapoleon.Snapoleon.metainfo.xml" = "/usr/share/metainfo/app.snapoleon.Snapoleon.metainfo.xml"
+"linux/icons/hicolor/scalable/apps/app.snapoleon.Snapoleon.svg" = "/usr/share/icons/hicolor/scalable/apps/app.snapoleon.Snapoleon.svg"
+"linux/icons/hicolor/256x256/apps/app.snapoleon.Snapoleon.png" = "/usr/share/icons/hicolor/256x256/apps/app.snapoleon.Snapoleon.png"
+"linux/icons/hicolor/48x48/apps/app.snapoleon.Snapoleon.png" = "/usr/share/icons/hicolor/48x48/apps/app.snapoleon.Snapoleon.png"
+"linux/app.snapoleon.Snapoleon.mime.xml" = "/usr/share/mime/packages/app.snapoleon.Snapoleon.xml"
+"policy/policy.toml.example" = "/etc/snapoleon/policy.toml.example"
 
 [appimage]
 # PipeWire, D-Bus and Wayland libraries come from the host system.

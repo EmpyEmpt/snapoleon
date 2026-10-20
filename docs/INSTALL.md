@@ -16,7 +16,7 @@ Requires Windows 10 1809 or newer. x64 and arm64 builds are provided.
 | Package | Scope | Notes |
 |---|---|---|
 | `Snapoleon-<ver>-windows-<arch>-setup.exe` | per-user | NSIS installer. No administrator rights, no UAC prompt. Installs to `%LOCALAPPDATA%\Programs\Snapoleon` and registers the `snapoleon://` scheme, the `.snap` association and the Start menu shortcut under your user account (HKCU). The uninstaller removes all of that, including the autostart entry, and leaves your settings and captures alone. |
-| `Snapoleon-<ver>-windows-<arch>.msi` | per-machine | WiX installer for IT deployment (`ALLUSERS=1`). Installs to Program Files and registers the URL scheme and file association machine-wide, so it needs an elevated session; `msiexec /qn` from a non-elevated shell fails with error 1603. There is no per-user MSI: cargo-packager's WiX template is per-machine only. Use the setup.exe when you do not have administrator rights. |
+| `Snapoleon-<ver>-windows-x64.msi` | per-machine | WiX installer for IT deployment (x64 only: WiX 3 cannot build arm64) (`ALLUSERS=1`). Installs to Program Files and registers the URL scheme and file association machine-wide, so it needs an elevated session; `msiexec /qn` from a non-elevated shell fails with error 1603. There is no per-user MSI: cargo-packager's WiX template is per-machine only. Use the setup.exe when you do not have administrator rights. |
 | `Snapoleon-<ver>-windows-<arch>-portable.zip` | none | Unzip anywhere. Contains a `portable` marker file. |
 
 Package managers:

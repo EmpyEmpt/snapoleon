@@ -35,11 +35,5 @@ Installers:
     InstallerUrl: ${{ BASE_URL }}/Snapoleon-${{ VERSION }}-windows-x64.msi
     InstallerSha256: ${{ SHA256_WINDOWS_X64_MSI }}
     UpgradeBehavior: install
-  - Architecture: arm64
-    InstallerType: wix
-    Scope: machine
-    InstallerUrl: ${{ BASE_URL }}/Snapoleon-${{ VERSION }}-windows-arm64.msi
-    InstallerSha256: ${{ SHA256_WINDOWS_ARM64_MSI }}
-    UpgradeBehavior: install
 ManifestType: installer
 ManifestVersion: 1.6.0

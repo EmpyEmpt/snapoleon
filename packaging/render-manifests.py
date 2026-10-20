@@ -24,7 +24,6 @@ FILES = {
     "WINDOWS_X64_SETUP": "Snapoleon-{v}-windows-x64-setup.exe",
     "WINDOWS_ARM64_SETUP": "Snapoleon-{v}-windows-arm64-setup.exe",
     "WINDOWS_X64_MSI": "Snapoleon-{v}-windows-x64.msi",
-    "WINDOWS_ARM64_MSI": "Snapoleon-{v}-windows-arm64.msi",
     "WINDOWS_X64_PORTABLE": "Snapoleon-{v}-windows-x64-portable.zip",
     "WINDOWS_ARM64_PORTABLE": "Snapoleon-{v}-windows-arm64-portable.zip",
     "MACOS_UNIVERSAL_DMG": "Snapoleon-{v}-macos-universal.dmg",

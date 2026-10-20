@@ -87,16 +87,17 @@ jobs:
       - name: Install cargo-packager
         shell: bash
         run: cargo install cargo-packager --locked --version "$CARGO_PACKAGER_VERSION"
+      # WiX 3's candle cannot target arm64, so ARM64 ships the setup.exe and the portable zip only.
       - name: Package (NSIS + MSI)
         shell: bash
-        run: cargo packager --config packaging/Packager.toml --release --formats nsis,wix
+        run: cargo packager --config packaging/Packager.toml --release --formats ${{ matrix.arch == 'x64' && 'nsis,wix' || 'nsis' }}
 
       - name: Collect artifacts
         shell: bash
         run: |
           mkdir -p dist
           cp target/packager/*-setup.exe "dist/Snapoleon-$V-windows-${{ matrix.arch }}-setup.exe"
-          cp target/packager/*.msi "dist/Snapoleon-$V-windows-${{ matrix.arch }}.msi"
+          if [ "${{ matrix.arch }}" = x64 ]; then cp target/packager/*.msi "dist/Snapoleon-$V-windows-x64.msi"; fi
       - name: Portable zip
         shell: pwsh
         run: ./packaging/windows/make-portable.ps1 -Exe target/release/snapoleon.exe -Version $env:V -Arch ${{ matrix.arch }} -Out dist
