@@ -1,9 +1,17 @@
 [package]
 name = "snap-shell"
-description = "Multi-window winit + egui-wgpu runtime for tray apps"
+description = "Multi-window winit + egui runtime for tray apps, drawn with OpenGL (glutin) or wgpu"
 version.workspace = true
 edition.workspace = true
 license.workspace = true
+build = "build.rs"
+
+[features]
+# Which backends are compiled in is decided in build.rs. `glow` (OpenGL) is the default on Windows and Linux; Windows
+# also gets wgpu as the run-time fallback. `wgpu` forces wgpu alone. macOS is always wgpu: `glow` is ignored there.
+default = ["glow"]
+glow = ["dep:glutin", "dep:glutin-winit", "dep:egui_glow", "dep:glow"]
+wgpu = ["dep:wgpu", "dep:egui-wgpu", "dep:pollster"]
 
 [dependencies]
 snap-core.workspace = true
@@ -11,24 +19,38 @@ egui.workspace = true
 tracing.workspace = true
 anyhow.workspace = true
 egui-winit = { version = "0.37", default-features = false, features = ["clipboard", "links"] }
-egui-wgpu = { version = "0.37", default-features = false }
-wgpu = { version = "30", default-features = false, features = ["std", "parking_lot", "wgsl"] }
 winit = { version = "0.30.13", default-features = false, features = ["rwh_06"] }
-pollster = "0.4"
+
+egui-wgpu = { version = "0.37", default-features = false, optional = true }
+wgpu = { version = "30", default-features = false, features = ["std", "parking_lot", "wgsl"], optional = true }
+pollster = { version = "0.4", optional = true }
+
+[target.'cfg(not(target_os = "macos"))'.dependencies]
+egui_glow = { version = "0.37", default-features = false, optional = true }
+glow = { version = "0.17", default-features = false, optional = true }
 
 [target.'cfg(windows)'.dependencies]
-wgpu = { version = "30", default-features = false, features = ["dx12", "vulkan"] }
+glutin = { version = "0.32", default-features = false, features = ["wgl"], optional = true }
+glutin-winit = { version = "0.5", default-features = false, features = ["wgl"], optional = true }
+# Windows always carries wgpu (DX12 including WARP, Vulkan) as the fallback for a PC without usable OpenGL.
+egui-wgpu = { version = "0.37", default-features = false }
+wgpu = { version = "30", default-features = false, features = ["std", "parking_lot", "wgsl", "dx12", "vulkan"] }
+pollster = "0.4"
 windows-sys = { version = "0.61", features = ["Win32_Foundation", "Win32_Graphics_Dwm", "Win32_Graphics_Gdi", "Win32_System_Threading", "Win32_UI_WindowsAndMessaging"] }
 
 [target.'cfg(target_os = "macos")'.dependencies]
+# macOS always draws with wgpu on Metal.
 egui-wgpu = { version = "0.37", default-features = false, features = ["macos-window-resize-jitter-fix"] }
-wgpu = { version = "30", default-features = false, features = ["metal"] }
+wgpu = { version = "30", default-features = false, features = ["std", "parking_lot", "wgsl", "metal"] }
+pollster = "0.4"
 objc2 = "0.6"
 objc2-app-kit = { version = "0.3", features = ["NSApplication", "NSResponder", "NSView", "NSWindow"] }
 
 [target.'cfg(target_os = "linux")'.dependencies]
 egui-winit = { version = "0.37", default-features = false, features = ["clipboard", "links", "wayland", "x11"] }
-wgpu = { version = "30", default-features = false, features = ["vulkan", "gles"] }
+glutin = { version = "0.32", default-features = false, features = ["egl", "glx", "x11", "wayland"], optional = true }
+glutin-winit = { version = "0.5", default-features = false, features = ["egl", "glx", "x11", "wayland"], optional = true }
+wgpu = { version = "30", default-features = false, features = ["vulkan", "gles"], optional = true }
 winit = { version = "0.30.13", default-features = false, features = ["rwh_06", "x11", "wayland", "wayland-dlopen", "wayland-csd-adwaita"] }
 
 [dev-dependencies]

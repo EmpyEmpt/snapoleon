@@ -26,16 +26,16 @@ pub(crate) fn is_opaque(img: &RgbaImage) -> bool {
 pub(crate) fn par_rows(data: &mut [u8], row_len: usize, f: impl Fn(usize, &mut [u8]) + Sync) {
     const SINGLE_THREAD_BYTES: usize = 1 << 19;
     let rows = data.len().checked_div(row_len).unwrap_or(0);
-    let threads = std::thread::available_parallelism().map_or(1, |n| n.get()).min(8).min(rows);
+    let threads = rayon::current_num_threads().min(8).min(rows);
     if threads <= 1 || data.len() < SINGLE_THREAD_BYTES {
         f(0, data);
         return;
     }
     let band = rows.div_ceil(threads);
-    std::thread::scope(|s| {
+    rayon::scope(|s| {
         for (i, chunk) in data.chunks_mut(band * row_len).enumerate() {
             let f = &f;
-            s.spawn(move || f(i * band, chunk));
+            s.spawn(move |_| f(i * band, chunk));
         }
     });
 }

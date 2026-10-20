@@ -4,12 +4,15 @@
 
 use std::time::{Duration, Instant};
 
+use std::sync::OnceLock;
+
 use crossbeam_channel::Sender;
 use egui::Context;
 use snap_capture::{ElementInfo, Frozen, role_label};
 use snap_core::{CaptureKind, Point, Rect as PxRect};
 
 use super::ViewCx;
+use crate::views::ViewHandle;
 
 /// Minimum time between two accessibility queries.
 const QUERY_GAP: Duration = Duration::from_millis(40);
@@ -37,7 +40,6 @@ pub struct Targets {
     level: usize,
     leaf: Option<PxRect>,
     asked: Option<(Instant, Point)>,
-    worker: Option<Sender<Point>>,
     wheel: f32,
 }
 
@@ -71,8 +73,7 @@ impl Targets {
                 return;
             }
         }
-        let worker = self.worker.get_or_insert_with(|| spawn_worker(cx));
-        if worker.send(at).is_ok() {
+        if worker().send((at, cx.handle())).is_ok() {
             self.asked = Some((Instant::now(), at));
         }
     }
@@ -100,21 +101,25 @@ impl Targets {
     }
 }
 
-/// One thread that answers queries in order, skipping to the newest when several piled up.
-fn spawn_worker(cx: &ViewCx) -> Sender<Point> {
-    let (tx, rx) = crossbeam_channel::unbounded::<Point>();
-    let handle = cx.handle();
-    let spawned = std::thread::Builder::new().name("snap-overlay-elements".into()).spawn(move || {
-        while let Ok(mut at) = rx.recv() {
-            while let Ok(newer) = rx.try_recv() {
-                at = newer;
+/// The one thread, for the life of the process, that answers queries in order, skipping to the newest when several
+/// piled up (only the window under the pointer asks, so an older query is always stale). A thread per overlay session
+/// would cost an OpenGL driver memory it never gives back.
+fn worker() -> &'static Sender<(Point, ViewHandle)> {
+    static WORKER: OnceLock<Sender<(Point, ViewHandle)>> = OnceLock::new();
+    WORKER.get_or_init(|| {
+        let (tx, rx) = crossbeam_channel::unbounded::<(Point, ViewHandle)>();
+        let spawned = std::thread::Builder::new().name("snap-overlay-elements".into()).spawn(move || {
+            while let Ok((mut at, mut handle)) = rx.recv() {
+                while let Ok(newer) = rx.try_recv() {
+                    (at, handle) = newer;
+                }
+                let chain = snap_capture::elements_at(at).unwrap_or_default();
+                handle.send(ElementsReply { chain });
             }
-            let chain = snap_capture::elements_at(at).unwrap_or_default();
-            handle.send(ElementsReply { chain });
+        });
+        if let Err(e) = spawned {
+            tracing::warn!("cannot start the element query thread: {e}");
         }
-    });
-    if let Err(e) = spawned {
-        tracing::warn!("cannot start the element query thread: {e}");
-    }
-    tx
+        tx
+    })
 }

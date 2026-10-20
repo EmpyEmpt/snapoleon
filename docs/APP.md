@@ -209,7 +209,7 @@ gives each cover its monitor's snapshot (a `Seat`) and calls `Shell::present`, w
 window is still hidden and shows it with that frame. When the session ends the covers are hidden again
 (`Shell::set_visible(false)` plus `Shell::refresh_hidden`, so the snapshot texture is released). A monitor layout
 that differs from the pooled covers replaces them on the next session. The pool is the setting
-`general.instant_overlay` (default on; about 200 MB of resident GPU memory): turning it off closes the resting covers and
+`general.instant_overlay` (default on; about 100 MB of resident memory with the OpenGL renderer, about 200 MB with wgpu: `docs/notes/renderer.md`): turning it off closes the resting covers and
 each session opens and closes its own, turning it on opens them (`overlay::set_instant`, from `SettingsChanged`). The dev harness has no pool (it must end with
 its last window), and a tray-less app has none either. Use `overlay::active()` to ask whether a session is running;
 `windows_with_tag(overlay::TAG)` also finds the resting covers. `overlay ready N ms after the hotkey` in the log is
@@ -290,6 +290,7 @@ SNAPOLEON_DEV=library SNAPOLEON_DEV_SHOT=$TEMP/library.png cargo run -p snapoleo
 | `SNAPOLEON_DEV_LANG` | `en` or `ru` |
 | `SNAPOLEON_DEV_SHOT=<path.png>` | after `SNAPOLEON_DEV_SHOT_DELAY_MS` (default 1500) screenshot the view's first window via `snap_capture::capture_window` on its native id (falls back to cropping the screen at its outer rect), print the path, quit. Windows that hide themselves from captures (recorder and scroll HUDs) are un-hidden for the shot. |
 | `SNAPOLEON_DEV_SHARED_DATA` | use the real settings, history and logs instead of the private ones |
+| `SNAPOLEON_RENDERER` | not a dev-only variable: `wgpu` or `glow` forces that renderer (and `glow` never falls back); `glow-fail` makes OpenGL context creation fail on purpose, to test the fallback. The log line `snap-shell renderer` says what is in use. See "Renderer" below. |
 
 Demo data: `editor`, `pin`, `combine` and `diff` use real crops of a screenshot of the primary
 monitor taken at startup; `library` seeds an empty history with 14 entries (files, thumbnails,
@@ -299,6 +300,21 @@ sample; `settings` opens the requested page; `video` generates a slideshow MP4 w
 Dev runs use **portable data** (`<exe dir>/data`, which sits in your private `CARGO_TARGET_DIR`), so
 they never touch the installed app's settings or history. The log is in `data/logs/snapoleon.log`.
 Read your screenshots (the Read tool shows PNGs) and fix what looks off before you report.
+
+## Renderer
+
+`snap-shell` draws with OpenGL (glutin + egui_glow, one context shared by all windows) on Windows and Linux and with
+wgpu on macOS. Windows builds carry both: at the first window the shell tries OpenGL and, if the context cannot be
+made or is older than OpenGL 3.0 / ES 2.0 (remote desktop, a VM, the Basic Display Adapter), logs why
+(`OpenGL is not usable (...); falling back to wgpu`) and uses wgpu (DX12 including WARP, or Vulkan) from then on.
+Linux is OpenGL only (Mesa always has llvmpipe); the `wgpu` cargo feature of `snapoleon` forces wgpu alone on every
+OS. `SNAPOLEON_RENDERER=wgpu|glow` picks one at run time where both are compiled in. Measurements:
+`docs/notes/renderer.md`.
+
+Parallel pixel loops (snapshot upload, BGRA conversion, tone mapping, image bands) run on the shared `rayon` pool and
+the element-query worker is one thread for the process: an OpenGL driver keeps about 90 KB for every thread ever
+created, so a thread per capture showed up as memory creeping up by about 1.3 MB per overlay session. Do not spawn
+threads per session on the overlay path.
 
 ## Startup, for reference
 

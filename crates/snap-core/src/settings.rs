@@ -154,7 +154,8 @@ pub struct General {
     /// Disable UI animations regardless of the OS preference.
     pub reduce_motion: bool,
     /// Keep the capture overlay's cover windows open (hidden) in the background so it appears at once, at the
-    /// price of about 200 MB of GPU-backed memory. Off: covers are opened per session and closed after it.
+    /// price of about 100 MB of memory with the OpenGL renderer (about 200 MB with wgpu). Off: covers are opened per
+    /// session and closed after it.
     pub instant_overlay: bool,
 }
 

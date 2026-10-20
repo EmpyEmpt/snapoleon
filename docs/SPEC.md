@@ -13,7 +13,7 @@ history).
 
 **Hard rules**
 - 100% Rust. No webview, no Electron, no JS runtime in the client. GUI = egui
-  on our own winit + wgpu shell. The team server renders plain server-side HTML.
+  on our own winit + OpenGL/wgpu shell. The team server renders plain server-side HTML.
 - Lean: no tokio in the client. Blocking I/O on worker threads (`std::thread`,
   `crossbeam-channel`). HTTP = `ureq` + rustls. Heavy/rare features behind cargo
   features or downloaded on demand (OCR fallback models).
@@ -44,7 +44,7 @@ history).
 | `snap-record` | screen recording (MP4 HW/SW, GIF, WebP), audio, cursor/click/keystroke overlays, trim, export-to-size, slideshow video |
 | `snap-ai` | OpenAI-compatible client (local Ollama/LM Studio by default): alt text, titles, how-to, translate, smart redaction |
 | `snap-ui` | design system for egui: tokens, fonts, icons, widgets, toasts, custom title bar |
-| `snap-shell` | multi-window winit + egui-wgpu runtime that keeps running with zero windows (tray app) |
+| `snap-shell` | multi-window winit + egui runtime (OpenGL or wgpu) that keeps running with zero windows (tray app) |
 | `snap-engine` | headless orchestration used by GUI, CLI and MCP: capture requests, pipeline executor, scrolling capture, step capture, export |
 | `apps/snapoleon` | the binary: GUI (tray, overlay, editor, pins, recorder HUD, library, settings, tools), CLI subcommands, `mcp` stdio server |
 | `server/snapoleon-server` | self-hosted team server (axum): uploads, short links w/ expiry/password/delete, view counts, OG previews, workspaces, tokens, OIDC SSO, retention |
@@ -448,9 +448,11 @@ pub struct Shell<E>;  impl<E> Shell<E> {
 pub struct ShellConfig { pub app_id: String, pub accessory: bool /* macOS: no Dock icon */, pub theme_init: Box<dyn Fn(&egui::Context)> }
 pub fn run<E: Send + 'static>(cfg: ShellConfig, app: impl ShellApp<E>) -> Result<()>;
 ```
-One wgpu Instance/Adapter/Device for all windows (low-power preference; backends
-DX12 on Windows, Metal on macOS, Vulkan+GL on Linux), a Surface + egui_wgpu
-Renderer + egui::Context + egui_winit::State per window. The loop keeps running
+One graphics context for all windows and, per window, a surface + renderer +
+egui::Context + egui_winit::State. The renderer is OpenGL (glutin + egui_glow, one
+shared context made current per window surface) on Windows and Linux and wgpu
+(Metal) on macOS; the `wgpu` cargo feature selects wgpu everywhere (low-power
+preference; DX12/Vulkan on Windows, Vulkan+GL on Linux). See `docs/notes/renderer.md`. The loop keeps running
 with zero windows (tray). Windows open in < 50 ms (reuse device; create
 hidden-then-show for overlays). Each window repaints only on input or request
 (`ctx.request_repaint*` honoured per window). Fonts/theme installed into each

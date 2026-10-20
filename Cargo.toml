@@ -40,7 +40,7 @@ snap-platform = { path = "crates/snap-platform" }
 snap-record = { path = "crates/snap-record" }
 snap-ai = { path = "crates/snap-ai" }
 snap-ui = { path = "crates/snap-ui" }
-snap-shell = { path = "crates/snap-shell" }
+snap-shell = { path = "crates/snap-shell", default-features = false }
 snap-engine = { path = "crates/snap-engine" }
 
 anyhow = "1"
@@ -60,6 +60,8 @@ regex = { version = "1", default-features = false, features = ["std", "unicode",
 directories = "6"
 base64 = "0.22"
 rand = "0.9"
+# One pool of long-lived workers instead of fresh threads per capture: an OpenGL driver keeps about 90 KB per thread ever created.
+rayon = "1"
 
 [profile.release]
 # Size first: the installer is the first thing a user meets. The pixel loops and the text rasteriser below are the

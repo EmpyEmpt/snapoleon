@@ -10,7 +10,7 @@ Snapoleon aims for the simplicity of the Windows Snipping Tool on the default pa
 behind it. Press one hotkey, drag a region, and an instant toolbar appears. Pipelines, upload destinations,
 a command line interface and an MCP server are there when you want them and out of the way when you do not.
 
-- 100% Rust. The interface is egui on our own winit + wgpu shell. No webview, no Electron, no JavaScript runtime.
+- 100% Rust. The interface is egui on our own winit shell (OpenGL, wgpu on macOS). No webview, no Electron, no JavaScript runtime.
 - Small and quiet. No async runtime in the client, blocking I/O on worker threads, and heavy features are
   optional or downloaded on demand.
 - Private by default. Nothing leaves your machine unless you configure a destination. AI features default to
@@ -156,7 +156,7 @@ cargo packager --config packaging/Packager.toml --release --formats nsis   # or 
 | `crates/snap-record` | Screen recording, audio, overlays, trim, export-to-size |
 | `crates/snap-ai` | OpenAI-compatible client (local by default): alt text, titles, translation, smart redaction |
 | `crates/snap-ui` | egui design system: tokens, fonts, icons, widgets |
-| `crates/snap-shell` | Multi-window winit + egui-wgpu runtime that keeps running with no windows open |
+| `crates/snap-shell` | Multi-window winit + egui runtime (OpenGL via glutin, or wgpu) that keeps running with no windows open |
 | `crates/snap-engine` | Headless orchestration shared by the GUI, CLI and MCP server |
 | `apps/snapoleon` | The binary: GUI, CLI subcommands, MCP server |
 | `server/snapoleon-server` | Self-hosted team server |
@@ -190,6 +190,6 @@ additional terms or conditions.
   Font License 1.1 (`assets/fonts/JetBrainsMono-OFL.txt`).
 - [Phosphor Icons](https://phosphoricons.com), MIT License (`crates/snap-ui/assets/Phosphor-LICENSE.txt`).
 - Built on [egui](https://github.com/emilk/egui), [winit](https://github.com/rust-windowing/winit),
-  [wgpu](https://github.com/gfx-rs/wgpu) and many other open-source crates.
+  [glutin](https://github.com/rust-windowing/glutin), [wgpu](https://github.com/gfx-rs/wgpu) and many other open-source crates.
 - Snapoleon is an independent, clean-room implementation. ShareX, Snipping Tool, CleanShot X, Snagit, Shottr,
   Flameshot and others are the work of their respective authors and are mentioned only as comparisons.
