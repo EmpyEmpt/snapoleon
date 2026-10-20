@@ -118,3 +118,11 @@ desktop-template = "linux/app.snapoleon.Snapoleon.desktop"
 
 [appimage]
 # PipeWire, D-Bus and Wayland libraries come from the host system.
+
+[appimage.files]
+# The desktop file says Icon=app.snapoleon.Snapoleon, but cargo-packager only installs the icons as
+# snapoleon.png. linuxdeploy then fails with "Could not find suitable icon" (exit 1). Ship the
+# reverse-DNS names that the desktop file refers to.
+"linux/icons/hicolor/scalable/apps/app.snapoleon.Snapoleon.svg" = "usr/share/icons/hicolor/scalable/apps/app.snapoleon.Snapoleon.svg"
+"linux/icons/hicolor/256x256/apps/app.snapoleon.Snapoleon.png" = "usr/share/icons/hicolor/256x256/apps/app.snapoleon.Snapoleon.png"
+"linux/icons/hicolor/48x48/apps/app.snapoleon.Snapoleon.png" = "usr/share/icons/hicolor/48x48/apps/app.snapoleon.Snapoleon.png"
