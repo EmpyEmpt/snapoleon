@@ -6,7 +6,9 @@
 //! window is hidden from the recording, both through the window flag and through
 //! `RecordOptions::exclude_windows`. X11 and Wayland cannot do that, so there the HUD is kept out of the
 //! picture instead: the pill moves to another monitor, or, when the recording fills the only monitor,
-//! it hides once recording runs (stop with the hotkey or the tray) and the frames are not drawn.
+//! it hides once recording runs (stop with the hotkey or the tray) and the frames are not drawn. It only hides when a
+//! stop hotkey is bound; without one it stays, as the only way to stop. Wayland cannot unmap a window, so there the
+//! pill is minimized, and an error after that is reported as a notice because the pill cannot be brought back.
 
 use std::{
     any::Any,
@@ -16,7 +18,7 @@ use std::{
 };
 
 use egui::Context;
-use snap_core::{CaptureContext, Error, Point, Rect, Result, settings::VideoFormat, t};
+use snap_core::{CaptureContext, Error, Point, Rect, Result, settings::VideoFormat, t, tf};
 use snap_engine::{Notice, NoticeKind, RecordOptions, RecordTarget};
 use snap_platform::permissions::{self, Perm};
 use snap_record::{Recorder, Recording};
@@ -72,6 +74,8 @@ pub fn open(cx: &mut OpenCx, input: RecorderInput) {
         cx.settings.hotkeys.iter().find(|b| b.enabled && b.action == snap_core::hotkey::Action::StopRecording).map(|b| b.accel.clone());
 
     let (pill_at, in_picture) = pill_position(area, screen, scale, &monitors);
+    // Without a stop hotkey the pill is the only way to stop, so it stays even where it ends up in the picture.
+    let hide_while_recording = in_picture && stop_hotkey.is_some();
     let shared = Rc::new(Shared::default());
     let spec = WindowSpec {
         title: t("recorder.title").into_owned(),
@@ -102,7 +106,8 @@ pub fn open(cx: &mut OpenCx, input: RecorderInput) {
         failure: None,
         stop_when_started: false,
         icons: None,
-        hide_while_recording: in_picture,
+        hide_while_recording,
+        minimized: false,
     };
     cx.open(spec, view);
 
@@ -213,7 +218,8 @@ enum Fix {
 
 /// Results of work done off the UI thread.
 enum Msg {
-    Started(Result<Recorder>),
+    /// The recorder, and the desktop icons held hidden for it (hiding them is slow on macOS, so the worker does it).
+    Started(Result<Recorder>, Option<snap_capture::DesktopIconsGuard>),
     Finished(Result<Finished>),
     Discarded,
 }
@@ -242,6 +248,8 @@ struct RecorderView {
     icons: Option<snap_capture::DesktopIconsGuard>,
     /// The pill sits inside the recorded picture and the OS cannot exclude it: hide it while recording.
     hide_while_recording: bool,
+    /// The pill was minimized because the compositor cannot unmap it (Wayland) and cannot restore it either.
+    minimized: bool,
 }
 
 impl RecorderView {
@@ -264,11 +272,14 @@ impl RecorderView {
         if let Some(failure) = preflight(&self.options) {
             return self.fail(cx, failure);
         }
-        self.icons = snap_engine::icons_hidden(cx.settings);
+        let settings = cx.settings.clone();
         let mut options = self.options.clone();
         options.exclude_windows =
             std::iter::once(cx.win).chain(self.shared.frames.borrow().iter().copied()).filter_map(|win| cx.shell.native_id(win)).collect();
-        cx.spawn(move || Msg::Started(snap_record::start(options)));
+        cx.spawn(move || {
+            let icons = snap_engine::icons_hidden(&settings);
+            Msg::Started(snap_record::start(options), icons)
+        });
     }
 
     fn fail(&mut self, cx: &mut ViewCx, failure: Failure) {
@@ -276,6 +287,16 @@ impl RecorderView {
         self.close_session(cx);
         self.icons = None;
         self.phase = Phase::Failed;
+        if self.minimized {
+            // The compositor will not restore the pill, so the card would never be seen.
+            cx.notify(Notice {
+                kind: NoticeKind::Error,
+                title: t("recorder.error.title").into_owned(),
+                body: failure.message,
+                ..Notice::default()
+            });
+            return cx.close();
+        }
         self.failure = Some(failure);
         cx.shell.set_pill(cx.win, false);
         cx.shell.set_visible(cx.win, true);
@@ -390,16 +411,17 @@ impl View for RecorderView {
         };
         let Ok(msg) = msg.downcast::<Msg>() else { return };
         match *msg {
-            Msg::Started(Ok(recorder)) => {
+            Msg::Started(Ok(recorder), icons) => {
+                self.icons = icons;
                 self.recorder = Some(recorder);
                 self.phase = Phase::Recording;
                 cx.push(Command::RecordingState { active: true });
                 if self.hide_while_recording {
-                    cx.shell.set_visible(cx.win, false);
+                    self.minimized = !cx.shell.conceal(cx.win);
                     cx.notify(Notice {
                         kind: NoticeKind::Info,
                         title: t("recorder.hidden.title").into_owned(),
-                        body: t("recorder.hidden.body").into_owned(),
+                        body: tf("recorder.hidden.body", &[("accel", self.stop_hotkey.as_deref().unwrap_or_default())]),
                         ..Notice::default()
                     });
                 }
@@ -407,7 +429,7 @@ impl View for RecorderView {
                     self.stop(cx);
                 }
             }
-            Msg::Started(Err(e)) => {
+            Msg::Started(Err(e), _) => {
                 let failure = failure_of(&e);
                 self.fail(cx, failure);
             }

@@ -132,6 +132,7 @@ pub fn default_bindings() -> Vec<HotkeyBinding> {
             b("Cmd+Shift+5", Action::CaptureWindow),
             b("Cmd+Shift+3", Action::CaptureAllMonitors),
             b("Cmd+Shift+6", Action::RecordRegion),
+            b("Cmd+Shift+7", Action::StopRecording),
             b("Cmd+Shift+2", Action::OcrRegion),
             b("Cmd+Shift+1", Action::PinRegion),
         ]
@@ -141,6 +142,7 @@ pub fn default_bindings() -> Vec<HotkeyBinding> {
             b("Alt+PrintScreen", Action::CaptureWindow),
             b("Ctrl+PrintScreen", Action::CaptureAllMonitors),
             b("Ctrl+Shift+PrintScreen", Action::RecordRegion),
+            b("Ctrl+Shift+F12", Action::StopRecording),
             b("Ctrl+Shift+T", Action::OcrRegion),
             b("Ctrl+Shift+P", Action::PinRegion),
         ]

@@ -12,7 +12,7 @@ use egui::FullOutput;
 use egui_glow::Painter;
 use glutin::{
     config::{Config, ConfigTemplateBuilder, GlConfig},
-    context::{ContextApi, ContextAttributesBuilder, NotCurrentContext, PossiblyCurrentContext},
+    context::{ContextApi, ContextAttributesBuilder, PossiblyCurrentContext, Version},
     display::{GetGlDisplay, GlDisplay},
     prelude::{GlSurface, NotCurrentGlContext, PossiblyCurrentGlContext},
     surface::{Surface as GlSurfaceHandle, SwapInterval, WindowSurface},
@@ -52,17 +52,51 @@ impl Gfx {
         configs.min_by_key(|c| (c.num_samples(), c.depth_size(), c.stencil_size())).expect("glutin returned at least one config")
     }
 
-    fn context(config: &Config, window: &Window) -> Result<NotCurrentContext> {
+    /// The first context that works and is new enough: desktop OpenGL, then OpenGL ES 3.0 and 2.0. Drivers such as
+    /// Mesa's VC4 and V3D hand out a desktop 2.1 compatibility context next to a capable ES one, so a context that
+    /// was created but is too old does not end the search.
+    fn open_context(
+        config: &Config,
+        window: &Window,
+        surface: &GlSurfaceHandle<WindowSurface>,
+    ) -> Result<(PossiblyCurrentContext, Arc<glow::Context>)> {
         if std::env::var(super::ENV).is_ok_and(|v| v.eq_ignore_ascii_case("glow-fail")) {
             return Err(other("simulated failure (SNAPOLEON_RENDERER=glow-fail)"));
         }
         let handle = window.window_handle().ok().map(|h| h.as_raw());
         let display = config.display();
-        let desktop = ContextAttributesBuilder::new().build(handle);
-        let gles = ContextAttributesBuilder::new().with_context_api(ContextApi::Gles(None)).build(handle);
-        // SAFETY: `handle` belongs to `window`, which the caller keeps alive for the call.
-        unsafe { display.create_context(config, &desktop).or_else(|_| display.create_context(config, &gles)) }
-            .map_err(|e| other(format_args!("creating an OpenGL context failed: {e}")))
+        let gles = |version| ContextAttributesBuilder::new().with_context_api(ContextApi::Gles(version)).build(handle);
+        let candidates = [ContextAttributesBuilder::new().build(handle), gles(Some(Version::new(3, 0))), gles(Some(Version::new(2, 0)))];
+        let mut last = other("no OpenGL context could be created");
+        for attrs in &candidates {
+            // SAFETY: `handle` belongs to `window`, which the caller keeps alive for the call.
+            let ctx = match unsafe { display.create_context(config, attrs) }
+                .map_err(other)
+                .and_then(|c| c.make_current(surface).map_err(other))
+            {
+                Ok(ctx) => ctx,
+                Err(e) => {
+                    last = e;
+                    continue;
+                }
+            };
+            // SAFETY: the context is current on this thread, and `get_proc_address` is the loader for it.
+            let gl = Arc::new(unsafe { glow::Context::from_loader_function_cstr(|name| display.get_proc_address(name)) });
+            let version = glow::HasContext::version(&*gl);
+            if if version.is_embedded { version.major >= 2 } else { version.major >= 3 } {
+                return Ok((ctx, gl));
+            }
+            // A software-only driver (Basic Display Adapter, remote desktop) offers OpenGL 1.1.
+            last = other(format_args!(
+                "OpenGL {}.{}{} is too old, need 3.0 or ES 2.0",
+                version.major,
+                version.minor,
+                if version.is_embedded { " ES" } else { "" }
+            ));
+            drop(gl);
+            let _ = ctx.make_not_current_in_place();
+        }
+        Err(last)
     }
 }
 
@@ -99,20 +133,7 @@ impl Graphics for Gfx {
                 shared.clone()
             }
             None => {
-                let ctx = Self::context(&config, window)?.make_current(&surface).map_err(other)?;
-                // SAFETY: the context is current on this thread, and `get_proc_address` is the loader for it.
-                let gl = Arc::new(unsafe { glow::Context::from_loader_function_cstr(|name| display.get_proc_address(name)) });
-                let version = glow::HasContext::version(&*gl);
-                let usable = if version.is_embedded { version.major >= 2 } else { version.major >= 3 };
-                if !usable {
-                    // A software-only driver (Basic Display Adapter, remote desktop) offers OpenGL 1.1.
-                    return Err(other(format_args!(
-                        "OpenGL {}.{}{} is too old, need 3.0 or ES 2.0",
-                        version.major,
-                        version.minor,
-                        if version.is_embedded { " ES" } else { "" }
-                    )));
-                }
+                let (ctx, gl) = Self::open_context(&config, window, &surface)?;
                 let shared = Rc::new(Shared { gl, ctx, _config: config });
                 self.shared = Some(shared.clone());
                 shared

@@ -19,15 +19,13 @@ pub fn toolbar_pill<R>(ui: &mut Ui, add: impl FnOnce(&mut Ui) -> R) -> InnerResp
         })
 }
 
-/// The panel frame for a window that is itself a pill (the window is clipped to the same shape):
-/// elevated fill, 1 px border, fully rounded ends, `inset` points of air at the ends.
+/// The panel frame for a window that is itself a pill: elevated fill, 1 px border, `inset` points of air at the ends.
+/// Only Windows clips the window to the pill shape, so only there are the ends fully rounded; on macOS and Linux the
+/// window stays an opaque rectangle and rounded ends would leave dark wedges in its corners.
 pub fn pill_window_frame(ui: &Ui, inset: i8) -> Frame {
     let p = Palette::of(ui);
-    Frame::new()
-        .fill(p.elevated)
-        .stroke(Stroke::new(1.0, p.border))
-        .corner_radius(radius::PILL as u8)
-        .inner_margin(Margin::symmetric(inset, 0))
+    let corners = if cfg!(windows) { radius::PILL as u8 } else { 0 };
+    Frame::new().fill(p.elevated).stroke(Stroke::new(1.0, p.border)).corner_radius(corners).inner_margin(Margin::symmetric(inset, 0))
 }
 
 /// A pill toolbar floating above everything at `pos` (top-left, in screen points).
