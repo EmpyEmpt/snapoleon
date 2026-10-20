@@ -85,7 +85,7 @@ pub trait Uploader: Send + Sync {
 pub fn uploader_for(d: &Destination, secrets: &Arc<dyn SecretStore>) -> Result<Box<dyn Uploader>> {
     let secret = || d.secret_ref.as_deref().filter(|k| !k.is_empty()).and_then(|k| secrets.get(k));
     let required =
-        || secret().filter(|s| !s.is_empty()).ok_or_else(|| Error::permission(tf("upload.error.missing_secret", &[("name", &d.name)])));
+        || secret().filter(|s| !s.is_empty()).ok_or_else(|| Error::invalid(tf("upload.error.missing_secret", &[("name", &d.name)])));
     let oauth = |provider: Provider, client_id: &str| Session::load(provider, d.secret_ref.as_deref(), secrets, client_id);
 
     Ok(match &d.kind {

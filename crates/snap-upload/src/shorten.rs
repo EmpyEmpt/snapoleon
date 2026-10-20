@@ -31,10 +31,7 @@ pub fn shorten(url: &str, s: &Shortener, server: Option<&str>, secrets: &dyn Sec
             yourls(url, api, secret_ref.as_deref().and_then(|k| secrets.get(k)).as_deref().unwrap_or_default())
         }
         Shortener::Shlink { url: api, secret_ref } => {
-            let key = secret_ref
-                .as_deref()
-                .and_then(|k| secrets.get(k))
-                .ok_or_else(|| Error::permission(t("upload.error.shorten_key").into_owned()))?;
+            let key = secret_ref.as_deref().and_then(|k| secrets.get(k)).ok_or_else(|| Error::invalid(t("upload.error.shorten_key")))?;
             shlink(url, api, key.trim())
         }
         Shortener::IsGd => is_gd(url),

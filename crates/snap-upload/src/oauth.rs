@@ -133,7 +133,7 @@ impl Tokens {
 
     /// Exchange the refresh token for a new access token, keeping the client credentials.
     pub fn refreshed(&self) -> Result<Tokens> {
-        let rt = self.refresh_token.as_deref().ok_or_else(|| Error::permission(t("upload.error.no_refresh_token").into_owned()))?;
+        let rt = self.refresh_token.as_deref().ok_or_else(|| Error::invalid(t("upload.error.no_refresh_token")))?;
         refresh_with_secret(self.provider, &self.client_id, self.client_secret.as_deref(), rt)
     }
 }

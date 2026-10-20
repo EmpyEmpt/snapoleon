@@ -100,7 +100,8 @@ mod imp {
     pub fn play(wav: &'static [u8]) {
         // SAFETY: with SND_MEMORY the "name" argument points at the WAV image.
         unsafe {
-            let _ = PlaySoundW(PCWSTR(wav.as_ptr().cast()), None, SND_MEMORY | SND_ASYNC | SND_NODEFAULT);
+            let started = PlaySoundW(PCWSTR(wav.as_ptr().cast()), None, SND_MEMORY | SND_ASYNC | SND_NODEFAULT);
+            tracing::debug!("shutter sound started: {}", started.as_bool());
         }
     }
 }

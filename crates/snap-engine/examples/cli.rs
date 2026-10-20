@@ -12,6 +12,10 @@ fn main() {
             eprintln!("would hand this to the app: {request:?}");
             0
         }
+        Dispatch::RefusedLink => {
+            eprintln!("link refused");
+            1
+        }
         Dispatch::Headless => match cli::run(cli) {
             Ok(code) => code,
             Err(e) => {

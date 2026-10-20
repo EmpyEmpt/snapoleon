@@ -282,12 +282,14 @@ pub enum Dispatch {
     Gui(Option<Request>),
     /// Run [`run`] in this process and exit with its code.
     Headless,
+    /// A `snapoleon://` link that names no action a link may start: nothing runs, the app is not even launched.
+    RefusedLink,
 }
 
 pub fn dispatch(cli: &Cli) -> Dispatch {
     match &cli.command {
         None => Dispatch::Gui(None),
-        Some(Command::Url { url }) => Dispatch::Gui(parse_url(url)),
+        Some(Command::Url { url }) => parse_url(url).map_or(Dispatch::RefusedLink, |request| Dispatch::Gui(Some(request))),
         Some(Command::Edit { path }) => Dispatch::Gui(Some(Request::Edit { path: path.clone() })),
         Some(Command::Pin { path }) => Dispatch::Gui(Some(Request::Pin { path: path.clone() })),
         Some(Command::Settings) => Dispatch::Gui(Some(Request::ShowWindow { window: AppWindow::Settings })),

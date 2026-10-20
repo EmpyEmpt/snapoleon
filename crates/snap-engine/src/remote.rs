@@ -87,7 +87,7 @@ impl Engine {
             return Err(Error::invalid(t("engine.error.not_team_server").into_owned()));
         };
         let token = d.secret_ref.as_deref().filter(|k| !k.is_empty()).and_then(|k| self.secrets().get(k)).filter(|k| !k.trim().is_empty());
-        let token = token.ok_or_else(|| Error::permission(tf("upload.error.missing_secret", &[("name", &d.name)])))?;
+        let token = token.ok_or_else(|| Error::invalid(tf("upload.error.missing_secret", &[("name", &d.name)])))?;
         Ok(Client::new(url, &token))
     }
 }

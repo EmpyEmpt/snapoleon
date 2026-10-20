@@ -27,7 +27,7 @@ impl Session {
     /// Resolve the destination's secret: OAuth tokens (refreshed and written
     /// back when expired) or a bare access token.
     pub fn load(provider: Provider, secret_ref: Option<&str>, secrets: &Arc<dyn SecretStore>, client_id: &str) -> Result<Self> {
-        let missing = || Error::permission(tf("upload.error.missing_secret", &[("name", provider.name())]));
+        let missing = || Error::invalid(tf("upload.error.missing_secret", &[("name", provider.name())]));
         let key = secret_ref.filter(|k| !k.is_empty()).ok_or_else(missing)?;
         let state = match oauth::load_fresh(key, &**secrets)? {
             Some(mut tokens) => {

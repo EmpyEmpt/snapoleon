@@ -18,6 +18,9 @@ const ENTER: f64 = 0.2;
 const EXIT: f64 = 0.16;
 const LIFETIME: Duration = Duration::from_secs(4);
 const MAX_VISIBLE: usize = 5;
+/// Narrowest text column worth keeping beside the action buttons; below it the buttons drop to their own row.
+const MIN_INLINE_TEXT: f32 = 150.0;
+const ACTION_H: f32 = 28.0;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub enum ToastKind {
@@ -248,13 +251,16 @@ fn toast_ui(ui: &mut egui::Ui, p: &Palette, toast: &Toast, width: f32) -> Clicke
             .collect();
         let action_w: f32 = actions.iter().map(|(w, _)| w + 8.0).sum();
         let close_w = 24.0;
-        let text_w = (inner_w - icon_w - action_w - close_w - 6.0).max(80.0);
+        let row_w = inner_w - icon_w - close_w - 6.0;
+        let stacked = !actions.is_empty() && row_w - action_w < MIN_INLINE_TEXT;
+        let text_w = if stacked { row_w } else { (row_w - action_w).max(80.0) };
         let galley = util::layout_wrapped(ui, &toast.text, &text::body_style(), p.text, text_w);
-        let height = galley.size().y.max(24.0);
+        let text_h = galley.size().y.max(24.0);
+        let height = if stacked { text_h + 8.0 + ACTION_H } else { text_h };
         let (rect, hover) = ui.allocate_exact_size(Vec2::new(inner_w, height), Sense::hover());
         let hovered = hover.hovered() || ui.rect_contains_pointer(rect.expand(8.0));
 
-        let cy = rect.center().y;
+        let cy = rect.top() + text_h / 2.0;
         ui.painter().circle_filled(Pos2::new(rect.left() + 9.0, cy), 12.0, p.tone_soft(tone));
         util::paint_icon(ui, Pos2::new(rect.left() + 9.0, cy), toast.kind.icon(), 16.0, p.tone(tone));
         let text_pos = Pos2::new(rect.left() + icon_w, cy - galley.size().y / 2.0);
@@ -280,8 +286,12 @@ fn toast_ui(ui: &mut egui::Ui, p: &Palette, toast: &Toast, width: f32) -> Clicke
             crate::widgets::progress_sized(ui, frac, inner_w);
         }
 
+        let actions_cy = if stacked { rect.bottom() - ACTION_H / 2.0 } else { cy };
+        if stacked {
+            x = rect.right();
+        }
         for (n, (w, galley)) in actions.into_iter().enumerate().rev() {
-            let r = Rect::from_center_size(Pos2::new(x - w / 2.0 - 4.0, cy), Vec2::new(w, 28.0));
+            let r = Rect::from_center_size(Pos2::new(x - w / 2.0 - 4.0, actions_cy), Vec2::new(w, ACTION_H));
             x -= w + 8.0;
             let resp = ui.interact(r, ui.scope_id().with(("action", n)), Sense::click());
             let h = hover_anim(ui, &resp);

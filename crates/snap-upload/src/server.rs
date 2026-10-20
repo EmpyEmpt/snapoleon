@@ -100,7 +100,7 @@ impl Client {
 
     fn check(&self, resp: Response) -> Result<Response> {
         match resp.status {
-            401 | 403 => Err(Error::permission(t("upload.error.server_auth").into_owned())),
+            401 | 403 => Err(Error::invalid(t("upload.error.server_auth"))),
             404 => Err(Error::NotFound(resp.url.clone())),
             _ => resp.check(PROVIDER),
         }

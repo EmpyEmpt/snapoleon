@@ -45,6 +45,10 @@ fn main() -> ExitCode {
     match cli::dispatch(&cli) {
         Dispatch::Headless => run_headless(cli),
         Dispatch::Gui(request) => run_gui(request, cli.background, settings),
+        Dispatch::RefusedLink => {
+            eprintln!("{}", snap_core::t("app.ipc.link_refused"));
+            ExitCode::FAILURE
+        }
     }
 }
 
