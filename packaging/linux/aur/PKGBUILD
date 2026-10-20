@@ -7,7 +7,7 @@ pkgver=0.1.0
 pkgrel=1
 pkgdesc='Screenshots, screen recording, OCR and sharing, written in Rust'
 arch=('x86_64' 'aarch64')
-url='https://github.com/snapoleon/snapoleon'
+url='https://github.com/EmpyEmpt/snapoleon'
 license=('MIT' 'Apache-2.0')
 depends=('libxcb' 'libx11' 'libxcursor' 'libxi' 'libxtst' 'alsa-lib' 'libglvnd' 'libxkbcommon' 'libxkbcommon-x11' 'wayland' 'dbus' 'pipewire>=1.0' 'mesa')
 optdepends=('tesseract: OCR engine on Linux'

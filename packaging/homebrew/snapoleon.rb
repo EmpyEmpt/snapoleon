@@ -2,10 +2,10 @@ cask "snapoleon" do
   version "${{ VERSION }}"
   sha256 "${{ SHA256_MACOS_UNIVERSAL_DMG }}"
 
-  url "https://github.com/snapoleon/snapoleon/releases/download/v#{version}/Snapoleon-#{version}-macos-universal.dmg"
+  url "https://github.com/EmpyEmpt/snapoleon/releases/download/v#{version}/Snapoleon-#{version}-macos-universal.dmg"
   name "Snapoleon"
   desc "Screenshots, screen recording, OCR and sharing"
-  homepage "https://github.com/snapoleon/snapoleon"
+  homepage "https://github.com/EmpyEmpt/snapoleon"
 
   livecheck do
     url :url

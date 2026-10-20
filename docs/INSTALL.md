@@ -1,6 +1,8 @@
 # Installing Snapoleon
 
-Release files are on the [releases page](https://github.com/snapoleon/snapoleon/releases). Each release includes
+No release has been published yet; until then, build from source (see the end of this page). The sections below
+describe the packages the release workflow produces. Release files will be on the
+[releases page](https://github.com/EmpyEmpt/snapoleon/releases). Each release includes
 `SHA256SUMS` (and `SHA256SUMS.minisig` when the release was signed with minisign). Verify a download with:
 
 ```sh
@@ -19,13 +21,8 @@ Requires Windows 10 1809 or newer. x64 and arm64 builds are provided.
 | `Snapoleon-<ver>-windows-x64.msi` | per-machine | WiX installer for IT deployment (x64 only: WiX 3 cannot build arm64) (`ALLUSERS=1`). Installs to Program Files and registers the URL scheme and file association machine-wide, so it needs an elevated session; `msiexec /qn` from a non-elevated shell fails with error 1603. There is no per-user MSI: cargo-packager's WiX template is per-machine only. Use the setup.exe when you do not have administrator rights. |
 | `Snapoleon-<ver>-windows-<arch>-portable.zip` | none | Unzip anywhere. Contains a `portable` marker file. |
 
-Package managers:
-
-```powershell
-winget install Snapoleon.Snapoleon
-scoop install snapoleon          # portable zip; settings persist in the Scoop persist folder
-choco install snapoleon          # per-user installer
-```
+Package managers: not listed yet. Manifests for winget, Scoop and Chocolatey are in `packaging/` and are rendered
+for each release by `packaging/render-manifests.py`, but none have been submitted.
 
 Silent install:
 
@@ -60,11 +57,8 @@ Exact paths come from the `directories` crate and may differ slightly; Settings,
 Requires macOS 12.3 (Monterey) or newer, for ScreenCaptureKit. The `.dmg` contains a universal binary that runs
 on Apple Silicon and Intel Macs.
 
-```sh
-brew install --cask snapoleon
-```
-
-or open the `.dmg` and drag Snapoleon to Applications. Snapoleon is a menu bar app: it has no Dock icon
+Open the `.dmg` and drag Snapoleon to Applications. (A Homebrew cask template is in `packaging/homebrew/`; it is
+not in a tap yet.) Snapoleon is a menu bar app: it has no Dock icon
 (`LSUIElement`), and its controls are in the menu bar icon.
 
 ### Permissions
@@ -96,14 +90,15 @@ any distribution with PipeWire 1.0 or newer.
 |---|---|
 | AppImage | `chmod +x Snapoleon-*.AppImage && ./Snapoleon-*.AppImage`. Needs FUSE 2 (`libfuse2t64` on Ubuntu 24.04) or run with `--appimage-extract-and-run`. |
 | .deb | `sudo apt install ./Snapoleon-*-linux-x86_64.deb`. Depends on libxcb, libx11, libxkbcommon (and its X11 part), libegl1, libgbm, ALSA, PipeWire (>= 1.0), D-Bus. Recommends `tesseract-ocr` and `ffmpeg`. |
-| Arch (AUR) | `snapoleon-bin` |
+| Arch (AUR) | Not on the AUR yet. `packaging/linux/aur/PKGBUILD` builds `snapoleon-bin` from the release tarball with `makepkg -si`. |
 | Flatpak | Build from `packaging/linux/flatpak/app.snapoleon.Snapoleon.yml` with `flatpak-builder`. Not yet on Flathub. |
 | Tarball | `Snapoleon-<ver>-linux-<arch>.tar.gz` holds the binary, desktop file, icons and licenses. |
 
 ### Optional programs
 
 - `ffmpeg` is required for screen recording on Linux (MP4, GIF, WebP encoding).
-- `tesseract` (and language data such as `tesseract-ocr-eng`, `tesseract-ocr-rus`) is used for OCR on Linux.
+- `tesseract` (and language data such as `tesseract-ocr-eng`, `tesseract-ocr-rus`) is used for OCR on Linux when installed;
+  without it, the built-in engine is used and downloads its model on first use.
   Without it Snapoleon falls back to a slower built-in engine whose models are downloaded on demand.
 
 ```sh
@@ -197,6 +192,6 @@ pwsh packaging/windows/make-portable.ps1 -Exe target/release/snapoleon.exe -Vers
 
 ## Uninstalling
 
-Uninstall with the system tool (Settings, Apps; `winget uninstall Snapoleon.Snapoleon`; drag the app to the trash;
+Uninstall with the system tool (Settings, Apps; drag the app to the trash;
 `apt remove snapoleon`). User data is left in place; delete the data folders listed above to remove history and
 settings. Secrets saved in the OS keyring (Credential Manager, Keychain, Secret Service) are not in those folders; remove them with your OS credential tool.

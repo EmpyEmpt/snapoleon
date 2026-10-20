@@ -7,7 +7,7 @@
 # The first start prints the bootstrap admin credentials:  journalctl -u snapoleon-server
 [Unit]
 Description=Snapoleon team server
-Documentation=https://github.com/snapoleon/snapoleon
+Documentation=https://github.com/EmpyEmpt/snapoleon
 After=network-online.target
 Wants=network-online.target
 

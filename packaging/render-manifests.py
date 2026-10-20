@@ -8,7 +8,7 @@ Flatpak manifest, and patches the AUR PKGBUILD. Tokens:
   SHA256_<KEY>                               looked up in SHA256SUMS by release file name
 
 Usage:
-  render-manifests.py --version 0.1.0 --sums dist/SHA256SUMS --repo snapoleon/snapoleon --out rendered
+  render-manifests.py --version 0.1.0 --sums dist/SHA256SUMS --repo EmpyEmpt/snapoleon --out rendered
 """
 import argparse
 import datetime
@@ -53,7 +53,7 @@ def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--version", required=True)
     ap.add_argument("--sums", required=True)
-    ap.add_argument("--repo", default="snapoleon/snapoleon")
+    ap.add_argument("--repo", default="EmpyEmpt/snapoleon")
     ap.add_argument("--out", required=True)
     a = ap.parse_args()
 

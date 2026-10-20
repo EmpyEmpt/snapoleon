@@ -148,7 +148,7 @@ a user who can edit it can also remove the restrictions. An invalid file is igno
 | Per-machine install for all users | `msiexec /i Snapoleon-<ver>-windows-x64.msi /qn` (Intune, SCCM, GPO software install) |
 | Per-user install without admin rights | `Snapoleon-<ver>-windows-x64-setup.exe /S` |
 | No installation | Portable zip (contains a `portable` marker file; data stays next to the executable) |
-| winget in a managed environment | `winget install Snapoleon.Snapoleon --scope machine` (MSI) |
+| winget in a managed environment | Not available yet: the winget manifest in `packaging/winget/` has not been submitted. Once listed: `winget install Snapoleon.Snapoleon --scope machine` (MSI) |
 
 Network access happens only for destinations you or your policy configure, for AI endpoints (unless `DisableAI` is set),
 and for on-demand downloads of optional OCR models.

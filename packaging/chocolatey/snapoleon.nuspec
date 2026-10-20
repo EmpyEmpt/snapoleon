@@ -6,13 +6,13 @@
     <title>Snapoleon</title>
     <authors>The Snapoleon contributors</authors>
     <owners>snapoleon</owners>
-    <projectUrl>https://github.com/snapoleon/snapoleon</projectUrl>
-    <projectSourceUrl>https://github.com/snapoleon/snapoleon</projectSourceUrl>
-    <bugTrackerUrl>https://github.com/snapoleon/snapoleon/issues</bugTrackerUrl>
-    <licenseUrl>https://github.com/snapoleon/snapoleon/blob/main/LICENSE-MIT</licenseUrl>
+    <projectUrl>https://github.com/EmpyEmpt/snapoleon</projectUrl>
+    <projectSourceUrl>https://github.com/EmpyEmpt/snapoleon</projectSourceUrl>
+    <bugTrackerUrl>https://github.com/EmpyEmpt/snapoleon/issues</bugTrackerUrl>
+    <licenseUrl>https://github.com/EmpyEmpt/snapoleon/blob/main/LICENSE-MIT</licenseUrl>
     <requireLicenseAcceptance>false</requireLicenseAcceptance>
     <iconUrl>https://raw.githubusercontent.com/snapoleon/snapoleon/main/assets/brand/snapoleon-128.png</iconUrl>
-    <releaseNotes>https://github.com/snapoleon/snapoleon/releases/tag/v${{ VERSION }}</releaseNotes>
+    <releaseNotes>https://github.com/EmpyEmpt/snapoleon/releases/tag/v${{ VERSION }}</releaseNotes>
     <summary>Screenshots, screen recording, OCR and sharing in one small Rust app.</summary>
     <description>Snapoleon is a screenshot and screen recording tool written entirely in Rust. One hotkey selects a region and opens an instant toolbar; pipelines, upload destinations, a CLI and an MCP server are there when you need them. This package installs the per-user build (no administrator rights required).</description>
     <tags>screenshot screen-capture screen-recorder ocr annotate foss cross-platform</tags>

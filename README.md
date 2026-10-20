@@ -15,10 +15,11 @@ a command line interface and an MCP server are there when you want them and out 
   optional or downloaded on demand.
 - Private by default. Nothing leaves your machine unless you configure a destination. AI features default to
   local endpoints (Ollama, LM Studio) and can be switched off entirely by policy.
-- Self-hostable links. Run `snapoleon-server` (a single static binary or Docker image) for short links with
+- Self-hostable links. Run `snapoleon-server` (a single binary, or build the included Dockerfile) for short links with
   expiry, passwords, view counts and link previews that look right in chat apps.
 
-Status: version 0.1, pre-release. See the platform table below for what has actually been tested.
+Status: version 0.1, pre-release. Nothing has been released yet: there are no published binaries and no
+package-manager listings. Build from source for now. See the platform table below for what has actually been tested.
 
 ## Features
 
@@ -68,7 +69,7 @@ Status: version 0.1, pre-release. See the platform table below for what has actu
 
 **Team server**
 - `snapoleon-server`: uploads, short links with expiry and passwords, view counts, link previews, workspaces and
-  tokens, OIDC single sign-on, retention, webhooks. Docker image, systemd unit and docker-compose included
+  tokens, OIDC single sign-on, retention, webhooks. Dockerfile, systemd unit and docker-compose included
   under `server/snapoleon-server/deploy/`.
 
 **Enterprise**
@@ -81,39 +82,37 @@ Status: version 0.1, pre-release. See the platform table below for what has actu
 
 | Platform | Status |
 |---|---|
-| Windows 10 1809+ and Windows 11 (x64, arm64) | Primary target. Developed and tested here. |
-| macOS 12.3+ (Apple Silicon and Intel, universal build) | Implemented. Community-tested; expect rough edges. |
-| Linux (x11 and Wayland; x86_64, aarch64) | Implemented. Community-tested; expect rough edges. |
+| Windows 10 1809+ and Windows 11 (x64, arm64) | Primary target. Developed and tested on Windows 11 x64 (single monitor). The arm64 build compiles and packages in CI but has not been run. |
+| macOS 12.3+ (Apple Silicon and Intel, universal build) | Implemented. Builds and packages in CI; not yet run on a real Mac. Expect rough edges. |
+| Linux (X11 and Wayland; x86_64, aarch64) | Implemented. Run under Xvfb and WSL only; not yet tested on a real desktop session. Expect rough edges. |
 
 Linux notes: Wayland capture and global shortcuts depend on the XDG desktop portals and on your compositor.
-Recording needs `ffmpeg`, and OCR needs `tesseract`, on Linux. Details are in [docs/INSTALL.md](docs/INSTALL.md).
+Recording needs `ffmpeg` on Linux. OCR uses `tesseract` when it is installed and otherwise the built-in engine,
+whose model is downloaded on first use. Details are in [docs/INSTALL.md](docs/INSTALL.md).
 
 ## Install
 
-Release builds are published on the [GitHub releases page](https://github.com/snapoleon/snapoleon/releases).
-Every release has a `SHA256SUMS` file. Full instructions are in [docs/INSTALL.md](docs/INSTALL.md).
+No release has been published yet. When one is, its files will be on the
+[GitHub releases page](https://github.com/EmpyEmpt/snapoleon/releases) with a `SHA256SUMS` file, and the
+release workflow (`.github/workflows/release.yml`) builds these packages:
 
-| Platform | Command |
+| Platform | Package |
 |---|---|
-| Windows (winget) | `winget install Snapoleon.Snapoleon` |
-| Windows (Scoop) | `scoop bucket add snapoleon https://github.com/snapoleon/scoop-bucket` then `scoop install snapoleon` |
-| Windows (Chocolatey) | `choco install snapoleon` |
-| Windows (manual) | NSIS installer (per-user, no admin), MSI (per-machine), or the portable zip |
-| macOS (Homebrew) | `brew install --cask snapoleon` |
-| macOS (manual) | Open the `.dmg` and drag Snapoleon to Applications |
-| Linux (AppImage) | `chmod +x Snapoleon-*.AppImage && ./Snapoleon-*.AppImage` |
-| Linux (Debian/Ubuntu) | `sudo apt install ./Snapoleon-*-linux-x86_64.deb` |
-| Arch Linux | `yay -S snapoleon-bin` |
-| Linux (Flatpak) | build from `packaging/linux/flatpak/app.snapoleon.Snapoleon.yml` |
+| Windows | NSIS installer (per-user, no admin), MSI (per-machine, x64 only), portable zip |
+| macOS | `.dmg` with a universal app |
+| Linux | AppImage, `.deb`, tarball |
 
-The package-manager entries become available as each channel accepts the first release.
+Snapoleon is not listed in any package manager yet: not winget, Scoop, Chocolatey, Homebrew, the AUR or Flathub.
+Manifest templates for those channels are in `packaging/` and are rendered for each release, but they have not
+been submitted. Builds are not code-signed yet, so Windows SmartScreen and macOS Gatekeeper will warn.
+Full instructions are in [docs/INSTALL.md](docs/INSTALL.md).
 
 ## Build from source
 
 Requirements: Rust 1.90 or newer (edition 2024) and a C toolchain.
 
 ```sh
-git clone https://github.com/snapoleon/snapoleon
+git clone https://github.com/EmpyEmpt/snapoleon
 cd snapoleon
 cargo run --release -p snapoleon
 ```

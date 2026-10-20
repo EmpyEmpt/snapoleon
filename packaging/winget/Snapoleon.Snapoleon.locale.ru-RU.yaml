@@ -3,12 +3,12 @@ PackageIdentifier: Snapoleon.Snapoleon
 PackageVersion: ${{ VERSION }}
 PackageLocale: ru-RU
 Publisher: Snapoleon
-PublisherUrl: https://github.com/snapoleon
-PublisherSupportUrl: https://github.com/snapoleon/snapoleon/issues
+PublisherUrl: https://github.com/EmpyEmpt
+PublisherSupportUrl: https://github.com/EmpyEmpt/snapoleon/issues
 PackageName: Snapoleon
-PackageUrl: https://github.com/snapoleon/snapoleon
+PackageUrl: https://github.com/EmpyEmpt/snapoleon
 License: MIT OR Apache-2.0
-LicenseUrl: https://github.com/snapoleon/snapoleon/blob/main/LICENSE-MIT
+LicenseUrl: https://github.com/EmpyEmpt/snapoleon/blob/main/LICENSE-MIT
 Copyright: Copyright (c) The Snapoleon contributors
 ShortDescription: Скриншоты, запись экрана, OCR и обмен ссылками в одной небольшой программе на Rust.
 Description: |-
@@ -20,6 +20,6 @@ Tags:
   - скриншот
   - запись-экрана
   - ocr
-ReleaseNotesUrl: https://github.com/snapoleon/snapoleon/releases/tag/v${{ VERSION }}
+ReleaseNotesUrl: https://github.com/EmpyEmpt/snapoleon/releases/tag/v${{ VERSION }}
 ManifestType: locale
 ManifestVersion: 1.6.0

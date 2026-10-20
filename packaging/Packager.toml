@@ -16,7 +16,7 @@ Snapoleon is a screenshot, screen recording, OCR and sharing tool written entire
 One hotkey selects a region and opens an instant toolbar; pipelines, destinations, a CLI and an
 MCP server sit behind it for people who want them. Private by default, with self-hostable links.
 """
-homepage = "https://github.com/snapoleon/snapoleon"
+homepage = "https://github.com/EmpyEmpt/snapoleon"
 authors = ["The Snapoleon contributors"]
 publisher = "Snapoleon"
 copyright = "Copyright (c) The Snapoleon contributors"

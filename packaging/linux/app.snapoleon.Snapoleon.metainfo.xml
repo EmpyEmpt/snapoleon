@@ -38,10 +38,10 @@
   </description>
   <launchable type="desktop-id">app.snapoleon.Snapoleon.desktop</launchable>
   <icon type="stock">app.snapoleon.Snapoleon</icon>
-  <url type="homepage">https://github.com/snapoleon/snapoleon</url>
-  <url type="bugtracker">https://github.com/snapoleon/snapoleon/issues</url>
-  <url type="vcs-browser">https://github.com/snapoleon/snapoleon</url>
-  <url type="contribute">https://github.com/snapoleon/snapoleon/blob/main/CONTRIBUTING.md</url>
+  <url type="homepage">https://github.com/EmpyEmpt/snapoleon</url>
+  <url type="bugtracker">https://github.com/EmpyEmpt/snapoleon/issues</url>
+  <url type="vcs-browser">https://github.com/EmpyEmpt/snapoleon</url>
+  <url type="contribute">https://github.com/EmpyEmpt/snapoleon/blob/main/CONTRIBUTING.md</url>
   <categories>
     <category>Graphics</category>
     <category>Utility</category>
