@@ -104,6 +104,8 @@ pub struct Config {
     pub oidc: OidcConfig,
 }
 
+const LEGACY_PROXY_HELP: &str = "list your reverse proxies' networks in `trusted_proxies` (SNAPOLEON_TRUSTED_PROXIES, comma-separated CIDRs)      and name the header they set in `proxy_header` (SNAPOLEON_PROXY_HEADER); without them every client is seen as the proxy's address";
+
 impl Default for Config {
     fn default() -> Self {
         Self {
@@ -131,10 +133,16 @@ impl Config {
         let mut cfg = match &path {
             Some(p) => {
                 let text = std::fs::read_to_string(p).with_context(|| format!("reading {}", p.display()))?;
+                if text.parse::<toml::Table>().is_ok_and(|t| t.contains_key("trust_proxy")) {
+                    bail!("{}: `trust_proxy` is no longer supported; {LEGACY_PROXY_HELP}", p.display());
+                }
                 toml::from_str(&text).with_context(|| format!("parsing {}", p.display()))?
             }
             None => Config::default(),
         };
+        if std::env::var_os("SNAPOLEON_TRUST_PROXY").is_some() {
+            bail!("SNAPOLEON_TRUST_PROXY is no longer supported; {LEGACY_PROXY_HELP}");
+        }
         cfg.apply_env()?;
         cfg.finish()?;
         Ok(cfg)

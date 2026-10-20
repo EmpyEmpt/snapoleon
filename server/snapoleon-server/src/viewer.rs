@@ -22,7 +22,7 @@ use crate::{
     db::Item,
     error::{AppError, PageError, PageResult},
     og::{self, Card, Hero},
-    state::{AppState, Client},
+    state::{AppState, Backoff, Client},
     storage::{self, PUBLIC_CACHE, PutMeta, SHORT_CACHE},
     util::{self, HOUR_MS, human_bytes, truncate},
     views::{self, Links, ViewerState},
@@ -152,6 +152,9 @@ struct UnlockForm {
     password: String,
 }
 
+const UNLOCK_BACKOFF: Backoff =
+    Backoff { free: 5, base: Duration::from_secs(1), cap: Duration::from_secs(30), horizon: Duration::from_secs(30) };
+
 async fn unlock(
     State(state): State<AppState>,
     Path(code): Path<String>,
@@ -164,12 +167,16 @@ async fn unlock(
         return Ok(Redirect::to(&format!("/{code}")).into_response());
     };
     state.limiter.check(&format!("unlock:{}:{}", client.ip, item.id), 8, Duration::from_secs(600))?;
-    // Guesses are also capped per item, so spreading them over many addresses does not help.
-    state.limiter.check(&format!("unlock-item:{}", item.id), 100, Duration::from_secs(3600))?;
+    // Guesses on one item are also spaced out with growing delays, so spreading them over many
+    // addresses does not help, yet the real recipient is only slowed down, never refused.
+    let item_key = format!("unlock-item:{}", item.id);
+    tokio::time::sleep(state.limiter.reserve(&item_key, &UNLOCK_BACKOFF).unwrap_or(UNLOCK_BACKOFF.horizon)).await;
     if !auth::verify_password(hash, form.password).await {
+        state.limiter.penalize(&item_key);
         let flash = Flash { wrong_password: true, comment_error: None, comment_sent: false };
         return render(&state, &headers, &item, flash, StatusCode::FORBIDDEN).await;
     }
+    state.limiter.forgive(&item_key);
     let mut resp = Redirect::to(&format!("/{code}")).into_response();
     resp.headers_mut().append(
         header::SET_COOKIE,
