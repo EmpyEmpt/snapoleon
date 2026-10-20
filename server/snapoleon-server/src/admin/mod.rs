@@ -24,7 +24,7 @@ use crate::{
     config::{Registration, StorageKind},
     db::NewUser,
     error::{AppError, PageResult},
-    state::{AppState, Client},
+    state::{AppState, Backoff, Client},
     util::human_bytes,
     views::{self, brand_link},
 };
@@ -265,6 +265,9 @@ async fn start_session(state: &AppState, user_id: String, to: &str) -> PageResul
     Ok(resp)
 }
 
+const LOGIN_BACKOFF: Backoff =
+    Backoff { free: 3, base: Duration::from_secs(1), cap: Duration::from_secs(60), horizon: Duration::from_secs(120) };
+
 async fn login(State(state): State<AppState>, client: Client, Form(form): Form<LoginForm>) -> PageResult<Response> {
     state.limiter.check(&format!("login:{}", client.ip), 10, Duration::from_secs(600))?;
     let bad = |state: &AppState| Ok((StatusCode::UNAUTHORIZED, login_markup(state, Some(&t("server.admin.login.failed")))).into_response());
@@ -276,18 +279,26 @@ async fn login(State(state): State<AppState>, client: Client, Form(form): Form<L
         };
     }
     let username = form.username.trim().to_string();
-    // Failures are counted per source and account, so a stranger cannot lock the real owner out.
+    // Failures are capped per source and account, and attempts on one account are spaced out with
+    // growing delays, so spread-out guessing is slow but a stranger cannot lock the real owner out.
     let failures = format!("login-fail:{}:{}", client.ip, username.to_lowercase());
     if state.limiter.exceeded(&failures, 5, Duration::from_secs(600)) {
         return Err(AppError::TooManyRequests.into());
     }
+    let account = format!("login-user:{}", username.to_lowercase());
+    let wait = state.limiter.reserve(&account, &LOGIN_BACKOFF).ok_or(AppError::TooManyRequests)?;
+    tokio::time::sleep(wait).await;
     let user = state.db.user_by_username(username).await?;
     let hash = user.as_ref().and_then(|u| u.password_hash.clone()).unwrap_or_else(|| dummy_hash().to_string());
     let verified = auth::verify_password(hash, form.password).await;
     match user {
-        Some(u) if verified && !u.disabled && u.password_hash.is_some() => start_session(&state, u.id, "/admin").await,
+        Some(u) if verified && !u.disabled && u.password_hash.is_some() => {
+            state.limiter.forgive(&account);
+            start_session(&state, u.id, "/admin").await
+        }
         _ => {
             state.limiter.allow(&failures, 5, Duration::from_secs(600));
+            state.limiter.penalize(&account);
             bad(&state)
         }
     }
