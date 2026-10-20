@@ -30,6 +30,8 @@ const MAX_IMAGE_ENTRY: u64 = 256 << 20;
 const MAX_SHAPES: usize = 10_000;
 /// Decoded pixels allowed across the base image and every embedded image together (512 MiB of RGBA).
 const MAX_PIXELS: u64 = 1 << 27;
+/// Widest aspect ratio (either way) a beautify preset may ask for.
+const MAX_ASPECT: u64 = 20;
 
 #[derive(Serialize)]
 struct Envelope<'a> {
@@ -98,11 +100,19 @@ pub fn load_project(path: &Path) -> Result<Document> {
     if !doc.shapes.iter().all(|shape| ids.insert(shape.id)) {
         return Err(bad("duplicate shape id"));
     }
-    // A path inside the file would make every render read whatever file or network share it names.
-    if let Some(preset) = &mut doc.beautify
-        && matches!(preset.background, Background::Image { .. })
-    {
-        preset.background = Background::Transparent;
+    if let Some(preset) = &mut doc.beautify {
+        // A path inside the file would make every render read whatever file or network share it names.
+        if matches!(preset.background, Background::Image { .. }) {
+            preset.background = Background::Transparent;
+        }
+        // An extreme ratio would make every render allocate an enormous canvas.
+        if let Some((w, h)) = preset.aspect.map(|(w, h)| (u64::from(w), u64::from(h)))
+            && w > 0
+            && h > 0
+            && (w > MAX_ASPECT * h || h > MAX_ASPECT * w)
+        {
+            return Err(bad("beautify aspect ratio"));
+        }
     }
 
     let mut pixels = 0;

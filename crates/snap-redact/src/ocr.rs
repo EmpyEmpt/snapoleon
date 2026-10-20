@@ -25,8 +25,9 @@ pub fn fold_digits(text: &str) -> String {
 fn fold(c: char) -> char {
     match c {
         'O' | 'o' => '0',
-        'l' | 'I' | '|' => '1',
+        'l' | 'I' | '|' | '!' => '1',
         'S' => '5',
+        'B' => '8',
         other => other,
     }
 }

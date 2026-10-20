@@ -54,7 +54,8 @@ pub struct UploadRequest<'a> {
     pub file_name: &'a str,
     pub mime: &'a str,
     pub title: Option<&'a str>,
-    /// Honoured by the team server only.
+    /// Honoured by the team server only. `Some(0)` asks for a link that never expires; `None` leaves it to the server's
+    /// default.
     pub expiry_hours: Option<u32>,
     /// Honoured by the team server only.
     pub password: Option<&'a str>,

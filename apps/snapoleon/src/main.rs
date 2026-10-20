@@ -55,7 +55,7 @@ fn main() -> ExitCode {
 fn run_headless(cli: Cli) -> ExitCode {
     // Standard error carries warnings only: `snapoleon mcp` keeps standard output for the protocol, and the other
     // commands print their result there.
-    logging::init(logging::Sink::Console);
+    init_logging(logging::Sink::Console);
     match cli::run(cli) {
         Ok(code) => ExitCode::from(code.clamp(0, 255) as u8),
         Err(e) => {
@@ -69,14 +69,14 @@ fn run_gui(request: Option<snap_core::ipc::Request>, background: bool, mut setti
     let dev = dev::Dev::from_env();
     // The dev harness never talks to (or replaces) the installed app.
     if dev.is_none() && snap_platform::ipc::instance_running() {
-        logging::init(logging::Sink::Console);
+        init_logging(logging::Sink::Console);
         return if ipc::forward(request, background) { ExitCode::SUCCESS } else { ExitCode::FAILURE };
     }
     // Nothing runs that could be told to quit: do not start the app only to end it.
     if dev.is_none() && request == Some(snap_core::ipc::Request::Quit) {
         return ExitCode::SUCCESS;
     }
-    logging::init(logging::Sink::Application);
+    init_logging(logging::Sink::Application);
 
     let policy = Policy::load();
     if let Some(dev) = &dev {
@@ -97,6 +97,17 @@ fn run_gui(request: Option<snap_core::ipc::Request>, background: bool, mut setti
             eprintln!("{e}");
             ExitCode::FAILURE
         }
+    }
+}
+
+/// Starts logging, then repeats what `load_settings` could only say before there was a log.
+fn init_logging(sink: logging::Sink) {
+    logging::init(sink);
+    if snap_core::settings::is_read_only() {
+        tracing::warn!(
+            "settings file {} is unreadable; using defaults and leaving it untouched",
+            snap_core::paths::settings_file().display()
+        );
     }
 }
 

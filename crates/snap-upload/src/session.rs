@@ -62,17 +62,8 @@ impl Session {
             State::Oauth(t) if t.refresh_token.is_some() => t.clone(),
             _ => return Ok(false),
         };
-        // Another upload or process may have refreshed already; spending the old refresh token again would fail.
-        if let Some(stored) =
-            self.secrets.get(&self.key).and_then(|raw| Tokens::from_json(&raw).ok()).filter(|t| t.access_token != current.access_token)
-        {
-            *self.state.lock() = State::Oauth(Tokens { client_id: current.client_id, ..stored });
-            return Ok(true);
-        }
         tracing::debug!(provider = current.provider.name(), "access token rejected, refreshing");
-        let fresh = current.refreshed()?;
-        self.secrets.set(&self.key, &fresh.to_json())?;
-        *self.state.lock() = State::Oauth(fresh);
+        *self.state.lock() = State::Oauth(oauth::refresh_stored(&self.key, &*self.secrets, &current)?);
         Ok(true)
     }
 }

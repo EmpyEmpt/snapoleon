@@ -117,7 +117,7 @@ pub(crate) fn save(engine: &Engine, img: &RgbaImage, cap: &Capture, opts: &SaveO
             let fmt = opts.format.unwrap_or(s.capture.format);
             let dir = opts.dir.clone().unwrap_or_else(|| paths::save_dir(&s.capture.save_dir));
             let template = opts.template.as_deref().unwrap_or(&s.capture.filename_template);
-            (reserve_path(&dir, &file_stem(engine, template, cap, smart::title(engine, img, cap).as_deref()), fmt)?, fmt)
+            (reserve_path(&dir, &file_stem(engine, template, cap, ai_title(engine, img, cap).as_deref()), fmt)?, fmt)
         }
     };
     let saved = snap_image::encode::save(img, &path, fmt, quality(&s, fmt), s.capture.optimize_png);
@@ -133,6 +133,19 @@ fn with_appended_ext(path: &Path, fmt: ImageFormat) -> PathBuf {
     let mut name = path.as_os_str().to_owned();
     name.push(format!(".{}", fmt.ext()));
     PathBuf::from(name)
+}
+
+/// The AI title for a file name, if smart names are on. An AI title describes the unredacted picture, so it is never
+/// requested when redaction is forced: the image would leave the machine uncovered, and the name would carry its content.
+fn ai_title(engine: &Engine, img: &RgbaImage, cap: &Capture) -> Option<String> {
+    if engine.policy().force_redact_before_upload { None } else { smart::title(engine, img, cap) }
+}
+
+/// The name an upload carries when redaction is forced: date and a random code only. Window title, app name, AI title
+/// and the on-disk name are all text the redaction never saw.
+fn neutral_name(ext: &str) -> String {
+    let stem = naming::expand("Snapoleon {yyyy}-{MM}-{dd} {HH}.{mm}.{ss} {rand:4}", &NameContext::now());
+    if ext.is_empty() { stem } else { format!("{stem}.{ext}") }
 }
 
 /// Expand the naming template for `cap`, or take the AI `title` instead; never empty and safe as a file name on every OS.
@@ -211,7 +224,11 @@ pub(crate) fn upload_file_with(
 ) -> Result<Link> {
     check_uploads_allowed(engine)?;
     let ext = path.extension().map(|e| e.to_string_lossy().into_owned()).unwrap_or_default();
-    let name = path.file_name().map_or_else(|| "file".to_string(), |n| n.to_string_lossy().into_owned());
+    let name = if engine.policy().force_redact_before_upload {
+        neutral_name(&ext)
+    } else {
+        path.file_name().map_or_else(|| "file".to_string(), |n| n.to_string_lossy().into_owned())
+    };
     // Images that must be rewritten are small and go from memory; everything else (recordings above all) is streamed
     // from disk.
     let rewritten = prepare_file(engine, path)?;
@@ -248,9 +265,12 @@ pub(crate) fn upload_image(
     } else {
         snap_image::encode::encode(img, fmt, quality(&s, fmt), s.capture.optimize_png)?
     };
-    // An AI title describes the unredacted picture, so it stays home when redaction is forced.
-    let ai_title = if forced { None } else { smart::title(engine, img, cap) };
-    let name = format!("{}.{}", file_stem(engine, &s.capture.filename_template, cap, ai_title.as_deref()), fmt.ext());
+    let ai_title = ai_title(engine, img, cap);
+    let name = if forced {
+        neutral_name(fmt.ext())
+    } else {
+        format!("{}.{}", file_stem(engine, &s.capture.filename_template, cap, ai_title.as_deref()), fmt.ext())
+    };
     // The window title is text the redaction never saw, and context the user may have turned off.
     let title = cap.context.window_title.as_deref().filter(|_| s.privacy.record_context && !forced).or(ai_title.as_deref());
     finish_upload(engine, Body::Bytes(&bytes), &name, fmt.mime(), title, dest, Some(&cap.id), &LinkAccess::default(), progress, shorten)
@@ -302,14 +322,7 @@ fn finish_upload(
     let destination = resolve_destination(engine, dest)?;
     let expiry = access.expiry_hours.unwrap_or(engine.settings().links.expiry_hours);
     let uploader = snap_upload::uploader_for(&destination, &engine.secrets())?;
-    let req = UploadRequest {
-        body,
-        file_name: name,
-        mime,
-        title,
-        expiry_hours: (expiry > 0).then_some(expiry),
-        password: access.password.as_deref(),
-    };
+    let req = UploadRequest { body, file_name: name, mime, title, expiry_hours: Some(expiry), password: access.password.as_deref() };
     let done = uploader.upload(&req, progress)?;
     let mut link = Link {
         url: done.url,

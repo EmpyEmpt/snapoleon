@@ -1,6 +1,6 @@
 //! Localised display strings for capture data.
 
-use snap_core::{Error, t, tf};
+use snap_core::{t, tf};
 
 use crate::MonitorInfo;
 
@@ -23,17 +23,9 @@ pub fn role_label(role: &str) -> String {
     if label == key { role.to_string() } else { label.into_owned() }
 }
 
-/// User-facing text for a capture error. Permission errors get an explanatory, localised sentence.
-pub fn error_message(e: &Error) -> String {
-    match e {
-        Error::Permission(what) => {
-            let key = match what.as_ref() {
-                "Screen Recording" => "capture.permission.screen_recording",
-                "Accessibility" => "capture.permission.accessibility",
-                _ => return tf("capture.permission.needed", &[("what", what)]),
-            };
-            tf("capture.permission.needed", &[("what", &t(key))])
-        }
-        other => other.to_string(),
-    }
+/// The error for a missing macOS privacy permission, as the localised sentence users read; `name_key` is the
+/// `capture.permission.*` key of the permission's name.
+#[cfg(target_os = "macos")]
+pub(crate) fn permission_error(name_key: &str) -> snap_core::Error {
+    snap_core::Error::permission(tf("capture.permission.needed", &[("what", &t(name_key))]))
 }

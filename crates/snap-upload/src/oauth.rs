@@ -10,6 +10,7 @@ use std::{
 };
 
 use base64::{Engine as _, engine::general_purpose::URL_SAFE_NO_PAD};
+use parking_lot::Mutex;
 use rand::Rng;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
@@ -229,9 +230,35 @@ pub(crate) fn load_fresh(key: &str, secrets: &dyn SecretStore) -> Result<Option<
         return Ok(Some(tokens));
     }
     tracing::debug!(provider = tokens.provider.name(), "refreshing expired access token");
-    let fresh = tokens.refreshed()?;
-    secrets.set(key, &fresh.to_json())?;
-    Ok(Some(fresh))
+    refresh_stored(key, secrets, &tokens).map(Some)
+}
+
+/// Serialises refreshes within the process: providers such as Box accept a refresh token once, so two uploads
+/// refreshing at the same time would have the second one fail.
+static REFRESH: Mutex<()> = Mutex::new(());
+
+/// New tokens for `stale`, written back to the store. Another upload or process may have refreshed already, which
+/// the store shows (checked under the lock, and again if the exchange fails, for a refresh in another process); its
+/// tokens are used instead of spending the old refresh token again.
+pub(crate) fn refresh_stored(key: &str, secrets: &dyn SecretStore, stale: &Tokens) -> Result<Tokens> {
+    let _one_at_a_time = REFRESH.lock();
+    let newer = || {
+        secrets
+            .get(key)
+            .and_then(|raw| Tokens::from_json(&raw).ok())
+            .filter(|t| t.access_token != stale.access_token)
+            .map(|t| Tokens { client_id: stale.client_id.clone(), ..t })
+    };
+    if let Some(tokens) = newer() {
+        return Ok(tokens);
+    }
+    match stale.refreshed() {
+        Ok(fresh) => {
+            secrets.set(key, &fresh.to_json())?;
+            Ok(fresh)
+        }
+        Err(e) => newer().ok_or(e),
+    }
 }
 
 fn token_request(

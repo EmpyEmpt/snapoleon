@@ -1,9 +1,9 @@
 //! Single-instance IPC.
 //!
 //! Transport is a local socket (named pipe `\\.\pipe\snapoleon-<key>` on
-//! Windows, where `<key>` is a random secret kept in the user's data directory so no other
-//! account can create the pipe first; a Unix domain socket in `$XDG_RUNTIME_DIR` or a private
-//! temp directory elsewhere) carrying one newline-delimited JSON
+//! Windows, created with a DACL that admits only the current user and checked by the client
+//! against the server process's user SID before anything is sent; a Unix domain socket in
+//! `$XDG_RUNTIME_DIR` or a private temp directory elsewhere) carrying one newline-delimited JSON
 //! [`Request`] and one [`Response`] per connection.
 //!
 //! [`serve`] doubles as the single-instance check: it fails with
@@ -15,9 +15,8 @@ use std::sync::atomic::{AtomicBool, Ordering};
 use std::thread::JoinHandle;
 use std::time::{Duration, Instant};
 
-use interprocess::ConnectWaitMode;
 use interprocess::local_socket::traits::Listener as _;
-use interprocess::local_socket::{ConnectOptions, Listener, ListenerOptions, Name, Stream};
+use interprocess::local_socket::{Listener, ListenerOptions, Name, Stream};
 use snap_core::ipc::{Request, Response};
 use snap_core::{Error, Result};
 
@@ -44,6 +43,13 @@ impl std::error::Error for AlreadyRunning {}
 pub fn is_already_running(e: &Error) -> bool {
     matches!(e, Error::Other(inner) if inner.is::<AlreadyRunning>())
 }
+
+/// The client end of a connection. On Windows it is a plain file handle, opened for identification only and checked
+/// against the server's user; `interprocess` cannot set those flags.
+#[cfg(windows)]
+type Client = std::fs::File;
+#[cfg(unix)]
+type Client = Stream;
 
 type Handler = Arc<dyn Fn(Request) -> Response + Send + Sync>;
 
@@ -150,7 +156,7 @@ fn handle(stream: Stream, handler: &Handler) {
 
 fn bind() -> Result<Listener> {
     let name = socket_name()?;
-    let err = match ListenerOptions::new().name(name.clone()).create_sync() {
+    let err = match listener_options(name.clone())?.create_sync() {
         Ok(listener) => return Ok(listener),
         Err(e) => e,
     };
@@ -162,69 +168,177 @@ fn bind() -> Result<Listener> {
     if connect_once().is_ok() {
         return Err(Error::Other(anyhow::Error::new(AlreadyRunning)));
     }
-    reclaim_stale(name)
+    reclaim_stale(name, err)
 }
 
 #[cfg(unix)]
-fn reclaim_stale(name: Name<'static>) -> Result<Listener> {
+fn reclaim_stale(name: Name<'static>, _err: std::io::Error) -> Result<Listener> {
     let _ = std::fs::remove_file(socket_path().map_err(Error::Io)?);
-    ListenerOptions::new().name(name).create_sync().map_err(Error::Io)
+    listener_options(name)?.create_sync().map_err(Error::Io)
 }
 
-#[cfg(not(unix))]
-fn reclaim_stale(_name: Name<'static>) -> Result<Listener> {
-    Err(Error::Other(anyhow::Error::new(AlreadyRunning)))
+/// The pipe exists but nobody we trust serves it: another account holds the name.
+#[cfg(windows)]
+fn reclaim_stale(_name: Name<'static>, err: std::io::Error) -> Result<Listener> {
+    Err(Error::Io(err))
 }
 
-fn connect_once() -> std::io::Result<Stream> {
+#[cfg(unix)]
+fn listener_options(name: Name<'static>) -> Result<ListenerOptions<'static>> {
+    Ok(ListenerOptions::new().name(name))
+}
+
+/// Only the current user may open the pipe; the default DACL would also admit other accounts.
+#[cfg(windows)]
+fn listener_options(name: Name<'static>) -> Result<ListenerOptions<'static>> {
+    use interprocess::os::windows::local_socket::ListenerOptionsExt as _;
+    Ok(ListenerOptions::new().name(name).security_descriptor(win::owner_only_descriptor().map_err(Error::Io)?))
+}
+
+fn connect_once() -> std::io::Result<Client> {
+    open_client()
+}
+
+#[cfg(unix)]
+fn open_client() -> std::io::Result<Client> {
+    use interprocess::local_socket::ConnectOptions;
     ConnectOptions::new().name(socket_name().map_err(|e| std::io::Error::other(e.to_string()))?).connect_sync()
 }
 
+/// Open the pipe so the server can only identify us (never impersonate), and use it only if its process runs as this
+/// user. Any other server is treated as no server: whoever holds the name is not our instance.
+#[cfg(windows)]
+fn open_client() -> std::io::Result<Client> {
+    use std::os::windows::fs::OpenOptionsExt;
+    use windows::Win32::Storage::FileSystem::SECURITY_IDENTIFICATION;
+
+    let path = format!(r"\\.\pipe\snapoleon-{}", win::endpoint_key()?);
+    let pipe = std::fs::OpenOptions::new().read(true).write(true).security_qos_flags(SECURITY_IDENTIFICATION.0).open(path)?;
+    match win::served_by_current_user(&pipe) {
+        Ok(true) => Ok(pipe),
+        Ok(false) => {
+            tracing::warn!("ipc: the pipe is served by another user; treating Snapoleon as not running");
+            Err(std::io::ErrorKind::NotFound.into())
+        }
+        Err(e) => {
+            tracing::warn!("ipc: cannot identify the pipe's server ({e}); treating Snapoleon as not running");
+            Err(std::io::ErrorKind::NotFound.into())
+        }
+    }
+}
+
 /// Connect, retrying briefly while the server is between pipe instances.
-fn connect(timeout: Duration) -> std::io::Result<Stream> {
-    let name = socket_name().map_err(|e| std::io::Error::other(e.to_string()))?;
+fn connect(timeout: Duration) -> std::io::Result<Client> {
     let deadline = Instant::now() + timeout;
     loop {
-        let left = deadline.saturating_duration_since(Instant::now());
-        match ConnectOptions::new().name(name.clone()).wait_mode(ConnectWaitMode::Timeout(left)).connect_sync() {
+        match open_client() {
             Ok(s) => return Ok(s),
             Err(e) if matches!(e.kind(), std::io::ErrorKind::NotFound | std::io::ErrorKind::ConnectionRefused) => return Err(e),
-            Err(e) if left.is_zero() => return Err(e),
+            Err(e) if Instant::now() >= deadline => return Err(e),
             Err(_) => std::thread::sleep(Duration::from_millis(25)),
         }
     }
 }
 
-/// The pipe namespace is global and open to every account, so a name derived from the user name could be created
-/// first by another user, who would then receive every request (or just keep the app from starting). The name carries a
-/// random key stored in the user's own data directory instead, which other accounts cannot read.
 #[cfg(windows)]
 fn socket_name() -> Result<Name<'static>> {
     use interprocess::local_socket::{GenericNamespaced, ToNsName};
-    format!("snapoleon-{}", endpoint_key().map_err(Error::Io)?).to_ns_name::<GenericNamespaced>().map_err(Error::Io)
+    format!("snapoleon-{}", win::endpoint_key().map_err(Error::Io)?).to_ns_name::<GenericNamespaced>().map_err(Error::Io)
 }
 
 #[cfg(windows)]
-fn endpoint_key() -> std::io::Result<String> {
-    use std::hash::{BuildHasher, Hasher};
+mod win {
+    use std::os::windows::io::{AsRawHandle, FromRawHandle, OwnedHandle};
 
-    let path = snap_core::paths::data_dir().join("ipc.key");
-    let read = || std::fs::read_to_string(&path).map(|k| k.trim().to_owned()).ok().filter(|k| k.len() == 32);
-    if let Some(key) = read() {
-        return Ok(key);
+    use interprocess::os::windows::security_descriptor::SecurityDescriptor;
+    use widestring::U16CString;
+    use windows::Win32::Foundation::{HANDLE, HLOCAL, LocalFree};
+    use windows::Win32::Security::Authorization::ConvertSidToStringSidW;
+    use windows::Win32::Security::{GetLengthSid, GetTokenInformation, PSID, TOKEN_QUERY, TOKEN_USER, TokenUser};
+    use windows::Win32::System::Pipes::GetNamedPipeServerProcessId;
+    use windows::Win32::System::Threading::{GetCurrentProcess, OpenProcess, OpenProcessToken, PROCESS_QUERY_LIMITED_INFORMATION};
+
+    /// A descriptor whose only ACE gives the current user's SID full access, with inheritance from the parent blocked.
+    pub fn owner_only_descriptor() -> std::io::Result<SecurityDescriptor> {
+        let sid = user_sid(unsafe { GetCurrentProcess() })?;
+        let mut text = windows::core::PWSTR::null();
+        // SAFETY: `sid` is a valid SID copied out of a token, and `text` receives a LocalAlloc'd string.
+        unsafe { ConvertSidToStringSidW(PSID(sid.as_ptr() as *mut _), &mut text)? };
+        let sid_text = unsafe { text.to_string() };
+        // SAFETY: the string came from ConvertSidToStringSidW and is not used again.
+        unsafe { LocalFree(Some(HLOCAL(text.0.cast()))) };
+        let sddl =
+            U16CString::from_str(format!("D:P(A;;GA;;;{})", sid_text.map_err(std::io::Error::other)?)).map_err(std::io::Error::other)?;
+        SecurityDescriptor::deserialize(&sddl)
     }
-    // Each `RandomState` is seeded from the OS, so two of them give 128 unpredictable bits.
-    let bits = || std::hash::RandomState::new().build_hasher().finish();
-    let key = format!("{:016x}{:016x}", bits(), bits());
-    std::fs::create_dir_all(snap_core::paths::data_dir())?;
-    match std::fs::OpenOptions::new().write(true).create_new(true).open(&path) {
-        Ok(mut file) => {
-            file.write_all(key.as_bytes())?;
-            Ok(key)
+
+    /// Whether the process serving `pipe` runs as the same user as this one.
+    pub fn served_by_current_user(pipe: &std::fs::File) -> std::io::Result<bool> {
+        let mut pid = 0u32;
+        // SAFETY: the handle is a live pipe handle owned by `pipe`.
+        unsafe { GetNamedPipeServerProcessId(HANDLE(pipe.as_raw_handle()), &mut pid)? };
+        // SAFETY: the handle returned is owned from here on.
+        let server = unsafe { OwnedHandle::from_raw_handle(OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION, false, pid)?.0) };
+        Ok(user_sid(HANDLE(server.as_raw_handle()))? == user_sid(unsafe { GetCurrentProcess() })?)
+    }
+
+    /// The binary SID of the user a process runs as.
+    fn user_sid(process: HANDLE) -> std::io::Result<Vec<u8>> {
+        let mut token = HANDLE::default();
+        // SAFETY: `process` is a valid process handle; the token handle is owned from here on.
+        let token = unsafe {
+            OpenProcessToken(process, TOKEN_QUERY, &mut token)?;
+            OwnedHandle::from_raw_handle(token.0)
+        };
+        // 8-byte aligned and far larger than a TOKEN_USER with the longest possible SID.
+        let mut buf = [0u64; 64];
+        let mut len = 0u32;
+        // SAFETY: the buffer size passed is its real size.
+        unsafe {
+            GetTokenInformation(
+                HANDLE(token.as_raw_handle()),
+                TokenUser,
+                Some(buf.as_mut_ptr().cast()),
+                size_of_val(&buf) as u32,
+                &mut len,
+            )?
+        };
+        // SAFETY: GetTokenInformation filled the buffer with a TOKEN_USER whose SID lives inside it.
+        let sid = unsafe { (*buf.as_ptr().cast::<TOKEN_USER>()).User.Sid };
+        // SAFETY: `sid` points at a valid SID, GetLengthSid gives its size.
+        Ok(unsafe { std::slice::from_raw_parts(sid.0.cast::<u8>(), GetLengthSid(sid) as usize) }.to_vec())
+    }
+
+    /// A random per-user pipe name suffix kept in the data directory, so the name cannot be squatted before the app
+    /// first runs. The security does not rest on it: the DACL and the client's identity check do. A missing, empty
+    /// or corrupt file is replaced.
+    pub fn endpoint_key() -> std::io::Result<String> {
+        use std::hash::{BuildHasher, Hasher};
+
+        let dir = snap_core::paths::data_dir();
+        let path = dir.join("ipc.key");
+        let read = || std::fs::read_to_string(&path).map(|k| k.trim().to_owned()).ok().filter(|k| k.len() == 32);
+        if let Some(key) = read() {
+            return Ok(key);
         }
-        // Another process created it between our read and now.
-        Err(e) if e.kind() == std::io::ErrorKind::AlreadyExists => read().ok_or(e),
-        Err(e) => Err(e),
+        // Each `RandomState` is seeded from the OS, so two of them give 128 unpredictable bits.
+        let bits = || std::hash::RandomState::new().build_hasher().finish();
+        let key = format!("{:016x}{:016x}", bits(), bits());
+        std::fs::create_dir_all(&dir)?;
+        // Written whole under a private name first, so a reader never sees a half-written key.
+        let staged = dir.join(format!("ipc.key.{}", std::process::id()));
+        std::fs::write(&staged, &key)?;
+        // Linking fails when the file exists. A valid key there came from a concurrent starter and wins; anything
+        // else (an empty or corrupt file, a volume without hard links) is overwritten.
+        let result = match std::fs::hard_link(&staged, &path) {
+            Ok(()) => Ok(key),
+            Err(_) => match read() {
+                Some(winner) => Ok(winner),
+                None => std::fs::rename(&staged, &path).map(|()| key),
+            },
+        };
+        let _ = std::fs::remove_file(&staged);
+        result
     }
 }
 
