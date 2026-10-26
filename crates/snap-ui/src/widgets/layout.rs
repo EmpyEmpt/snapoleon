@@ -88,7 +88,13 @@ pub fn setting_row<R>(ui: &mut Ui, label: &str, desc: &str, control: impl FnOnce
     };
     let mut child = ui.new_child(UiBuilder::new().max_rect(band).layout(Layout::right_to_left(Align::Center)));
     let inner = util::with_control_name(&mut child, label, control);
-    let used = child.min_rect().size();
+    let mut used = child.min_rect().size();
+    // A centred right-to-left child reports the whole band as its height, and the band is sized from last frame's
+    // height plus padding: taken as the control's height, every frame would add the padding again. Only a control
+    // that overflows the band says how tall it really is.
+    if used.y <= band.height() + 0.5 {
+        used.y = prev.y;
+    }
     if (used - prev).abs().max_elem() > 0.5 {
         ui.data_mut(|d| d.insert_temp(id, used));
         ui.ctx().request_repaint();
