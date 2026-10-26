@@ -73,7 +73,10 @@ that go into docs, slides or social posts.
 ### Find it again
 
 <p align="center">
-  <img src="docs/images/library.png" width="760" alt="The Snapoleon library with screenshots grouped by app and filters for screenshots, recordings and favorites">
+  <picture>
+    <source media="(prefers-color-scheme: light)" srcset="docs/images/library-light.png">
+    <img src="docs/images/library.png" width="760" alt="The Snapoleon library with screenshots grouped by app and filters for screenshots, recordings and favorites">
+  </picture>
 </p>
 
 Every capture lands in the **Library**. Search it by the text inside the pictures, by the app or window it came
