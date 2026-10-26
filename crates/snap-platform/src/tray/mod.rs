@@ -118,4 +118,11 @@ impl Tray {
     pub fn set_tooltip(&mut self, tooltip: &str) {
         self.inner.set_tooltip(tooltip);
     }
+
+    /// Draw the eye to the icon for a moment, after the app's last window closed and it lives on in the menu bar only.
+    /// macOS blinks the status item a few times; other trays have no such call, so nothing happens there.
+    pub fn flash(&mut self) {
+        #[cfg(target_os = "macos")]
+        self.inner.flash();
+    }
 }

@@ -114,10 +114,14 @@ impl Onboarding {
         !wants_permissions() || self.live.get(Perm::ScreenRecording) == Status::Granted
     }
 
-    /// Mark the first run as done, once, and optionally close the window.
+    /// Mark the first run as done, once, and optionally close the window. Every caller ends with the window gone, so
+    /// the end of the very first run also says where the app went.
     fn finish(&mut self, cx: &mut ViewCx, close: bool) {
         if !self.done {
             self.done = true;
+            if !cx.settings.general.first_run_done {
+                cx.push(Command::FirstRunDone);
+            }
             cx.update_settings(|s| s.general.first_run_done = true);
         }
         if close {
@@ -438,7 +442,7 @@ fn files_card(ui: &mut Ui, cx: &mut ViewCx) {
             .inner_margin(egui::Margin::symmetric(12, 6))
             .show(ui, |ui| {
                 ui.set_width((ui.available_width() - 110.0).max(120.0));
-                ui.add(egui::Label::new(text::mono_text(folder.display().to_string())).truncate());
+                ui.add(egui::Label::new(text::mono_text(paths::display(&folder))).truncate());
             });
         if widgets::secondary_button(ui, &t("onboarding.files.choose")).clicked() {
             let configured = cx.settings.capture.save_dir.clone();

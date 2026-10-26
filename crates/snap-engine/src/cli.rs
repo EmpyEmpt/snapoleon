@@ -22,7 +22,7 @@ mod headless;
 mod system;
 
 pub use headless::run;
-pub use system::install_cli;
+pub use system::{install_cli, installed_cli};
 
 #[derive(Debug, Parser)]
 #[command(name = "snapoleon", version, about = "Screenshots, recording, OCR and sharing")]

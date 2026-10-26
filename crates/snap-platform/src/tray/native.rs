@@ -98,6 +98,31 @@ impl Backend {
         }
     }
 
+    /// Highlight the status item on and off, as if it was clicked, `FLASHES` times.
+    #[cfg(target_os = "macos")]
+    pub fn flash(&mut self) {
+        use std::cell::Cell;
+        use std::ptr::NonNull;
+
+        use objc2_foundation::NSTimer;
+
+        const FLASHES: u32 = 3;
+        let Some(button) = status_button(&self.tray) else { return };
+        let ticks = Cell::new(0u32);
+        let blink = block2::RcBlock::new(move |timer: NonNull<NSTimer>| {
+            let tick = ticks.get() + 1;
+            ticks.set(tick);
+            button.highlight(tick % 2 == 1);
+            if tick >= 2 * FLASHES {
+                // SAFETY: the timer passes itself, and it is alive for the duration of the call.
+                unsafe { timer.as_ref() }.invalidate();
+            }
+        });
+        // SAFETY: a scheduled timer fires on the run loop of the thread that scheduled it, which is this one: the main
+        // thread (`status_button` checked), the only thread that touches the button.
+        let _timer = unsafe { NSTimer::scheduledTimerWithTimeInterval_repeats_block(0.3, true, &blink) };
+    }
+
     pub fn set_tooltip(&mut self, tooltip: &str) {
         if let Err(e) = self.tray.set_tooltip(Some(tooltip)) {
             tracing::warn!("tray tooltip: {e}");

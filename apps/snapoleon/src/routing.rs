@@ -72,6 +72,7 @@ impl App {
             Command::OpenLibrary => self.open_with(sh, views::library::open),
             Command::OpenSettings { page } => self.open_with(sh, |cx| views::settings::open(cx, page)),
             Command::OpenOnboarding => self.open_with(sh, views::onboarding::open),
+            Command::FirstRunDone => self.first_run_hint(),
             Command::OpenAbout => self.open_with(sh, views::about::open),
             Command::ShowText { title, text } => self.open_with(sh, |cx| views::text::open(cx, title, text)),
             Command::ShowCodes { title, text, codes } => self.open_with(sh, |cx| views::text::open_with_codes(cx, title, text, codes)),
@@ -101,6 +102,7 @@ impl App {
                 Ok(image) => self.cmds.push(Command::OpenPin { image, origin: None }),
                 Err(e) => self.report_error(sh, &e),
             },
+            Command::FixPermission(perm) => crate::notices::fix_permission(perm),
             Command::CopyText(text) => {
                 if let Err(e) = snap_platform::clipboard::set_text(&text) {
                     self.report_error(sh, &e);

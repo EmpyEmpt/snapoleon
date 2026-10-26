@@ -3,9 +3,12 @@
 use std::path::PathBuf;
 
 use egui::{Align2, Context, Id, Margin, Order, Stroke};
-use snap_core::{Error, ipc::Response, t};
+use snap_core::{Error, hotkey::Action, ipc::Response, t, tf};
 use snap_engine::{Notice, NoticeKind};
-use snap_platform::notify::{ActionLabels, NotifyAction, OsNotice};
+use snap_platform::{
+    notify::{ActionLabels, NotifyAction, OsNotice},
+    permissions::{self, Perm, Status},
+};
 use snap_shell::Shell;
 use snap_ui::{
     Toast, ToastKind, palette, radius,
@@ -38,6 +41,7 @@ pub(crate) fn action_labels() -> ActionLabels {
         reveal: t("app.notify.show_in_finder").into_owned(),
         copy_link: t("app.notice.copy_link").into_owned(),
         open_link: t("app.notify.open_link").into_owned(),
+        permission: t("app.permission.open_settings").into_owned(),
     }
 }
 
@@ -50,6 +54,27 @@ pub(crate) fn notify_command(action: NotifyAction) -> Command {
         NotifyAction::Reveal(file) => Command::Reveal(file),
         NotifyAction::CopyLink(url) => Command::CopyText(url),
         NotifyAction::OpenLink(url) => Command::OpenUrl(url),
+        NotifyAction::Permission(perm) => Command::FixPermission(perm),
+    }
+}
+
+/// The privacy permission a failed capture lacks, for a notice that offers to fix it; `None` for other errors and where
+/// no per-app permission exists. Errors only say a permission was missing, and Screen Recording is what fails first
+/// (the overlay, a capture, the first frame of a scrolling capture), so it is the one to name while it is off.
+pub(crate) fn missing_permission(e: &Error) -> Option<Perm> {
+    if !matches!(e, Error::Permission(_)) {
+        return None;
+    }
+    [Perm::ScreenRecording, Perm::Accessibility].into_iter().find(|p| !permissions::granted(*p))
+}
+
+/// What "Open System Settings" does: the system prompt while the permission is undecided (it also adds the app to the
+/// list in System Settings and has its own button there), the page in System Settings after that.
+pub(crate) fn fix_permission(perm: Perm) {
+    if permissions::status(perm) == Status::NotDetermined {
+        permissions::request(perm);
+    } else {
+        permissions::open_settings(perm);
     }
 }
 
@@ -84,24 +109,57 @@ impl App {
             };
             let text = if notice.body.is_empty() { notice.title.clone() } else { format!("{}: {}", notice.title, notice.body) };
             let toast = Toast::new(kind, text);
-            let toast = match (&notice.url, &notice.file) {
-                (Some(url), _) => toast
+            let toast = match (notice.permission, &notice.url, &notice.file) {
+                (Some(perm), ..) => {
+                    toast.action(t("app.permission.open_settings"), self.toast_actions.register(Command::FixPermission(perm)))
+                }
+                (None, Some(url), _) => toast
                     .action(t("app.notice.copy_link"), self.toast_actions.register(Command::CopyText(url.clone())))
                     .action(t("app.notice.show_qr"), self.toast_actions.register(Command::ShowQr(url.clone()))),
-                (None, Some(file)) => toast.action(show_in_folder(), self.toast_actions.register(Command::Reveal(file.clone()))),
-                (None, None) => toast,
+                (None, None, Some(file)) => toast.action(show_in_folder(), self.toast_actions.register(Command::Reveal(file.clone()))),
+                (None, None, None) => toast,
             };
             slot.toasts.push_toast(toast);
             sh.repaint(win);
         } else if notice.kind == NoticeKind::Error || self.settings.general.show_notifications {
             // Off the UI thread: the preview is copied for the notification (macOS) and the OS call may block.
             std::thread::spawn(move || {
-                let os = OsNotice { title: notice.title, body: notice.body, image: notice.image, file: notice.file, url: notice.url };
+                let os = OsNotice {
+                    title: notice.title,
+                    body: notice.body,
+                    image: notice.image,
+                    file: notice.file,
+                    url: notice.url,
+                    permission: notice.permission,
+                };
                 if let Err(e) = snap_platform::notify::show(&os) {
                     tracing::warn!("notification failed: {e}");
                 }
             });
         }
+    }
+
+    /// After the first run: the window closes and the app lives on in the menu bar (the tray elsewhere), where it is
+    /// easy to miss, all the more so in a crowded menu bar. A notification says where it went and how to capture, and
+    /// the icon blinks. Without a tray the app quits with its last window, so there is nothing to point at.
+    pub(crate) fn first_run_hint(&mut self) {
+        let Some(tray) = &mut self.tray else { return };
+        tray.flash();
+        if !self.settings.general.show_notifications {
+            return;
+        }
+        let accel = self.settings.hotkeys.iter().find(|b| b.enabled && b.action == Action::CaptureRegion && !b.accel.is_empty());
+        let body = match accel {
+            Some(binding) => tf("app.ready.body", &[("accel", &snap_ui::widgets::accel_text(&binding.accel))]),
+            None => t("app.ready.body_no_key").into_owned(),
+        };
+        // Straight to the OS: the onboarding window that is closing would otherwise take it as a toast.
+        let os = OsNotice { title: t("app.ready.title").into_owned(), body, ..OsNotice::default() };
+        std::thread::spawn(move || {
+            if let Err(e) = snap_platform::notify::show(&os) {
+                tracing::warn!("notification failed: {e}");
+            }
+        });
     }
 
     pub(crate) fn report_error(&mut self, sh: &mut Shell<AppEvent>, e: &snap_core::Error) {
@@ -141,13 +199,24 @@ impl App {
                     }
                 }
             }
-            Err(message) => {
+            Err(e) => {
+                let message = error_text(&e);
                 tracing::warn!("job '{}' failed: {message}", done.label);
                 reply_with(done.reply, Response::err(&message));
-                self.notice(
-                    sh,
-                    Notice { kind: NoticeKind::Error, title: t("app.error.job").into_owned(), body: message, ..Notice::default() },
-                );
+                // A capture without Screen Recording: the first time, the system prompt, which also lists the app in
+                // System Settings; every time, a notice that leads there.
+                let permission = missing_permission(&e);
+                if let Some(perm) = permission {
+                    permissions::request(perm);
+                }
+                let notice = Notice {
+                    kind: NoticeKind::Error,
+                    title: t("app.error.job").into_owned(),
+                    body: message,
+                    permission,
+                    ..Notice::default()
+                };
+                self.notice(sh, notice);
             }
         }
         self.refresh_tray();

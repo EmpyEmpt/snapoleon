@@ -5,10 +5,19 @@ use image::RgbaImage;
 use snap_core::{CaptureKind, Result, Settings, hotkey::Action, t};
 use snap_engine::{Notice, NoticeKind};
 use snap_history::Entry;
-use snap_platform::tray::{Tray, TrayEvent, TrayItem};
+use snap_platform::{
+    permissions::{self, Perm},
+    tray::{Tray, TrayEvent, TrayItem},
+};
 use snap_shell::{Proxy, Shell};
 
-use crate::{app::App, commands::Command, events::AppEvent, notices::error_text, views::colors::ColorToolInput};
+use crate::{
+    app::App,
+    commands::Command,
+    events::AppEvent,
+    notices::error_text,
+    views::{colors::ColorToolInput, settings::SettingsPage},
+};
 
 #[cfg(not(target_os = "macos"))]
 const ICON_SIZE: u32 = 32;
@@ -38,6 +47,8 @@ pub enum MenuAction {
     Combine,
     Compare,
     Colors,
+    /// Shown while Screen Recording is off (macOS), without which no capture works.
+    AllowScreenRecording,
     Quit,
 }
 
@@ -52,6 +63,7 @@ impl MenuAction {
             "combine" => Some(MenuAction::Combine),
             "compare" => Some(MenuAction::Compare),
             "colors" => Some(MenuAction::Colors),
+            "allow_screen_recording" => Some(MenuAction::AllowScreenRecording),
             "quit" => Some(MenuAction::Quit),
             _ => match id.split_once(':')? {
                 ("action", key) => Action::from_key(key).map(MenuAction::Action),
@@ -118,6 +130,12 @@ fn menu(settings: &Settings, State { recent, recording, pins }: State) -> Vec<Tr
         TrayItem::new(format!("action:{}", a.key()), t(&format!("action.{}", a.key()))).accel(accel)
     };
     let mut items = Vec::new();
+    // macOS answers for Screen Recording once per process, so the item stays until the app restarts after the grant,
+    // and Settings > Privacy, which it opens, offers that restart.
+    if !permissions::granted(Perm::ScreenRecording) {
+        items.push(TrayItem::new("allow_screen_recording", t("app.permission.allow_screen_recording")));
+        items.push(TrayItem::separator());
+    }
     if let Some(last) = recent.first().filter(|e| Local::now().timestamp_millis() - e.created_ms < FRESH_MS) {
         items.extend(quick_actions(last));
         items.push(TrayItem::separator());
@@ -259,6 +277,12 @@ impl App {
                 Some(MenuAction::Combine) => self.cmds.push(Command::OpenCombine { images: Vec::new() }),
                 Some(MenuAction::Compare) => self.cmds.push(Command::OpenDiff { a: None, b: None }),
                 Some(MenuAction::Colors) => self.cmds.push(Command::OpenColorTool(ColorToolInput::Open)),
+                Some(MenuAction::AllowScreenRecording) => {
+                    // The system prompt while undecided, which also lists the app in System Settings; the Privacy
+                    // page shows the state, the way to System Settings and the relaunch the grant needs.
+                    permissions::request(Perm::ScreenRecording);
+                    self.cmds.push(Command::OpenSettings { page: Some(SettingsPage::Privacy) });
+                }
                 Some(MenuAction::Quit) => self.cmds.push(Command::Quit),
                 None => tracing::debug!("unknown tray item {id}"),
             },

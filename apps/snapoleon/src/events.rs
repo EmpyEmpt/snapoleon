@@ -50,7 +50,7 @@ pub struct HistoryChanged;
 
 pub struct JobDone {
     pub label: String,
-    pub result: Result<Outcome, String>,
+    pub result: Result<Outcome, snap_core::Error>,
     /// The job's steps produce text for the text window (OCR without copy, translation).
     pub show_text: bool,
     /// The engine already showed the text through `PipelineUi::show_text`.

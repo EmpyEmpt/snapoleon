@@ -445,6 +445,7 @@ impl<'a> Run<'a> {
             image,
             url: self.link.as_ref().map(|l| l.best().to_string()),
             file: self.file.clone(),
+            permission: None,
         });
     }
 

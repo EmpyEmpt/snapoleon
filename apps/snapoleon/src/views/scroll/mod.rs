@@ -267,10 +267,17 @@ impl View for ScrollView {
                         Err(snap_core::Error::Cancelled) => {}
                         Err(e) => {
                             tracing::warn!("scrolling capture failed: {e}");
+                            // Scrolling needs Accessibility, its frames Screen Recording. The first time, the system
+                            // prompt (which also lists the app in System Settings); every time, a notice that leads there.
+                            let permission = crate::notices::missing_permission(&e);
+                            if let Some(perm) = permission {
+                                snap_platform::permissions::request(perm);
+                            }
                             cx.notify(Notice {
                                 kind: NoticeKind::Error,
                                 title: t("scroll.error").into_owned(),
                                 body: crate::notices::error_text(&e),
+                                permission,
                                 ..Notice::default()
                             });
                         }

@@ -9,6 +9,8 @@ press_keys = "Нажмите клавиши…"
 not_set = "Не задано"
 esc_hint = "Esc — отмена"
 clear = "Сбросить сочетание"
+clear_hint = "Backspace — сброс"
+recording_tip = "Нажмите новое сочетание клавиш. Esc — отмена, Backspace — сброс сочетания."
 
 [ui.search]
 clear = "Очистить поиск"
@@ -23,3 +25,7 @@ px = "{n} пикс."
 
 [ui.toast]
 dismiss = "Скрыть"
+
+[macos.ui.hotkey]
+clear_hint = "⌫ — сброс"
+recording_tip = "Нажмите новое сочетание клавиш. Esc — отмена, Delete (⌫) — сброс сочетания."

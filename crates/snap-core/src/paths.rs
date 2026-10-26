@@ -111,6 +111,17 @@ pub fn save_dir(configured: &str) -> PathBuf {
     if configured.trim().is_empty() { default_save_dir() } else { PathBuf::from(shellexpand_home(configured)) }
 }
 
+/// `path` for people to read: under the home folder it starts with `~` on macOS and Linux, as those systems write it.
+pub fn display(path: &Path) -> String {
+    if !cfg!(windows)
+        && let Some(base) = directories::BaseDirs::new()
+        && let Ok(rest) = path.strip_prefix(base.home_dir())
+    {
+        return if rest.as_os_str().is_empty() { "~".to_string() } else { format!("~/{}", rest.display()) };
+    }
+    path.display().to_string()
+}
+
 fn shellexpand_home(p: &str) -> String {
     if let Some(rest) = p.strip_prefix("~/").or_else(|| p.strip_prefix("~\\"))
         && let Some(b) = directories::BaseDirs::new()
