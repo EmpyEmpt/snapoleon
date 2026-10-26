@@ -1088,3 +1088,11 @@ desc = "Add a snapoleon command to your PATH that runs this app, so terminals, s
 button = "Install…"
 done = "Command line tool installed"
 failed = "Could not install the command line tool"
+
+# --- Hotkeys: conflicts ------------------------------------------------------------------------------------------
+
+[settings.hotkeys.conflicts]
+taken = "{accel} is already used by “{action}”. Replace moves it here."
+replace = "Replace"
+system = "System"
+system_line = "“{action}”: {message}"

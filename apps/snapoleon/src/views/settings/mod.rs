@@ -22,7 +22,7 @@ mod capture;
 mod destinations;
 mod general;
 mod history;
-mod hotkeys;
+pub(crate) mod hotkeys;
 mod kit;
 mod links;
 mod pins;

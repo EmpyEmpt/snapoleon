@@ -44,8 +44,8 @@ someone = "Someone"
 
 [app.hotkey]
 conflict_title = "A hotkey could not be registered"
-conflict_body = "{accel}: {reason}"
 unavailable = "Global hotkeys are not available"
+system_title = "A hotkey is also a system shortcut"
 
 [app.recording]
 disabled = "Recording is turned off by your administrator"

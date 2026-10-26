@@ -49,6 +49,10 @@ pub struct Settings {
     pub ai: AiSettings,
     pub pins: PinSettings,
     pub beautify_presets: Vec<BeautifyPreset>,
+    /// [`crate::hotkey::DEFAULTS_REV`] the hotkeys were written with. A file without it predates the field (0), not
+    /// the current defaults, hence the field-level default.
+    #[serde(default)]
+    pub hotkeys_rev: u32,
 }
 
 impl Default for Settings {
@@ -71,6 +75,7 @@ impl Default for Settings {
             ai: AiSettings::default(),
             pins: PinSettings::default(),
             beautify_presets: default_beautify_presets(),
+            hotkeys_rev: crate::hotkey::DEFAULTS_REV,
         }
     }
 }
@@ -78,9 +83,22 @@ impl Default for Settings {
 impl Settings {
     pub fn load(path: &Path) -> Result<Settings> {
         match std::fs::read_to_string(path) {
-            Ok(s) => toml::from_str(&s).map_err(|e| crate::Error::invalid(format!("{}: {e}", path.display()))),
+            Ok(s) => {
+                let mut settings: Settings = toml::from_str(&s).map_err(|e| crate::Error::invalid(format!("{}: {e}", path.display())))?;
+                settings.migrate();
+                Ok(settings)
+            }
             Err(e) if e.kind() == std::io::ErrorKind::NotFound => Ok(Settings::default()),
             Err(e) => Err(e.into()),
+        }
+    }
+
+    /// Brings a file written by an older version up to date. Runs on every load and writes nothing: the result
+    /// reaches the file with the next save, and until then the same file migrates the same way again.
+    fn migrate(&mut self) {
+        if self.hotkeys_rev < crate::hotkey::DEFAULTS_REV {
+            crate::hotkey::migrate(&mut self.hotkeys, self.hotkeys_rev);
+            self.hotkeys_rev = crate::hotkey::DEFAULTS_REV;
         }
     }
 
