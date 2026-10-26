@@ -14,6 +14,88 @@ mod macos;
 #[cfg(windows)]
 mod windows;
 
+/// The app as a whole rather than one window: the app menu, OS requests (Apple Events), the activation policy and the
+/// native chrome around a title bar the app draws. Only macOS has these; the other systems get the plain behaviour.
+#[cfg(target_os = "macos")]
+#[path = "macos_app.rs"]
+pub(crate) mod app;
+
+#[cfg(not(target_os = "macos"))]
+pub(crate) mod app {
+    use snap_core::{Point, Rect};
+    use winit::{
+        event_loop::ActiveEventLoop,
+        monitor::MonitorHandle,
+        window::{Window, WindowAttributes},
+    };
+
+    use super::NewWindowArea;
+    use crate::{WindowSpec, proxy::AppHook};
+
+    pub(crate) fn install(_sink: Box<dyn Fn(AppHook) -> bool>) {}
+
+    pub(crate) fn start() -> Vec<AppHook> {
+        Vec::new()
+    }
+
+    pub(crate) fn build_menu() {}
+
+    pub(crate) fn set_regular(_regular: bool) {}
+
+    pub(crate) fn allow_terminate() -> bool {
+        false
+    }
+
+    pub(crate) fn chrome_attributes(attrs: WindowAttributes, _spec: &WindowSpec) -> WindowAttributes {
+        attrs
+    }
+
+    pub(crate) fn layout_title_bar(_window: &Window, _height: f32) -> Option<f32> {
+        None
+    }
+
+    pub(crate) fn title_bar_double_click(window: &Window) {
+        window.set_maximized(!window.is_maximized());
+    }
+
+    /// The whole monitor: winit knows no work area here. The OS places the window.
+    pub(crate) fn new_window_area(el: &ActiveEventLoop, at: Option<Point>) -> Option<NewWindowArea> {
+        let monitor = at.and_then(|p| monitor_at(el, p)).or_else(|| el.primary_monitor()).or_else(|| el.available_monitors().next())?;
+        let scale = monitor.scale_factor();
+        let (p, s) = (monitor.position(), monitor.size());
+        Some(NewWindowArea {
+            x: f64::from(p.x) / scale,
+            y: f64::from(p.y) / scale,
+            w: f64::from(s.width) / scale,
+            h: f64::from(s.height) / scale,
+            centre: false,
+        })
+    }
+
+    pub(crate) fn work_area(el: &ActiveEventLoop, at: Point) -> Option<Rect> {
+        monitor_at(el, at).map(|m| monitor_rect(&m))
+    }
+
+    fn monitor_at(el: &ActiveEventLoop, p: Point) -> Option<MonitorHandle> {
+        el.available_monitors().find(|m| monitor_rect(m).contains(p))
+    }
+
+    fn monitor_rect(m: &MonitorHandle) -> Rect {
+        let (p, s) = (m.position(), m.size());
+        Rect::new(p.x, p.y, s.width, s.height)
+    }
+}
+
+/// Where a new app window may go, in logical pixels of winit's desktop coordinates.
+pub(crate) struct NewWindowArea {
+    pub x: f64,
+    pub y: f64,
+    pub w: f64,
+    pub h: f64,
+    /// Centre the window in the area when the spec gives no position; otherwise the OS places it.
+    pub centre: bool,
+}
+
 #[cfg(not(any(windows, target_os = "macos")))]
 pub(crate) use linux::*;
 #[cfg(target_os = "macos")]

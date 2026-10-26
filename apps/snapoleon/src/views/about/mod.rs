@@ -41,7 +41,7 @@ struct AboutView;
 impl View for AboutView {
     fn ui(&mut self, cx: &mut ViewCx, ctx: &Context) {
         let title = t("about.title");
-        Chrome::new(&title).no_maximize().show(cx, ctx, |ui, cx| {
+        Chrome::new(&title).no_maximize().close_on_escape().show(cx, ctx, |ui, cx| {
             ScrollArea::vertical().auto_shrink([false, false]).show(ui, |ui| {
                 let width = (ui.available_width() - 2.0 * space::XL).clamp(280.0, 440.0);
                 ui.vertical_centered(|ui| {

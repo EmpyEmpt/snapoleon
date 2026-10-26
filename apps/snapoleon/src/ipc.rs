@@ -1,5 +1,7 @@
 //! Single-instance IPC: serving requests from the CLI, `snapoleon://` URLs and second launches,
-//! and forwarding this process's own request to the instance that already runs.
+//! and forwarding this process's own request to the instance that already runs. On macOS the
+//! system delivers links, documents and second launches to the running app itself (`OsRequest`);
+//! they take the same paths.
 
 use std::{path::PathBuf, time::Duration};
 
@@ -10,9 +12,9 @@ use snap_core::{
     ipc::{AppWindow, Request, Response},
     t,
 };
-use snap_engine::CaptureRequest;
+use snap_engine::{CaptureRequest, Notice, NoticeKind};
 use snap_platform::ipc::Server;
-use snap_shell::{Proxy, Shell};
+use snap_shell::{OsRequest, Proxy, Shell};
 
 use crate::{
     actions::mode_work,
@@ -93,6 +95,38 @@ fn link_action(action: Action) -> Option<Action> {
 }
 
 impl App {
+    /// A request from macOS: the app menu, the Dock, Finder and LaunchServices.
+    pub(crate) fn handle_os_request(&mut self, sh: &mut Shell<AppEvent>, request: OsRequest) {
+        match request {
+            // What a second launch does elsewhere (`forward` with no request).
+            OsRequest::Reopen => {
+                self.cmds.push(if self.settings.general.first_run_done { Command::OpenLibrary } else { Command::OpenOnboarding })
+            }
+            OsRequest::OpenUrl(url) => match snap_core::ipc::parse_url(&url) {
+                Some(request) => self.handle_os_ipc(sh, request),
+                None => self.os_request_failed(sh, t("app.ipc.link_refused").into_owned()),
+            },
+            OsRequest::OpenFile(path) => self.handle_os_ipc(sh, Request::Edit { path: path.to_string_lossy().into_owned() }),
+            OsRequest::About => self.cmds.push(Command::OpenAbout),
+            OsRequest::Settings => self.cmds.push(Command::OpenSettings { page: None }),
+            OsRequest::Quit => self.cmds.push(Command::Quit),
+        }
+    }
+
+    /// [`App::handle_request`] for a request nobody waits on: a refusal (a link that may not start its action, a
+    /// file that is gone) becomes a notice instead.
+    fn handle_os_ipc(&mut self, sh: &mut Shell<AppEvent>, request: Request) {
+        let (reply, answer) = crossbeam_channel::bounded(1);
+        self.handle_request(sh, request, Some(reply));
+        if let Ok(Response { ok: false, error, .. }) = answer.try_recv() {
+            self.os_request_failed(sh, error.unwrap_or_default());
+        }
+    }
+
+    fn os_request_failed(&mut self, sh: &mut Shell<AppEvent>, error: String) {
+        self.notice(sh, Notice { kind: NoticeKind::Error, title: error, ..Notice::default() });
+    }
+
     /// Handle a request from the CLI, a URL or a second instance. `reply` is `None` for this
     /// process's own launch request.
     pub(crate) fn handle_request(&mut self, sh: &mut Shell<AppEvent>, request: Request, reply: Option<Sender<Response>>) {

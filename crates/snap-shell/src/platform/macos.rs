@@ -20,7 +20,7 @@ pub(crate) fn window_attributes(_el: &ActiveEventLoop, attrs: WindowAttributes, 
     if spec.cover.is_some() { attrs.with_has_shadow(false).with_movable_by_window_background(false) } else { attrs }
 }
 
-fn ns_window(window: &Window) -> Option<Retained<NSWindow>> {
+pub(crate) fn ns_window(window: &Window) -> Option<Retained<NSWindow>> {
     let RawWindowHandle::AppKit(h) = window.window_handle().ok()?.as_raw() else {
         return None;
     };

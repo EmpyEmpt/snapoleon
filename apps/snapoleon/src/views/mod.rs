@@ -9,13 +9,13 @@
 
 use std::{any::Any, collections::HashMap, sync::OnceLock};
 
-use egui::{Context, Ui};
+use egui::{Context, Key, SystemTheme, Ui, ViewportCommand};
 use snap_core::{Error, RgbaImage, Settings, t};
 use snap_engine::{Engine, Notice, NoticeKind};
 use snap_shell::{Proxy, Shell, WindowKey, WindowSpec};
 use snap_ui::{
-    Toast, ToastKind, Toasts, palette,
-    widgets::{TitleBarActions, title_bar_with},
+    Toast, ToastKind, Toasts, palette, space,
+    widgets::{TITLE_BAR_HEIGHT, TitleBarActions, title_bar_with},
 };
 
 use crate::{
@@ -191,14 +191,16 @@ pub fn app_icon() -> RgbaImage {
     ICON.get_or_init(|| snap_ui::app_icon_rgba(64)).clone()
 }
 
-/// A standard app window: custom title bar (so no OS decorations), rounded, resizable, app icon.
-/// `size` and `min` are logical pixels.
+/// A standard app window: the app's own title bar ([`Chrome`]), resizable, app icon. On macOS the window keeps the
+/// system's traffic lights, rounded corners and shadow around that title bar; elsewhere it has no OS decorations and
+/// is rounded where the OS can (Windows 11). `size` and `min` are logical pixels; the shell fits them to small screens.
 pub fn window_spec(title: impl Into<String>, tag: &str, size: (f32, f32), min: (f32, f32)) -> WindowSpec {
     WindowSpec {
         title: title.into(),
         size: Some(size),
         min_size: Some(min),
         decorations: false,
+        title_bar: Some(TITLE_BAR_HEIGHT),
         rounded: true,
         icon: Some(app_icon()),
         tag: tag.into(),
@@ -216,17 +218,24 @@ type CenterSlot<'a> = Box<dyn FnOnce(&mut Ui) + 'a>;
 pub struct Chrome<'a> {
     title: &'a str,
     maximize: bool,
+    close_on_escape: bool,
     center: Option<CenterSlot<'a>>,
 }
 
 impl<'a> Chrome<'a> {
     pub fn new(title: &'a str) -> Self {
-        Self { title, maximize: true, center: None }
+        Self { title, maximize: true, close_on_escape: false, center: None }
     }
 
-    /// For dialog-like windows: no maximize button.
+    /// For dialog-like windows: no maximize button (on macOS a greyed-out green one).
     pub fn no_maximize(mut self) -> Self {
         self.maximize = false;
+        self
+    }
+
+    /// Escape closes the window, as it does a dialog, unless a text field or another widget has the keyboard.
+    pub fn close_on_escape(mut self) -> Self {
+        self.close_on_escape = true;
         self
     }
 
@@ -237,9 +246,12 @@ impl<'a> Chrome<'a> {
     }
 
     pub fn show<R>(self, cx: &mut ViewCx, ctx: &Context, body: impl FnOnce(&mut Ui, &mut ViewCx) -> R) -> R {
+        // macOS: the system's traffic lights sit over the left end of the bar (see `window_spec`).
+        let native = cx.shell.title_bar_inset(cx.win);
         let mut actions = TitleBarActions {
             maximized: ctx.input(|i| i.viewport().maximized).unwrap_or(false),
             show_maximize: self.maximize,
+            native_controls: native.map(|inset| if inset > 0.0 { inset + space::MD } else { 0.0 }),
             ..TitleBarActions::default()
         };
         let center = self.center;
@@ -259,9 +271,38 @@ impl<'a> Chrome<'a> {
                 })
                 .inner
         });
+        if self.close_on_escape && !ctx.egui_wants_keyboard_input() && ctx.input(|i| i.key_pressed(Key::Escape)) {
+            actions.close = true;
+        }
         actions.apply(ctx);
-        paint_outline(ctx);
+        if actions.double_clicked {
+            cx.shell.title_bar_double_clicked(cx.win);
+        }
+        if native.is_some() {
+            sync_native_controls(ctx, self.maximize);
+        } else {
+            paint_outline(ctx);
+        }
         out
+    }
+}
+
+/// macOS: the traffic lights are the system's. Keep the green button and their light or dark look in step with the
+/// view; the window is only told when something changed. The system also draws the window's outline.
+fn sync_native_controls(ctx: &Context, maximize: bool) {
+    let dark = ctx.theme() == egui::Theme::Dark;
+    let id = egui::Id::unique("snap-native-controls");
+    let last = ctx.data(|d| d.get_temp::<(bool, bool)>(id));
+    if last == Some((maximize, dark)) {
+        return;
+    }
+    ctx.data_mut(|d| d.insert_temp(id, (maximize, dark)));
+    // A new window has all three buttons and follows the system's appearance.
+    if last.map_or(!maximize, |(was, _)| was != maximize) {
+        ctx.send_viewport_cmd(ViewportCommand::EnableButtons { close: true, minimized: true, maximize });
+    }
+    if last.is_none_or(|(_, was)| was != dark) {
+        ctx.send_viewport_cmd(ViewportCommand::SetTheme(if dark { SystemTheme::Dark } else { SystemTheme::Light }));
     }
 }
 
