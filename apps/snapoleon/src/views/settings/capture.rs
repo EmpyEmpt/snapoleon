@@ -33,7 +33,7 @@ pub fn show(ui: &mut Ui, rc: &mut Rows, cx: &mut ViewCx, set: &mut snap_core::Se
         let default_dir = paths::default_save_dir().display().to_string();
         rc.row(ui, "capture.save_dir", |ui| {
             if widgets::ghost_button(ui, &s("open")).clicked() {
-                cx.push(Command::OpenPath(paths::save_dir(&c.save_dir)));
+                cx.push(Command::OpenPath(kit::ensure_save_dir(&c.save_dir)));
             }
             kit::path_field(ui, cx, &mut c.save_dir, &default_dir, Pick::SaveDir, 300.0);
         });

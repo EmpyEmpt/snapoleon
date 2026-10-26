@@ -4,6 +4,7 @@ skip = "Skip"
 next = "Next"
 back = "Back"
 finish = "Start using Snapoleon"
+finish_without = "Continue without screenshots"
 
 [onboarding.hotkey]
 title = "Capture with one key"
@@ -18,6 +19,7 @@ title = "Choose where files go"
 body = "Pick a folder for your screenshots and what should happen after each one."
 folder = "Save folder"
 choose = "Choose…"
+choose_title = "Choose a folder for your screenshots"
 after = "After a capture"
 after_hint = "This runs when a hotkey does not name its own pipeline. You can change it anytime in Settings."
 no_steps = "No steps"
@@ -25,19 +27,28 @@ no_steps = "No steps"
 [onboarding.permissions]
 title = "Allow Snapoleon to see your screen"
 body = "macOS asks before an app can capture the screen. Grant what you need now."
-restart = "After you allow screen recording, macOS may ask you to quit and reopen Snapoleon."
+restart = "After you allow screen recording, macOS asks you to quit and reopen Snapoleon."
 required = "Required"
 granted = "Allowed"
 allow = "Allow"
-open_settings = "Open system settings"
+open_settings = "Open System Settings"
+relaunch = "Relaunch Snapoleon"
+relaunch_hint = "Turned it on in System Settings? macOS applies it only after Snapoleon restarts. If it is still not allowed after that, reset it and allow it again."
+reset = "Reset"
+reset_hint = "Forget the answer given before, so macOS asks again."
+reset_failed = "Could not reset the permission"
 
 [onboarding.permissions.screen]
-title = "Screen recording"
+title = "Screen & System Audio Recording"
 body = "Needed for every screenshot and recording."
 
 [onboarding.permissions.accessibility]
 title = "Accessibility"
-body = "Lets Snapoleon snap to buttons and read window titles."
+body = "Lets Snapoleon snap to buttons and fields, read the page address in browsers, and scroll for scrolling captures."
+
+[onboarding.permissions.input]
+title = "Input Monitoring"
+body = "Shows the keys you press in recordings."
 
 [onboarding.permissions.microphone]
 title = "Microphone"

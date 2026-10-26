@@ -1081,3 +1081,6 @@ label = "Reset all settings"
 desc = "Back to the defaults. Destinations and saved secrets are kept."
 button = "Reset…"
 confirm = "Reset all settings"
+
+[settings.privacy.permissions]
+section = "Permissions"

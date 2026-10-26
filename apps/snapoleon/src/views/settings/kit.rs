@@ -468,18 +468,30 @@ pub fn path_field_ltr(ui: &mut Ui, cx: &mut ViewCx, value: &mut String, hint: &s
     }
 }
 
-/// Open the native chooser starting at `current`.
+/// Open the native chooser starting at `current`, or at its nearest folder that exists.
 pub fn browse(cx: &mut ViewCx, current: &str, target: Pick) {
-    let start = PathBuf::from(current);
+    let current = current.to_owned();
     cx.spawn(move || {
         let mut dialog = rfd::FileDialog::new();
-        let dir = if start.is_dir() { Some(start.clone()) } else { start.parent().filter(|p| p.is_dir()).map(PathBuf::from) };
-        if let Some(dir) = dir {
+        let start = if matches!(target, Pick::SaveDir) { ensure_save_dir(&current) } else { PathBuf::from(&current) };
+        if let Some(dir) = start.ancestors().find(|p| p.is_dir()) {
             dialog = dialog.set_directory(dir);
         }
         let path = if target.is_folder() { dialog.pick_folder() } else { dialog.pick_file() };
         Msg::Picked { target, path }
     });
+}
+
+/// The save folder, created when it is missing. The first save creates it anyway; until then opening it fails and a
+/// folder chooser started in it falls back to Documents.
+pub fn ensure_save_dir(configured: &str) -> PathBuf {
+    let dir = snap_core::paths::save_dir(configured);
+    if !dir.is_dir()
+        && let Err(e) = std::fs::create_dir_all(&dir)
+    {
+        tracing::warn!("cannot create the save folder {}: {e}", dir.display());
+    }
+    dir
 }
 
 /// A destructive button with inline confirmation: the first click arms it, the second confirms.

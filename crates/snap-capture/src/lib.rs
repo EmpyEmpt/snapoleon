@@ -149,3 +149,8 @@ pub fn scroll_at(p: Point, notches: i32) -> Result<()> {
     ensure_dpi_aware();
     platform::scroll_at(p, notches)
 }
+
+/// Placeholder for the capture package's ScreenCaptureKit consent priming, so the permissions UI can call it once
+/// Screen Recording is granted. The integrator replaces it with the real function (macOS).
+#[cfg(target_os = "macos")]
+pub fn prime_capture_consent() {}
