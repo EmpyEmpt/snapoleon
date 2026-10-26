@@ -51,7 +51,7 @@ pub fn show(ui: &mut Ui, rc: &mut Rows, cx: &mut ViewCx, set: &mut snap_core::Se
     rc.section(ui, &s("capture.section.behavior"), |ui, rc| {
         rc.toggle(ui, "capture.include_cursor", &mut c.include_cursor);
         rc.toggle(ui, "capture.hide_desktop_icons", &mut c.hide_desktop_icons);
-        rc.number(ui, "capture.delay_secs", &mut c.delay_secs, 0..=60, " s");
+        rc.number(ui, "capture.delay_secs", &mut c.delay_secs, 0..=60, &snap_core::t("settings.recording.secs_unit"));
         rc.segments(ui, "capture.hdr", &mut c.hdr, &hdr);
         rc.toggle(ui, "capture.window_shadow", &mut c.window_shadow);
     });

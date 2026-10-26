@@ -243,7 +243,7 @@ fn system_card(ui: &mut Ui, cx: &mut ViewCx, lines: &[String], conflict: &System
                 }
                 ui.add_space(space::XS);
                 if widgets::secondary_button(ui, &conflict.open_label).clicked() {
-                    cx.push(Command::OpenUrl(conflict.settings_url.to_owned()));
+                    cx.push(Command::OpenSystemSettings(conflict.settings_url));
                 }
             });
         });

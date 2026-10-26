@@ -123,6 +123,11 @@ impl App {
                     self.report_error(sh, &e);
                 }
             }
+            Command::OpenSystemSettings(url) => {
+                if let Err(e) = snap_platform::open::system_settings(url) {
+                    self.report_error(sh, &e);
+                }
+            }
             Command::Open(open) => self.open_with(sh, open),
             Command::Quit => self.quit(sh),
         }

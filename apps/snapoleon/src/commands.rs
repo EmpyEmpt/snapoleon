@@ -132,6 +132,8 @@ pub enum Command {
     Reveal(PathBuf),
     OpenPath(PathBuf),
     OpenUrl(String),
+    /// One of the app's own links into the OS settings app (`snap_platform::open::system_settings`).
+    OpenSystemSettings(&'static str),
     /// Escape hatch for a view that needs another window of its own: the closure runs on the UI
     /// thread with an `OpenCx`. Build the new view *inside* the closure (views are not `Send`).
     Open(Box<dyn FnOnce(&mut OpenCx) + Send>),

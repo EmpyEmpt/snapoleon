@@ -103,7 +103,10 @@ pub fn blocked() -> bool {
 /// Open the OS page where notifications for the app are allowed (macOS).
 pub fn open_settings() -> Result<()> {
     #[cfg(target_os = "macos")]
-    return crate::open::url(&format!("x-apple.systempreferences:com.apple.Notifications-Settings.extension?id={}", snap_core::APP_ID));
+    return crate::open::system_settings(&format!(
+        "x-apple.systempreferences:com.apple.Notifications-Settings.extension?id={}",
+        snap_core::APP_ID
+    ));
     #[cfg(not(target_os = "macos"))]
     Err(snap_core::Error::unsupported("notification settings"))
 }

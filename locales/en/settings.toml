@@ -1147,6 +1147,10 @@ lv = "Latvian"
 et = "Estonian"
 ca = "Catalan"
 fa = "Persian"
+mr = "Marathi"
+bn = "Bengali"
+ta = "Tamil"
+ur = "Urdu"
 
 [macos.settings.secret]
 stored = "Saved in the Keychain"
