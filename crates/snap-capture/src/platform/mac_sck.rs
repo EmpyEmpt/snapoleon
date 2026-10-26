@@ -515,13 +515,28 @@ pub(crate) fn grab_window(id: u64, o: &CaptureOptions) -> Result<WindowGrab> {
             (window_image(&filter, o.include_cursor)?, false)
         }
     };
-    // The image decides the size: ScreenCaptureKit's window bounds can be taller than the window list's, and the
-    // system shadow adds a margin around the frame, taken as centred.
-    let (dx, dy) =
-        if shadow { ((image.width() as i32 - frame.w as i32) / 2, (image.height() as i32 - frame.h as i32) / 2) } else { (0, 0) };
+    // The image decides the size: ScreenCaptureKit's window bounds can be taller than the window list's. The system
+    // shadow is symmetric sideways but deeper below the window than above it (more so for the key window), so the top
+    // margin is measured, not halved.
+    let (dx, dy) = if shadow { shadow_offset(&image, frame) } else { (0, 0) };
     let screen_rect = Rect::new(frame.x - dx, frame.y - dy, image.width(), image.height());
     let centre = Point::new(frame.x + (frame.w / 2) as i32, frame.y + (frame.h / 2) as i32);
     Ok(WindowGrab { image, screen_rect, tone_mapped: hdr_at(&layout, centre), shadow })
+}
+
+/// Where the window body sits inside a capture with the system shadow: centred sideways, and vertically from the first
+/// fully opaque row down the middle, trusted only when the opaque run is the window's height (a translucent window
+/// falls back to a centred margin).
+fn shadow_offset(image: &RgbaImage, frame: Rect) -> (i32, i32) {
+    let (iw, ih) = image.dimensions();
+    let (mx, my) = (iw.saturating_sub(frame.w), ih.saturating_sub(frame.h));
+    let opaque = |y: &u32| iw > 0 && image.get_pixel(iw / 2, *y)[3] == 255;
+    let dy = match ((0..ih).find(opaque), (0..ih).rev().find(opaque)) {
+        // One pixel of slack for rounding at fractional scales.
+        (Some(top), Some(bottom)) if (bottom + 1 - top).abs_diff(frame.h) <= 1 && top <= my => top,
+        _ => my / 2,
+    };
+    ((mx / 2) as i32, dy as i32)
 }
 
 /// Whether a system prompt window is on screen: the screen capture approval, a Gatekeeper or a password prompt.
