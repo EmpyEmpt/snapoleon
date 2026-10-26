@@ -80,3 +80,7 @@ toolbar = "Toolbar"
 [capture.error]
 backend_crashed = "The screen capture service of this desktop failed. Run Snapoleon in an X11 session or install a desktop portal."
 input_blocked = "Input was blocked. The target window may be running as administrator."
+
+[capture.sck]
+failed = "macOS could not capture the screen: {reason}"
+timeout = "macOS did not deliver the screenshot in time. If a system prompt about screen recording is open, answer it and try again."

@@ -4,6 +4,7 @@
 use snap_core::Rect;
 use winit::{
     dpi::{PhysicalPosition, PhysicalSize},
+    event_loop::ActiveEventLoop,
     window::Window,
 };
 
@@ -21,15 +22,27 @@ pub(crate) use macos::*;
 #[cfg(windows)]
 pub(crate) use windows::*;
 
-/// Window rect in physical virtual-desktop pixels, as the OS reports it.
-pub(crate) fn outer_rect(window: &Window) -> Option<Rect> {
+/// Every monitor as winit reports it: physical rect in virtual-desktop space and scale factor.
+#[cfg_attr(target_os = "macos", allow(dead_code))]
+pub(crate) fn winit_monitors(el: &ActiveEventLoop) -> Vec<(Rect, f32)> {
+    el.available_monitors()
+        .map(|m| {
+            let (p, s) = (m.position(), m.size());
+            (Rect::new(p.x, p.y, s.width, s.height), m.scale_factor() as f32)
+        })
+        .collect()
+}
+
+/// Window rect in physical virtual-desktop pixels, as winit reports it.
+#[cfg_attr(target_os = "macos", allow(dead_code))]
+pub(crate) fn winit_outer_rect(window: &Window) -> Option<Rect> {
     let pos = window.outer_position().ok()?;
     let size = window.outer_size();
     Some(Rect::new(pos.x, pos.y, size.width, size.height))
 }
 
 /// Position and size a window through winit only (no native calls).
-#[cfg_attr(windows, allow(dead_code))]
+#[cfg_attr(any(windows, target_os = "macos"), allow(dead_code))]
 pub(crate) fn winit_set_outer_rect(window: &Window, r: Rect) {
     let outer = window.outer_size();
     let inner = window.inner_size();

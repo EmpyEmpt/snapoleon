@@ -150,28 +150,7 @@ pub fn open(cx: &mut OpenCx, request: OverlayRequest) {
     if pool::active() {
         return;
     }
-    // Hiding the icons restarts Finder on macOS: that happens on a worker, which then opens the overlay.
-    #[cfg(target_os = "macos")]
-    if cx.settings.capture.hide_desktop_icons && !snap_capture::desktop_icons_hidden() {
-        return hide_icons_then_open(cx, request);
-    }
     open_frozen(cx, request);
-}
-
-/// Hide the desktop icons off the UI thread, then send the request back. The icons stay hidden for a few seconds after
-/// the worker lets go, which is when the UI thread freezes the screen and takes its own (instant) hold.
-#[cfg(target_os = "macos")]
-fn hide_icons_then_open(cx: &mut OpenCx, request: OverlayRequest) {
-    let (settings, proxy, retry) = (cx.settings.clone(), cx.proxy.clone(), request.clone());
-    let spawned = std::thread::Builder::new().name("snap-icons-hide".into()).spawn(move || {
-        let icons = snap_engine::icons_hidden(&settings);
-        proxy.send(crate::events::AppEvent::Command(crate::commands::Command::OpenOverlayIconsHidden(request)));
-        drop(icons);
-    });
-    if let Err(e) = spawned {
-        tracing::warn!("cannot hide the desktop icons off the UI thread: {e}");
-        open_frozen(cx, retry);
-    }
 }
 
 /// Freeze the screen, with the desktop icons out of the way when that is set, and open the covers.

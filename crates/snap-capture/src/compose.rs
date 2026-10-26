@@ -48,8 +48,9 @@ fn dominant(monitors: &[MonitorInfo], r: Rect) -> Option<&MonitorInfo> {
     monitors.iter().max_by_key(|m| m.rect.intersect(r).map_or(0, Rect::area)).filter(|m| m.rect.intersect(r).is_some())
 }
 
-/// Capture `area` (virtual-desktop pixels) from whichever monitors it touches.
-pub(crate) fn capture_area(monitors: &[MonitorInfo], area: Rect, kind: CaptureKind, o: &CaptureOptions) -> Result<Capture> {
+/// Pixels of `area` (virtual-desktop pixels) from whichever monitors it touches, with the cursor when asked for.
+/// Returns the part of `area` that lies on a monitor, its pixels, and whether any of them were tone-mapped.
+fn grab_area(monitors: &[MonitorInfo], area: Rect, o: &CaptureOptions) -> Result<(Rect, RgbaImage, bool)> {
     let parts: Vec<_> = monitors.iter().filter_map(|m| m.rect.intersect(area).map(|r| (m, r))).collect();
     if parts.is_empty() {
         return Err(Error::invalid("capture area is outside every monitor"));
@@ -73,13 +74,23 @@ pub(crate) fn capture_area(monitors: &[MonitorInfo], area: Rect, kind: CaptureKi
     if o.include_cursor {
         draw_cursor(&mut image, area.origin());
     }
+    Ok((area, image, tone_mapped))
+}
 
+/// Capture `area` (virtual-desktop pixels) from whichever monitors it touches.
+pub(crate) fn capture_area(monitors: &[MonitorInfo], area: Rect, kind: CaptureKind, o: &CaptureOptions) -> Result<Capture> {
+    let (area, image, tone_mapped) = grab_area(monitors, area, o)?;
     let scale = dominant(monitors, area).map_or(1.0, |m| m.scale_factor);
     let mut cap = Capture::new(kind, image, area, scale);
     cap.tone_mapped = tone_mapped;
     cap.context = foreground_context();
     cap.context.monitor_name = dominant(monitors, area).map(|m| m.name.clone());
     Ok(cap)
+}
+
+/// Just the pixels of `area`, without looking up any context.
+pub(crate) fn area_pixels(monitors: &[MonitorInfo], area: Rect, o: &CaptureOptions) -> Result<RgbaImage> {
+    grab_area(monitors, area, o).map(|(_, image, _)| image)
 }
 
 pub(crate) fn capture_window(id: u64, o: &CaptureOptions) -> Result<Capture> {
@@ -90,7 +101,7 @@ pub(crate) fn capture_window(id: u64, o: &CaptureOptions) -> Result<Capture> {
     let scale = dominant(&monitors, grab.screen_rect).map_or(1.0, |m| m.scale_factor);
 
     let (mut image, mut screen_rect) = (grab.image, grab.screen_rect);
-    if o.window_shadow {
+    if o.window_shadow && !grab.shadow {
         let margin = (SHADOW_MARGIN * scale).round() as u32;
         image = blit::with_shadow(&image, margin, (margin / 4) as i32, 0.45);
         screen_rect = screen_rect.inflate(margin as i32);

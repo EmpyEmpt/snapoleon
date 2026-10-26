@@ -47,15 +47,6 @@ impl<E: Send + 'static> Core<E> {
     }
 }
 
-pub(crate) fn monitor_list(el: &ActiveEventLoop) -> Vec<(Rect, f32)> {
-    el.available_monitors()
-        .map(|m| {
-            let (p, s) = (m.position(), m.size());
-            (Rect::new(p.x, p.y, s.width, s.height), m.scale_factor() as f32)
-        })
-        .collect()
-}
-
 /// Handle to the running shell, passed to every [`ShellApp`](crate::ShellApp)
 /// callback. It is only valid for the duration of that callback; use
 /// [`Shell::proxy`] to reach the shell from other threads.
@@ -146,7 +137,7 @@ impl<E: Send + 'static> Shell<'_, E> {
             platform::set_pill(&window, true);
         }
         if let Some(r) = spec.cover {
-            platform::place_cover(&window, r, &monitor_list(self.el));
+            platform::place_cover(&window, r);
         }
         let target = self.core.gfx.create_target(&window)?;
         Ok((window, target))
@@ -233,7 +224,7 @@ impl<E: Send + 'static> Shell<'_, E> {
             state.cover = Some(r);
             state.cover_attempts = 0;
             state.cover_dirty = true;
-            platform::place_cover(&state.window, r, &monitor_list(self.el));
+            platform::place_cover(&state.window, r);
         } else {
             platform::set_outer_rect(&state.window, r);
         }
@@ -296,7 +287,7 @@ impl<E: Send + 'static> Shell<'_, E> {
 
     /// Every monitor as (physical rect in virtual-desktop space, scale factor).
     pub fn monitors(&self) -> Vec<(Rect, f32)> {
-        monitor_list(self.el)
+        platform::monitors(self.el)
     }
 
     pub fn scale_factor(&self, w: WindowKey) -> Option<f32> {

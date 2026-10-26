@@ -2,9 +2,22 @@
 
 use std::thread::JoinHandle;
 
-use core_foundation::runloop::{CFRunLoop, kCFRunLoopCommonModes};
-use core_graphics::event::{CGEventTap, CGEventTapLocation, CGEventTapOptions, CGEventTapPlacement, CGEventType, CallbackResult};
-use snap_core::{Error, Point, Result, t};
+use core_foundation::{
+    base::{CFType, TCFType},
+    dictionary::{CFDictionary, CFDictionaryRef},
+    number::CFNumber,
+    runloop::{CFRunLoop, kCFRunLoopCommonModes},
+    string::CFString,
+};
+use core_graphics::{
+    event::{CGEventTap, CGEventTapLocation, CGEventTapOptions, CGEventTapPlacement, CGEventType, CallbackResult},
+    geometry::{CGPoint, CGRect},
+    window::{
+        copy_window_info, kCGNullWindowID, kCGWindowAlpha, kCGWindowBounds, kCGWindowLayer, kCGWindowListOptionOnScreenOnly,
+        kCGWindowOwnerPID,
+    },
+};
+use snap_core::{Error, Point, Result, geom::PointLayout, t};
 
 pub(crate) struct Hook {
     run_loop: CFRunLoop,
@@ -58,20 +71,34 @@ impl Drop for Hook {
     }
 }
 
-/// Event locations are in points; the capture crate works in physical pixels, scaled per monitor.
+/// Event locations are in points; the capture crate works in virtual-desktop pixels.
 fn to_pixels(x: f64, y: f64) -> Point {
-    let monitors = snap_capture::monitors().unwrap_or_default();
-    monitors
-        .iter()
-        .find_map(|m| {
-            let s = f64::from(m.scale_factor);
-            let (left, top) = (f64::from(m.rect.x) / s, f64::from(m.rect.y) / s);
-            let inside = x >= left && y >= top && x < left + f64::from(m.rect.w) / s && y < top + f64::from(m.rect.h) / s;
-            inside.then(|| Point::new((x * s).round() as i32, (y * s).round() as i32))
-        })
-        .unwrap_or_else(|| Point::new(x.round() as i32, y.round() as i32))
+    PointLayout::current().to_pixels(x, y)
 }
 
-pub(crate) fn is_own_window_at(_p: Point) -> bool {
-    false
+/// One pass over the window list, front to back: the first visible window under `p` decides. The menu bar and status
+/// items belong to other processes, so clicks on them count.
+pub(crate) fn is_own_window_at(p: Point) -> bool {
+    let (x, y) = PointLayout::current().to_points(p);
+    let at = CGPoint::new(x, y);
+    let Some(list) = copy_window_info(kCGWindowListOptionOnScreenOnly, kCGNullWindowID) else { return false };
+    // SAFETY: the keys are constant CoreGraphics strings.
+    let (pid_key, layer_key, bounds_key, alpha_key) = unsafe {
+        (
+            CFString::wrap_under_get_rule(kCGWindowOwnerPID),
+            CFString::wrap_under_get_rule(kCGWindowLayer),
+            CFString::wrap_under_get_rule(kCGWindowBounds),
+            CFString::wrap_under_get_rule(kCGWindowAlpha),
+        )
+    };
+    let owner = list.iter().find_map(|item| {
+        // SAFETY: every entry of the window list is a dictionary keyed by strings; the list keeps it alive.
+        let w: CFDictionary<CFString, CFType> = unsafe { CFDictionary::wrap_under_get_rule(*item as CFDictionaryRef) };
+        let number = |key: &CFString| w.find(key).and_then(|v| v.downcast::<CFNumber>());
+        let visible = number(&layer_key).and_then(|n| n.to_i64()).is_some_and(|l| l >= 0)
+            && number(&alpha_key).and_then(|n| n.to_f64()).is_none_or(|a| a > 0.0);
+        let bounds = w.find(&bounds_key).and_then(|v| v.downcast::<CFDictionary>()).and_then(|d| CGRect::from_dict_representation(&d));
+        (visible && bounds.is_some_and(|b| b.contains(&at))).then(|| number(&pid_key).and_then(|n| n.to_i64()))
+    });
+    owner.flatten() == Some(i64::from(std::process::id()))
 }

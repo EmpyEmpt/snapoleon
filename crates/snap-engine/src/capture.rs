@@ -49,20 +49,15 @@ pub(crate) fn capture(engine: &Engine, req: &CaptureRequest) -> Result<Capture> 
     }
 }
 
-/// Hide the desktop icons when the user asked for that, and wait for the shell to repaint. They come back when the
-/// guard is dropped. Every way of looking at the desktop takes this first. On macOS this restarts Finder, so it is
-/// slow the first time: call it off the UI thread (see `snap_capture::desktop_icons_hidden`).
+/// Hide the desktop icons on screen when the user asked for that (Windows), and wait for the shell to repaint. They
+/// come back when the guard is dropped. Every way of looking at the desktop takes this first. `None` on macOS, where
+/// the captures leave Finder's icons out themselves (`CaptureOptions::hide_desktop_icons`).
 pub fn icons_hidden(settings: &Settings) -> Option<snap_capture::DesktopIconsGuard> {
     if !settings.capture.hide_desktop_icons {
         return None;
     }
-    // Icons that are already hidden have had their time to repaint.
-    #[cfg(target_os = "macos")]
-    let settled = snap_capture::desktop_icons_hidden();
-    #[cfg(not(target_os = "macos"))]
-    let settled = false;
     let icons = snap_capture::hide_desktop_icons();
-    if icons.is_some() && !settled {
+    if icons.is_some() {
         std::thread::sleep(ICONS_SETTLE);
     }
     icons

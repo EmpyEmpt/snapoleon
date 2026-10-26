@@ -283,9 +283,6 @@ impl App {
         self.hotkeys = None;
         self.ipc = None;
         logging::clear_crash_report();
-        // A postponed restore of the desktop icons would not get to run.
-        #[cfg(target_os = "macos")]
-        snap_capture::restore_desktop_icons();
         sh.quit();
     }
 
