@@ -9,7 +9,7 @@ use objc2::{AllocAnyThread, DefinedClass, define_class, msg_send, rc::Retained, 
 use objc2_core_foundation::{CGPoint, CGRect, CGSize};
 use objc2_core_graphics::{
     CGDirectDisplayID, CGDisplayBounds, CGDisplayCopyDisplayMode, CGDisplayMode, CGMainDisplayID, CGPreflightScreenCaptureAccess,
-    CGRequestScreenCaptureAccess,
+    kCGColorSpaceSRGB,
 };
 use objc2_core_media::{CMSampleBuffer, CMTime};
 use objc2_core_video::{
@@ -163,8 +163,10 @@ fn ns_error(e: *mut NSError) -> Option<Error> {
 }
 
 fn shareable_content() -> Result<Retained<SCShareableContent>> {
+    // Asking belongs to an explicit user action (the recorder's preflight, the record command), not to every
+    // attempt to record: a system prompt from here would also pop up for scripted and repeated starts.
     if !CGPreflightScreenCaptureAccess() {
-        CGRequestScreenCaptureAccess();
+        return Err(Error::permission(t("record.error.screen_permission")));
     }
     let (tx, rx) = crossbeam_channel::bounded::<Result<Retained<SCShareableContent>>>(1);
     let block = RcBlock::new(move |content: *mut SCShareableContent, err: *mut NSError| {
@@ -193,11 +195,18 @@ pub(crate) fn open_source(spec: &SourceSpec, slot: Arc<FrameSlot>) -> Result<Box
     // SAFETY: reading immutable properties of SCK objects.
     let (displays, windows) = unsafe { (content.displays(), content.windows()) };
 
-    // Main display first, then SCK order: a stable index for `RecordTarget::Monitor`.
+    // The main display first, then by position: the order `snap_capture::monitors()` uses, so
+    // `RecordTarget::Monitor(i)` is the monitor the overlay showed as number i.
     let main = CGMainDisplayID();
     let mut ordered: Vec<Retained<SCDisplay>> = displays.iter().collect();
-    // SAFETY: reading the display id.
-    ordered.sort_by_key(|d| unsafe { d.displayID() } != main);
+    ordered.sort_by(|a, b| {
+        let key = |d: &SCDisplay| {
+            // SAFETY: reading the display id and frame.
+            let (id, f) = unsafe { (d.displayID(), d.frame()) };
+            (id != main, f.origin.x, f.origin.y)
+        };
+        key(a).partial_cmp(&key(b)).unwrap_or(std::cmp::Ordering::Equal)
+    });
 
     let excluded: Vec<Retained<SCWindow>> =
         windows.iter().filter(|w| spec.exclude_windows.contains(&(unsafe { w.windowID() } as u64))).collect();
@@ -287,6 +296,9 @@ pub(crate) fn open_source(spec: &SourceSpec, slot: Arc<FrameSlot>) -> Result<Box
         c.setMinimumFrameInterval(CMTime::new(1, spec.fps as i32));
         c.setShowsCursor(spec.show_cursor);
         c.setQueueDepth(6);
+        // Convert from the display's own colour space (often Display P3) to sRGB, which is what the
+        // encoder tags the video as; untagged P3 pixels play back with shifted colours.
+        c.setColorSpaceName(kCGColorSpaceSRGB);
         if let Some(r) = source_rect {
             c.setSourceRect(r);
         }

@@ -24,6 +24,9 @@ use self::windows as imp;
 use linux as imp;
 #[cfg(target_os = "macos")]
 use macos as imp;
+// Event taps replace the cross-platform listener on macOS only (see `input`).
+#[cfg(target_os = "macos")]
+pub(crate) use macos::{InputTaps, listen_input};
 
 /// Where sources publish their newest frame.
 #[derive(Default)]

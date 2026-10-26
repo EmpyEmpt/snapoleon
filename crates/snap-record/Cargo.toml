@@ -17,8 +17,11 @@ color_quant = "1.1"
 cpal = "0.18"
 gif = "0.14"
 libwebp-sys = "0.9"
-rdev = "0.5"
 tiny-skia = "0.12"
+
+# macOS reads input through its own event taps (src/platform/macos/input.rs).
+[target.'cfg(not(target_os = "macos"))'.dependencies]
+rdev = "0.5"
 
 [target.'cfg(windows)'.dependencies]
 windows-capture = "2.0.1"

@@ -4,14 +4,12 @@
 use std::time::{Duration, Instant};
 
 use ab_glyph::{Font, FontRef, PxScale, ScaleFont};
-use crossbeam_channel::Receiver;
-use rdev::{Button, Key};
 use snap_core::{Point, Result};
 use tiny_skia::{Color, FillRule, Paint, Path, PathBuilder, Pixmap, Stroke, Transform};
 
 use crate::{
     frame::Frame,
-    input::{self, InputEvent, Mods},
+    input::{self, Button, InputEvent, Key, Mods, Subscription},
 };
 
 use snap_core::fonts::INTER_SEMIBOLD as FONT_BYTES;
@@ -44,7 +42,7 @@ struct Chip {
 }
 
 pub(crate) struct Overlay {
-    rx: Receiver<InputEvent>,
+    input: Subscription,
     cfg: OverlayConfig,
     font: FontRef<'static>,
     cursor: Option<(f32, f32)>,
@@ -55,10 +53,10 @@ pub(crate) struct Overlay {
 
 impl Overlay {
     pub fn new(cfg: OverlayConfig, initial_cursor: Option<Point>) -> Result<Self> {
-        let rx = input::subscribe()?;
+        let input = input::subscribe(cfg.highlight, cfg.keystrokes)?;
         let font = FontRef::try_from_slice(FONT_BYTES).map_err(|e| snap_core::Error::Other(anyhow::anyhow!("overlay font: {e}")))?;
         Ok(Self {
-            rx,
+            input,
             cfg,
             font,
             cursor: initial_cursor.map(|p| (p.x as f32, p.y as f32)),
@@ -89,7 +87,7 @@ impl Overlay {
     }
 
     fn pump(&mut self, now: Instant) {
-        while let Ok(ev) = self.rx.try_recv() {
+        while let Ok(ev) = self.input.rx.try_recv() {
             match ev {
                 InputEvent::Move { x, y } => self.cursor = Some((x as f32, y as f32)),
                 InputEvent::ButtonDown { button, x, y } => {
@@ -113,7 +111,7 @@ impl Overlay {
             return;
         }
         if mods.any_command() {
-            self.chips.push(Chip { text: input::format_shortcut(mods, key), typing: false, last: now });
+            self.chips.push(Chip { text: input::format_shortcut(mods, &key), typing: false, last: now });
         } else if key == Key::Backspace {
             match self.chips.last_mut() {
                 Some(c) if c.typing && now.duration_since(c.last) < TYPING_JOIN => {
@@ -138,23 +136,23 @@ impl Overlay {
                 _ => self.chips.push(Chip { text: t, typing: true, last: now }),
             }
         } else {
-            self.chips.push(Chip { text: self.label(key), typing: false, last: now });
+            self.chips.push(Chip { text: self.label(&key), typing: false, last: now });
         }
         let excess = self.chips.len().saturating_sub(MAX_CHIPS);
         self.chips.drain(..excess);
     }
 
     /// Key label with a word fallback for glyphs the font lacks (arrows).
-    fn label(&self, key: Key) -> String {
+    fn label(&self, key: &Key) -> String {
         let label = input::key_label(key);
         if label.chars().all(|c| self.font.glyph_id(c).0 != 0) {
             return label;
         }
         match key {
-            Key::UpArrow => "Up",
-            Key::DownArrow => "Down",
-            Key::LeftArrow => "Left",
-            Key::RightArrow => "Right",
+            Key::Up => "Up",
+            Key::Down => "Down",
+            Key::Left => "Left",
+            Key::Right => "Right",
             _ => "?",
         }
         .to_string()

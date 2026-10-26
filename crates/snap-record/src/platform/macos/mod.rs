@@ -13,10 +13,12 @@ use objc2_core_media::{CMAudioFormatDescriptionGetStreamBasicDescription, CMBloc
 use snap_core::Point;
 
 mod capture;
+mod input;
 mod reader;
 mod writer;
 
 pub(crate) use capture::open_source;
+pub(crate) use input::{InputTaps, listen_input};
 pub(crate) use reader::open_decoder;
 pub(crate) use writer::{native_encoders, native_mp4_sink};
 
@@ -53,13 +55,19 @@ pub(super) fn pcm_f32(buffer: &CMSampleBuffer) -> Option<(Vec<f32>, u32, usize)>
         let asbd: *const AudioStreamBasicDescription = CMAudioFormatDescriptionGetStreamBasicDescription(&desc);
         let asbd = asbd.as_ref()?;
 
-        // Room for up to 8 buffers (planar layouts carry one per channel).
+        // Room for up to 8 buffers (planar layouts carry one per channel). Core Media wants the exact
+        // size of the list, not just enough room: AVAssetReader buffers reject a larger one with
+        // kCMSampleBufferError_ArrayTooSmall, so ask for the size first.
         let mut storage = [0u64; 64];
         let list = storage.as_mut_ptr().cast::<AudioBufferList>();
         let mut needed = 0usize;
-        let mut block: *mut CMBlockBuffer = ptr::null_mut();
         let status =
-            buffer.audio_buffer_list_with_retained_block_buffer(&mut needed, list, size_of_val(&storage), None, None, 0, &mut block);
+            buffer.audio_buffer_list_with_retained_block_buffer(&mut needed, ptr::null_mut(), 0, None, None, 0, ptr::null_mut());
+        if status != 0 || needed == 0 || needed > size_of_val(&storage) {
+            return None;
+        }
+        let mut block: *mut CMBlockBuffer = ptr::null_mut();
+        let status = buffer.audio_buffer_list_with_retained_block_buffer(ptr::null_mut(), list, needed, None, None, 0, &mut block);
         let _block = NonNull::new(block).map(|b| CFRetained::from_raw(b));
         if status != 0 {
             return None;
