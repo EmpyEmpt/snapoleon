@@ -1,7 +1,7 @@
 //! The capture "shutter" click, synthesised in memory (no asset to ship).
 //!
 //! Playback never blocks the caller and fails silently: a missing audio device
-//! must not break a screenshot.
+//! must not break a screenshot. macOS plays its own screenshot sound when the system has it.
 
 use std::sync::OnceLock;
 
@@ -108,11 +108,39 @@ mod imp {
 
 #[cfg(target_os = "macos")]
 mod imp {
-    use std::process::Command;
+    use std::path::Path;
+    use std::ptr::NonNull;
+    use std::sync::OnceLock;
 
+    use objc2_audio_toolbox::{AudioServicesCreateSystemSoundID, AudioServicesPlaySystemSoundWithCompletion, SystemSoundID};
+    use objc2_core_foundation::CFURL;
+
+    /// macOS's own screenshot sound, so a capture sounds like one taken with the system tool.
+    const SYSTEM_SHUTTER: &str =
+        "/System/Library/Components/CoreAudio.component/Contents/SharedSupport/SystemSounds/system/Screen Capture.aif";
+
+    fn sound_id() -> Option<SystemSoundID> {
+        static ID: OnceLock<Option<SystemSoundID>> = OnceLock::new();
+        *ID.get_or_init(|| {
+            let system = Path::new(SYSTEM_SHUTTER);
+            let file = if system.is_file() { system.to_path_buf() } else { super::wav_file()? };
+            let url = CFURL::from_file_path(&file)?;
+            let mut id: SystemSoundID = 0;
+            // SAFETY: `url` is a valid file URL and `id` a valid out pointer.
+            let status = unsafe { AudioServicesCreateSystemSoundID(&url, NonNull::from(&mut id)) };
+            if status != 0 {
+                tracing::debug!("shutter sound unavailable: OSStatus {status}");
+            }
+            (status == 0).then_some(id)
+        })
+    }
+
+    /// A system sound plays in-process without blocking, at the alert volume, and stays silent when the user turned
+    /// off "Play user interface sound effects".
     pub fn play(_wav: &'static [u8]) {
-        if let Some(file) = super::wav_file() {
-            let _ = crate::util::spawn_detached(Command::new("afplay").arg(file));
+        if let Some(id) = sound_id() {
+            // SAFETY: `id` came from AudioServicesCreateSystemSoundID and is never disposed.
+            unsafe { AudioServicesPlaySystemSoundWithCompletion(id, None) };
         }
     }
 }

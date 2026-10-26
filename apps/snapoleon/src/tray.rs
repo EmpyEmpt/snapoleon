@@ -1,26 +1,38 @@
 //! The tray icon and its menu.
 
 use chrono::{Local, TimeZone};
+use image::RgbaImage;
 use snap_core::{CaptureKind, Result, Settings, hotkey::Action, t};
+use snap_engine::{Notice, NoticeKind};
 use snap_history::Entry;
-use snap_platform::{
-    hotkeys,
-    tray::{Tray, TrayEvent, TrayItem},
-};
+use snap_platform::tray::{Tray, TrayEvent, TrayItem};
 use snap_shell::{Proxy, Shell};
 
-use crate::{app::App, commands::Command, events::AppEvent, views::colors::ColorToolInput};
+use crate::{app::App, commands::Command, events::AppEvent, notices::error_text, views::colors::ColorToolInput};
 
+#[cfg(not(target_os = "macos"))]
 const ICON_SIZE: u32 = 32;
+/// macOS: the glyph is 18 pt on the 22 pt status item, drawn at @2x; the menu bar scales it for @1x screens.
+#[cfg(target_os = "macos")]
+const ICON_CANVAS: u32 = 44;
+#[cfg(target_os = "macos")]
+const ICON_GLYPH: u32 = 36;
 const RECENT_LIMIT: usize = 8;
 const LABEL_LIMIT: usize = 38;
+/// How long the latest capture gets its quick actions at the top of the menu.
+const FRESH_MS: i64 = 10 * 60 * 1000;
 
 /// What a tray menu item stands for.
 pub enum MenuAction {
     Action(Action),
     Recent(String),
+    /// Copy a capture's image (a recording's file) to the clipboard.
+    CopyCapture(String),
+    /// Copy a capture's latest link, formatted per `settings.links.copy_format`.
+    CopyLink(String),
     Library,
     Settings,
+    About,
     ClosePins,
     UnlockPins,
     Combine,
@@ -34,6 +46,7 @@ impl MenuAction {
         match id {
             "library" => Some(MenuAction::Library),
             "settings" => Some(MenuAction::Settings),
+            "about" => Some(MenuAction::About),
             "close_pins" => Some(MenuAction::ClosePins),
             "unlock_pins" => Some(MenuAction::UnlockPins),
             "combine" => Some(MenuAction::Combine),
@@ -43,6 +56,8 @@ impl MenuAction {
             _ => match id.split_once(':')? {
                 ("action", key) => Action::from_key(key).map(MenuAction::Action),
                 ("recent", id) => Some(MenuAction::Recent(id.to_string())),
+                ("copy_capture", id) => Some(MenuAction::CopyCapture(id.to_string())),
+                ("copy_link", id) => Some(MenuAction::CopyLink(id.to_string())),
                 _ => None,
             },
         }
@@ -59,21 +74,34 @@ pub struct State<'a> {
 }
 
 pub fn create(proxy: Proxy<AppEvent>, settings: &Settings, state: State) -> Result<Tray> {
-    Tray::new(
-        &tooltip(state.recording),
-        &snap_ui::tray_icon_rgba(ICON_SIZE, state.recording),
-        menu(settings, state),
-        move |event: TrayEvent| {
-            proxy.send(AppEvent::Tray(event));
-        },
-    )
+    let mut tray = Tray::new(&tooltip(state.recording), &icon(state.recording), menu(settings, state), move |event: TrayEvent| {
+        proxy.send(AppEvent::Tray(event));
+    })?;
+    tray.set_recording(state.recording);
+    Ok(tray)
 }
 
 /// Rebuild after settings, history or the recording state changed.
 pub fn refresh(tray: &mut Tray, settings: &Settings, state: State) {
     tray.set_items(menu(settings, state));
-    tray.set_icon(&snap_ui::tray_icon_rgba(ICON_SIZE, state.recording));
+    tray.set_icon(&icon(state.recording));
+    tray.set_recording(state.recording);
     tray.set_tooltip(&tooltip(state.recording));
+}
+
+/// macOS: a black glyph for a template image, which the menu bar colours to match itself. Elsewhere: the glyph in
+/// the taskbar's ink, with a red dot while recording.
+fn icon(recording: bool) -> RgbaImage {
+    #[cfg(target_os = "macos")]
+    {
+        let glyph = snap_ui::tray_icon_rgba_colored(ICON_GLYPH, recording, [0, 0, 0, 255]);
+        let mut canvas = RgbaImage::new(ICON_CANVAS, ICON_CANVAS);
+        let inset = i64::from((ICON_CANVAS - ICON_GLYPH) / 2);
+        image::imageops::overlay(&mut canvas, &glyph, inset, inset);
+        canvas
+    }
+    #[cfg(not(target_os = "macos"))]
+    snap_ui::tray_icon_rgba(ICON_SIZE, recording)
 }
 
 pub fn tooltip(recording: bool) -> String {
@@ -86,10 +114,14 @@ pub fn recent_limit() -> usize {
 
 fn menu(settings: &Settings, State { recent, recording, pins }: State) -> Vec<TrayItem> {
     let action = |a: Action| {
-        let label = t(&format!("action.{}", a.key()));
-        TrayItem::new(format!("action:{}", a.key()), with_accelerator(settings, a, &label))
+        let accel = settings.hotkeys.iter().find(|b| b.enabled && b.action == a).map(|b| b.accel.clone());
+        TrayItem::new(format!("action:{}", a.key()), t(&format!("action.{}", a.key()))).accel(accel)
     };
     let mut items = Vec::new();
+    if let Some(last) = recent.first().filter(|e| Local::now().timestamp_millis() - e.created_ms < FRESH_MS) {
+        items.extend(quick_actions(last));
+        items.push(TrayItem::separator());
+    }
     if recording {
         items.push(action(Action::StopRecording));
         items.push(TrayItem::separator());
@@ -119,10 +151,28 @@ fn menu(settings: &Settings, State { recent, recording, pins }: State) -> Vec<Tr
     items.extend([
         recent_menu(recent),
         TrayItem::new("library", t("action.open_library")),
-        TrayItem::new("settings", t("action.open_settings")),
+        TrayItem::new("settings", t("app.menu.settings")).accel(mac_accel("Cmd+Comma")),
+        TrayItem::new("about", t("app.menu.about")),
         TrayItem::separator(),
-        TrayItem::new("quit", t("app.tray.quit")),
+        TrayItem::new("quit", t("app.tray.quit")).accel(mac_accel("Cmd+Q")),
     ]);
+    items
+}
+
+/// The key equivalents every Mac menu shows for Settings and Quit. They work while the menu is open.
+fn mac_accel(accel: &str) -> Option<String> {
+    cfg!(target_os = "macos").then(|| accel.to_string())
+}
+
+/// Open, copy and copy the link of a capture taken a moment ago, without going through the Library.
+fn quick_actions(entry: &Entry) -> Vec<TrayItem> {
+    let mut items = vec![
+        TrayItem::new(format!("recent:{}", entry.id), t("app.menu.open_last")),
+        TrayItem::new(format!("copy_capture:{}", entry.id), t("app.menu.copy_last")),
+    ];
+    if !entry.links.is_empty() {
+        items.push(TrayItem::new(format!("copy_link:{}", entry.id), t("app.menu.copy_last_link")));
+    }
     items
 }
 
@@ -172,17 +222,6 @@ fn recent_label(entry: &Entry) -> String {
     format!("{what}  ·  {when}")
 }
 
-/// Windows menus right-align text after a tab as the shortcut column; other platforms get the plain label.
-fn with_accelerator(settings: &Settings, action: Action, label: &str) -> String {
-    if !cfg!(windows) {
-        return label.to_string();
-    }
-    match settings.hotkeys.iter().find(|b| b.enabled && b.action == action) {
-        Some(binding) => format!("{label}\t{}", hotkeys::display(&binding.accel)),
-        None => label.to_string(),
-    }
-}
-
 impl App {
     pub(crate) fn recent(&self) -> Vec<snap_history::Entry> {
         let query = snap_history::Query { limit: recent_limit() as u32, ..snap_history::Query::default() };
@@ -210,8 +249,11 @@ impl App {
             TrayEvent::Menu(id) => match MenuAction::parse(&id) {
                 Some(MenuAction::Action(action)) => self.start_action(sh, action, None),
                 Some(MenuAction::Recent(id)) => self.open_recent(&id),
+                Some(MenuAction::CopyCapture(id)) => self.copy_capture(sh, &id),
+                Some(MenuAction::CopyLink(id)) => self.copy_capture_link(sh, &id),
                 Some(MenuAction::Library) => self.cmds.push(Command::OpenLibrary),
                 Some(MenuAction::Settings) => self.cmds.push(Command::OpenSettings { page: None }),
+                Some(MenuAction::About) => self.cmds.push(Command::OpenAbout),
                 Some(MenuAction::ClosePins) => self.cmds.push(Command::ClosePins),
                 Some(MenuAction::UnlockPins) => self.cmds.push(Command::UnlockPins),
                 Some(MenuAction::Combine) => self.cmds.push(Command::OpenCombine { images: Vec::new() }),
@@ -223,9 +265,56 @@ impl App {
         }
     }
 
+    fn history_entry(&self, id: &str) -> Option<Entry> {
+        self.engine.history().and_then(|h| h.get(&snap_core::CaptureId(id.to_string())).ok().flatten())
+    }
+
+    /// Run `work` off the UI thread; a failure becomes an error notice.
+    fn in_background(sh: &mut Shell<AppEvent>, work: impl FnOnce() -> Result<()> + Send + 'static) {
+        let proxy = sh.proxy();
+        std::thread::spawn(move || {
+            if let Err(e) = work() {
+                tracing::warn!("{e}");
+                let notice =
+                    Notice { kind: NoticeKind::Error, title: t("common.error").into_owned(), body: error_text(&e), ..Notice::default() };
+                proxy.send(AppEvent::Notice(notice));
+            }
+        });
+    }
+
+    /// The tray's "Copy last capture": the picture, or the file itself for a recording.
+    fn copy_capture(&mut self, sh: &mut Shell<AppEvent>, id: &str) {
+        let Some(entry) = self.history_entry(id) else { return };
+        Self::in_background(sh, move || {
+            let file = entry.file.ok_or_else(|| snap_core::Error::NotFound(t("app.menu.no_file").into_owned()))?;
+            if entry.kind == CaptureKind::Recording {
+                snap_platform::clipboard::set_files(&[file])
+            } else {
+                snap_platform::clipboard::set_image(&snap_image::encode::load(&file)?)
+            }
+        });
+    }
+
+    /// The tray's "Copy last link", in the format the Links settings ask for.
+    fn copy_capture_link(&mut self, sh: &mut Shell<AppEvent>, id: &str) {
+        let Some(entry) = self.history_entry(id) else { return };
+        let Some(record) = entry.links.last().cloned() else { return };
+        let engine = self.engine.clone();
+        Self::in_background(sh, move || {
+            let link = snap_engine::Link {
+                url: record.url,
+                short_url: None,
+                delete_url: record.delete_url,
+                thumbnail_url: None,
+                destination: record.destination,
+            };
+            engine.copy_link(&link, None, entry.context.window_title.as_deref()).map(|_| ())
+        });
+    }
+
     /// A recent capture from the tray: its project or image in the editor, else the Library.
     pub(crate) fn open_recent(&mut self, id: &str) {
-        let entry = self.engine.history().and_then(|h| h.get(&snap_core::CaptureId(id.to_string())).ok().flatten());
+        let entry = self.history_entry(id);
         let command = match entry {
             Some(e) => match (e.project, e.file) {
                 (Some(path), _) | (None, Some(path)) if e.kind != CaptureKind::Recording => Command::EditFile(path),

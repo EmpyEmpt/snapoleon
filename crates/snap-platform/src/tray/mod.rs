@@ -35,6 +35,9 @@ pub struct TrayItem {
     /// Non-empty turns the item into a submenu (nesting is unlimited).
     pub children: Vec<TrayItem>,
     pub separator: bool,
+    /// The item's global shortcut as an accelerator string (`Cmd+Shift+2`), shown beside it: as the key equivalent
+    /// on macOS, in the shortcut column on Windows. Linux trays do not show it.
+    pub accel: Option<String>,
 }
 
 impl TrayItem {
@@ -59,6 +62,11 @@ impl TrayItem {
         self.enabled = false;
         self
     }
+
+    pub fn accel(mut self, accel: Option<String>) -> Self {
+        self.accel = accel;
+        self
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -80,6 +88,7 @@ pub struct Tray {
 }
 
 impl Tray {
+    /// On macOS the icon is drawn as a template image: only its alpha counts, and the menu bar colours it.
     pub fn new(
         tooltip: &str,
         icon: &RgbaImage,
@@ -95,6 +104,15 @@ impl Tray {
 
     pub fn set_icon(&mut self, icon: &RgbaImage) {
         self.inner.set_icon(icon);
+    }
+
+    /// Show that a recording runs. macOS tints the template icon red; elsewhere the app draws the red dot into the
+    /// icon itself.
+    pub fn set_recording(&mut self, recording: bool) {
+        #[cfg(target_os = "macos")]
+        self.inner.set_recording(recording);
+        #[cfg(not(target_os = "macos"))]
+        let _ = recording;
     }
 
     pub fn set_tooltip(&mut self, tooltip: &str) {

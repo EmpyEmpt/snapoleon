@@ -16,3 +16,6 @@ mac_other = "macOS already uses {accel} for a system shortcut. Turn it off in Sy
 mac_open = "Open Keyboard Shortcuts…"
 print_screen = "Windows opens Snipping Tool when Print Screen is pressed. Turn off “Use the Print screen key to open screen capture” in Settings > Accessibility > Keyboard, or choose another shortcut."
 windows_open = "Open keyboard settings…"
+
+[platform.autostart]
+translocated = "Move Snapoleon to the Applications folder and open it from there, then turn on launch at login again."

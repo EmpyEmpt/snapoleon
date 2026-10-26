@@ -1,17 +1,19 @@
 //! Dragging files out of a Snapoleon window into another program: a chat, a file dialog, the desktop.
 //!
-//! The OS runs the whole drag in a loop of its own, so [`files`] returns only when the user has dropped or given up.
+//! On Windows the OS runs the whole drag in a loop of its own, so [`files`] returns only when the user has dropped or
+//! given up. On macOS the drag runs on in the event loop after [`files`] has returned.
 
 use std::path::PathBuf;
 
 use snap_core::Result;
 
 /// Whether this OS can start a file drag from a window.
-pub const SUPPORTED: bool = cfg!(windows);
+pub const SUPPORTED: bool = cfg!(any(windows, target_os = "macos"));
 
-/// Start dragging `paths` with the left mouse button held down, and wait for the drop. `true` when something took
-/// the files, `false` when the user cancelled. Call it from the pointer handler that saw the drag begin; the
-/// program that receives the drop gets copies, the originals stay where they are.
+/// Start dragging `paths` with the left mouse button held down. Windows waits for the drop and returns `true` when
+/// something took the files, `false` when the user cancelled; macOS returns `true` once the drag has started. Call it
+/// on the UI thread from the pointer handler that saw the drag begin. Either way the mouse button release goes to the
+/// drag, not to the window. The program that receives the drop gets copies, the originals stay where they are.
 pub fn files(paths: &[PathBuf]) -> Result<bool> {
     imp::files(paths)
 }
@@ -193,7 +195,126 @@ mod imp {
     }
 }
 
-#[cfg(not(windows))]
+#[cfg(target_os = "macos")]
+mod imp {
+    use std::cell::OnceCell;
+    use std::path::{Path, PathBuf};
+
+    use objc2::rc::Retained;
+    use objc2::runtime::ProtocolObject;
+    use objc2::{AllocAnyThread, MainThreadMarker, MainThreadOnly, define_class, msg_send};
+    use objc2_app_kit::{
+        NSApplication, NSDragOperation, NSDraggingContext, NSDraggingItem, NSDraggingSession, NSDraggingSource, NSEvent,
+        NSEventModifierFlags, NSEventType, NSImage, NSWindow, NSWorkspace,
+    };
+    use objc2_foundation::{NSArray, NSObject, NSObjectProtocol, NSPoint, NSRect, NSSize, NSString, NSURL};
+    use snap_core::{Error, Result};
+
+    use crate::util::other;
+
+    /// The largest side of a dragged file's picture, in points.
+    const PREVIEW: f64 = 96.0;
+    /// How far each further file's picture sits from the previous one, in points.
+    const FAN: f64 = 8.0;
+
+    define_class!(
+        // SAFETY: NSObject has no subclassing requirements and this class does not implement Drop.
+        #[unsafe(super(NSObject))]
+        #[thread_kind = MainThreadOnly]
+        #[name = "SnapDragSource"]
+        struct Source;
+
+        // SAFETY: NSObjectProtocol has no safety requirements.
+        unsafe impl NSObjectProtocol for Source {}
+
+        // SAFETY: the method signature matches the NSDraggingSource protocol.
+        unsafe impl NSDraggingSource for Source {
+            #[unsafe(method(draggingSession:sourceOperationMaskForDraggingContext:))]
+            fn operation_mask(&self, _session: &NSDraggingSession, _context: NSDraggingContext) -> NSDragOperation {
+                NSDragOperation::Copy
+            }
+        }
+    );
+
+    /// One source for every drag, kept for the life of the UI thread: a session does not promise to keep it alive.
+    fn source(mtm: MainThreadMarker) -> Retained<Source> {
+        thread_local! {
+            static SOURCE: OnceCell<Retained<Source>> = const { OnceCell::new() };
+        }
+        SOURCE.with(|cell| {
+            cell.get_or_init(|| {
+                let this = Source::alloc(mtm).set_ivars(());
+                // SAFETY: NSObject's init has the expected signature.
+                unsafe { msg_send![super(this), init] }
+            })
+            .clone()
+        })
+    }
+
+    /// The event the drag starts from: the one being handled when it is a press or a drag of the left button, which
+    /// is the usual case; otherwise one made up at the pointer.
+    fn drag_event(app: &NSApplication, window: &NSWindow) -> Result<Retained<NSEvent>> {
+        let current = app.currentEvent();
+        if let Some(event) = current.as_ref().filter(|e| matches!(e.r#type(), NSEventType::LeftMouseDown | NSEventType::LeftMouseDragged)) {
+            return Ok(event.clone());
+        }
+        NSEvent::mouseEventWithType_location_modifierFlags_timestamp_windowNumber_context_eventNumber_clickCount_pressure(
+            NSEventType::LeftMouseDragged,
+            window.mouseLocationOutsideOfEventStream(),
+            NSEventModifierFlags::empty(),
+            current.map_or(0.0, |e| e.timestamp()),
+            window.windowNumber(),
+            None,
+            0,
+            1,
+            1.0,
+        )
+        .ok_or_else(|| other("could not start the drag"))
+    }
+
+    /// The picture under the pointer: the image itself for pictures, the Finder icon for anything else.
+    fn preview(path: &Path) -> Retained<NSImage> {
+        let name = NSString::from_str(&path.to_string_lossy());
+        let picture =
+            image::ImageFormat::from_path(path).is_ok().then(|| NSImage::initByReferencingFile(NSImage::alloc(), &name)).flatten();
+        picture.filter(|p| p.isValid()).unwrap_or_else(|| NSWorkspace::sharedWorkspace().iconForFile(&name))
+    }
+
+    pub fn files(paths: &[PathBuf]) -> Result<bool> {
+        if paths.is_empty() {
+            return Err(Error::invalid("no files to drag"));
+        }
+        let mtm = MainThreadMarker::new().ok_or_else(|| other("a drag must start on the UI thread"))?;
+        let app = NSApplication::sharedApplication(mtm);
+        let window = app.keyWindow().ok_or_else(|| other("no window to drag from"))?;
+        let view = window.contentView().ok_or_else(|| other("no window to drag from"))?;
+        let event = drag_event(&app, &window)?;
+        let at = view.convertPoint_fromView(event.locationInWindow(), None);
+        let mut items = Vec::new();
+        for (i, path) in paths.iter().enumerate() {
+            let path = std::path::absolute(path).unwrap_or_else(|_| path.clone());
+            let Some(url) = NSURL::from_file_path(&path) else { continue };
+            let item = NSDraggingItem::initWithPasteboardWriter(NSDraggingItem::alloc(), ProtocolObject::from_ref(&*url));
+            let image = preview(&path);
+            let size = image.size();
+            let fit = (PREVIEW / size.width.max(size.height).max(1.0)).min(1.0);
+            let (w, h) = (size.width * fit, size.height * fit);
+            let offset = i as f64 * FAN;
+            let frame = NSRect::new(NSPoint::new(at.x - w / 2.0 + offset, at.y - h / 2.0 - offset), NSSize::new(w, h));
+            // SAFETY: an NSImage is valid dragging-frame contents.
+            unsafe { item.setDraggingFrame_contents(frame, Some(&image)) };
+            items.push(item);
+        }
+        if items.is_empty() {
+            return Err(Error::invalid("no files to drag"));
+        }
+        let source = source(mtm);
+        view.beginDraggingSessionWithItems_event_source(&NSArray::from_retained_slice(&items), &event, ProtocolObject::from_ref(&*source));
+        Ok(true)
+    }
+}
+
+#[cfg(target_os = "linux")]
 mod imp {
     use std::path::PathBuf;
 

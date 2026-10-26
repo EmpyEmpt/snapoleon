@@ -1096,3 +1096,13 @@ taken = "{accel} уже назначено на «{action}». «Заменить
 replace = "Заменить"
 system = "Системное"
 system_line = "«{action}»: {message}"
+
+[settings.general.login_item_approval]
+label = "Разрешить в объектах входа"
+desc = "Snapoleon выключен в Системных настройках (Основные, Объекты входа), поэтому не запустится при входе."
+button = "Открыть объекты входа"
+
+[settings.general.notifications_blocked]
+label = "Уведомления выключены"
+desc = "Snapoleon не может показывать уведомления. Включите их в Системных настройках, раздел «Уведомления»."
+button = "Открыть уведомления"

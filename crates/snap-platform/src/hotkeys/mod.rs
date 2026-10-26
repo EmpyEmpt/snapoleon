@@ -28,7 +28,7 @@ use parking_lot::Mutex;
 use snap_core::hotkey::HotkeyBinding;
 use snap_core::{Error, Result, t, tf};
 
-mod accel;
+pub(crate) mod accel;
 #[cfg(all(target_os = "linux", feature = "wayland-portal"))]
 mod portal;
 mod system;

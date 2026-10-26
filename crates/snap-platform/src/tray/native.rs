@@ -5,6 +5,7 @@ use std::sync::{Once, OnceLock};
 use image::RgbaImage;
 use parking_lot::Mutex;
 use snap_core::Result;
+use tray_icon::menu::accelerator::Accelerator;
 use tray_icon::menu::{CheckMenuItem, IsMenuItem, Menu, MenuEvent, MenuItem, PredefinedMenuItem, Submenu};
 use tray_icon::{Icon, MouseButton, MouseButtonState, TrayIcon, TrayIconBuilder, TrayIconEvent};
 
@@ -45,15 +46,25 @@ impl Backend {
     pub fn new(tooltip: &str, icon: &RgbaImage, items: Vec<TrayItem>, on_event: Callback) -> Result<Self> {
         install_handlers();
         *current().lock() = Some(on_event);
-        let tray = TrayIconBuilder::new()
+        let builder = TrayIconBuilder::new()
             .with_tooltip(tooltip)
-            .with_icon(to_icon(icon)?)
             .with_menu(Box::new(build_menu(&items)?))
             // Windows: left click reports `Click`, right click opens the menu.
             // macOS convention: any click opens the menu.
-            .with_menu_on_left_click(cfg!(target_os = "macos"))
-            .build()
-            .map_err(other)?;
+            .with_menu_on_left_click(cfg!(target_os = "macos"));
+        // A template follows the menu bar's own colour, which on macOS 26+ follows the wallpaper rather than the
+        // app's light or dark appearance.
+        #[cfg(target_os = "macos")]
+        let builder = builder.with_icon_templated(to_icon(icon)?);
+        #[cfg(not(target_os = "macos"))]
+        let builder = builder.with_icon(to_icon(icon)?);
+        let tray = builder.build().map_err(other)?;
+        #[cfg(target_os = "macos")]
+        if let Some(button) = status_button(&tray) {
+            // Without a label VoiceOver and UI automation see an unnamed button.
+            use objc2_app_kit::NSAccessibility;
+            button.setAccessibilityLabel(Some(&objc2_foundation::NSString::from_str(snap_core::APP_NAME)));
+        }
         Ok(Self { tray })
     }
 
@@ -67,11 +78,23 @@ impl Backend {
     pub fn set_icon(&mut self, icon: &RgbaImage) {
         match to_icon(icon) {
             Ok(icon) => {
-                if let Err(e) = self.tray.set_icon(Some(icon)) {
+                #[cfg(target_os = "macos")]
+                let set = self.tray.set_icon_templated(Some(icon));
+                #[cfg(not(target_os = "macos"))]
+                let set = self.tray.set_icon(Some(icon));
+                if let Err(e) = set {
                     tracing::warn!("tray icon: {e}");
                 }
             }
             Err(e) => tracing::warn!("tray icon: {e}"),
+        }
+    }
+
+    /// A template ignores the icon's colours, so a running recording tints the whole glyph instead.
+    #[cfg(target_os = "macos")]
+    pub fn set_recording(&mut self, recording: bool) {
+        if let Some(button) = status_button(&self.tray) {
+            button.setContentTintColor(recording.then(objc2_app_kit::NSColor::systemRedColor).as_deref());
         }
     }
 
@@ -88,6 +111,12 @@ impl Drop for Backend {
     }
 }
 
+#[cfg(target_os = "macos")]
+fn status_button(tray: &TrayIcon) -> Option<objc2::rc::Retained<objc2_app_kit::NSStatusBarButton>> {
+    let mtm = objc2::MainThreadMarker::new()?;
+    tray.ns_status_item()?.button(mtm)
+}
+
 fn to_icon(img: &RgbaImage) -> Result<Icon> {
     Icon::from_rgba(img.as_raw().clone(), img.width(), img.height()).map_err(other)
 }
@@ -95,7 +124,7 @@ fn to_icon(img: &RgbaImage) -> Result<Icon> {
 fn build_menu(items: &[TrayItem]) -> Result<Menu> {
     let menu = Menu::new();
     for item in items {
-        menu.append(&*make_item(item)?).map_err(other)?;
+        add(&|i| menu.append(i), item)?;
     }
     Ok(menu)
 }
@@ -105,19 +134,54 @@ fn label(text: &str) -> String {
     text.replace('&', "&&")
 }
 
-fn make_item(item: &TrayItem) -> Result<Box<dyn IsMenuItem>> {
+/// macOS shows the shortcut as the item's key equivalent. These menus are not the main menu, so the key equivalent
+/// only works while the menu is open and never competes with the global hotkey.
+#[cfg(target_os = "macos")]
+fn accelerator(item: &TrayItem) -> Option<Accelerator> {
+    let accel = crate::hotkeys::accel::Accel::parse(item.accel.as_deref()?).ok()?;
+    Some(Accelerator::new(accel.mods, accel.key))
+}
+
+/// Windows menus right-align text after a tab as the shortcut column; a muda accelerator would also bind the keys.
+#[cfg(windows)]
+fn accelerator(_item: &TrayItem) -> Option<Accelerator> {
+    None
+}
+
+fn text(item: &TrayItem) -> String {
+    #[cfg(windows)]
+    if let Some(accel) = &item.accel {
+        return format!("{}\t{}", label(&item.label), crate::hotkeys::display(accel));
+    }
+    label(&item.label)
+}
+
+/// Build `item` and hand it to `append`, which adds it to its parent menu.
+fn add(append: &dyn Fn(&dyn IsMenuItem) -> tray_icon::menu::Result<()>, item: &TrayItem) -> Result<()> {
     if item.separator {
-        return Ok(Box::new(PredefinedMenuItem::separator()));
+        return append(&PredefinedMenuItem::separator()).map_err(other);
     }
     if !item.children.is_empty() {
         let sub = Submenu::with_id(item.id.as_str(), label(&item.label), item.enabled);
         for child in &item.children {
-            sub.append(&*make_item(child)?).map_err(other)?;
+            add(&|i| sub.append(i), child)?;
         }
-        return Ok(Box::new(sub));
+        return append(&sub).map_err(other);
     }
-    Ok(match item.checked {
-        Some(checked) => Box::new(CheckMenuItem::with_id(item.id.as_str(), label(&item.label), item.enabled, checked, None)),
-        None => Box::new(MenuItem::with_id(item.id.as_str(), label(&item.label), item.enabled, None)),
-    })
+    let make = |accel: Option<Accelerator>| -> Box<dyn IsMenuItem> {
+        match item.checked {
+            Some(checked) => Box::new(CheckMenuItem::with_id(item.id.as_str(), text(item), item.enabled, checked, accel)),
+            None => Box::new(MenuItem::with_id(item.id.as_str(), text(item), item.enabled, accel)),
+        }
+    };
+    let accel = accelerator(item);
+    match append(&*make(accel)) {
+        // A key muda has no key equivalent for fails the item; it must never cost the whole menu (without a tray the
+        // app quits with its last window).
+        Err(e) if accel.is_some() => {
+            tracing::debug!("tray shortcut for '{}' not shown: {e}", item.id);
+            append(&*make(None)).map_err(other)
+        }
+        result => result.map_err(other),
+    }
 }

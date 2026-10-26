@@ -3,6 +3,7 @@
 use std::fmt::Display;
 #[cfg(target_os = "linux")]
 use std::path::Path;
+#[cfg(any(windows, target_os = "linux"))]
 use std::path::PathBuf;
 #[cfg(unix)]
 use std::process::{Command, Stdio};
@@ -13,6 +14,7 @@ pub(crate) fn other(msg: impl Display) -> Error {
     Error::Other(anyhow::anyhow!("{msg}"))
 }
 
+#[cfg(any(windows, target_os = "linux"))]
 pub(crate) fn exe_path() -> snap_core::Result<PathBuf> {
     Ok(std::env::current_exe()?)
 }

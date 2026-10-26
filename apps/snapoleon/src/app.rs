@@ -21,8 +21,8 @@ use crate::{
     dev::Dev,
     events::{AppEvent, HistoryChanged},
     hotkeys::Hotkeys,
-    ipc,
-    notices::Progress,
+    ipc, logging,
+    notices::{self, Progress},
     theme,
     views::{self, OpenCx, View, ViewCx},
 };
@@ -172,6 +172,8 @@ impl App {
             Ok(out) => Some(out),
             Err(_) => {
                 tracing::error!("a view panicked; closing its window");
+                // The app lives on, so this was no crash.
+                logging::clear_crash_report();
                 self.crashed.push(win);
                 sh.close(win);
                 None
@@ -205,6 +207,7 @@ impl App {
         let general = &self.settings.general;
         if general.language != old.general.language {
             snap_core::i18n::set_language(&general.language);
+            snap_platform::notify::set_action_labels(&notices::action_labels());
         }
         theme::apply(general, self.dev.as_ref().and_then(|d| d.dark));
         sh.proxy().repaint_all();
@@ -212,7 +215,7 @@ impl App {
             self.apply_hotkeys(sh);
         }
         if old.general.launch_at_login != self.settings.general.launch_at_login {
-            self.sync_autostart();
+            self.apply_autostart(sh);
         }
         if old.general.instant_overlay != self.settings.general.instant_overlay && self.dev.is_none() && self.tray.is_some() {
             let on = self.settings.general.instant_overlay;
@@ -221,15 +224,40 @@ impl App {
         self.refresh_tray();
     }
 
-    pub(crate) fn sync_autostart(&self) {
+    /// At startup: line the OS registration up with the preference, or the preference up with the OS when the OS
+    /// owns the answer (macOS, where the user can switch the login item off in System Settings).
+    fn reconcile_autostart(&mut self) {
         if paths::is_portable() || self.dev.is_some() {
             return;
         }
         let want = self.settings.general.launch_at_login;
-        if snap_platform::autostart::get() != want
-            && let Err(e) = snap_platform::autostart::set(want)
-        {
-            tracing::warn!("autostart: {e}");
+        match snap_platform::autostart::reconcile(want) {
+            Ok(have) if have != want => self.store_launch_at_login(have),
+            Ok(_) => {}
+            Err(e) => tracing::warn!("autostart: {e}"),
+        }
+    }
+
+    /// The user switched launch at login in Settings. When the OS refuses, the switch goes back to what is true.
+    fn apply_autostart(&mut self, sh: &mut Shell<AppEvent>) {
+        if paths::is_portable() || self.dev.is_some() {
+            return;
+        }
+        let want = self.settings.general.launch_at_login;
+        if let Err(e) = snap_platform::autostart::set(want) {
+            self.report_error(sh, &e);
+            let have = snap_platform::autostart::status() != snap_platform::autostart::Status::Off;
+            if have != want {
+                self.store_launch_at_login(have);
+                sh.proxy().repaint_all();
+            }
+        }
+    }
+
+    fn store_launch_at_login(&mut self, on: bool) {
+        match self.engine.update_settings(|s| s.general.launch_at_login = on) {
+            Ok(()) => self.settings.general.launch_at_login = on,
+            Err(e) => tracing::warn!("settings: {e}"),
         }
     }
 
@@ -252,6 +280,7 @@ impl App {
         self.tray = None;
         self.hotkeys = None;
         self.ipc = None;
+        logging::clear_crash_report();
         // A postponed restore of the desktop icons would not get to run.
         #[cfg(target_os = "macos")]
         snap_capture::restore_desktop_icons();
@@ -262,6 +291,15 @@ impl App {
         let Some(startup) = self.startup.take() else { return };
         let proxy = sh.proxy();
         let dev = startup.dev.is_some();
+        // A login item gets no `--background` on macOS; the launch event says it instead, and only now.
+        let background = startup.background || snap_platform::autostart::launched_at_login();
+        // Before anything can post a notification, and while the app is still finishing its launch, so a click on a
+        // notification that launched the app is delivered.
+        snap_platform::notify::init({
+            let proxy = proxy.clone();
+            move |action| proxy.send(AppEvent::Command(notices::notify_command(action)))
+        });
+        snap_platform::notify::set_action_labels(&notices::action_labels());
         self.quit_when_empty = dev;
         self.engine.set_history_listener({
             let proxy = proxy.clone();
@@ -282,7 +320,7 @@ impl App {
             }
             self.start_hotkeys(sh);
             self.start_tray(sh);
-            self.sync_autostart();
+            self.reconcile_autostart();
             let icon = snap_ui::app_icon_rgba(256);
             if let Err(e) = snap_platform::notify::set_app_icon(&icon) {
                 tracing::debug!("notification icon: {e}");
@@ -312,11 +350,22 @@ impl App {
             self.notice(sh, notice);
         }
 
+        if !dev && let Some(report) = logging::take_crash_report() {
+            let notice = Notice {
+                kind: NoticeKind::Error,
+                title: t("app.crash.title").into_owned(),
+                body: t("app.crash.body").into_owned(),
+                file: Some(report),
+                ..Notice::default()
+            };
+            self.notice(sh, notice);
+        }
+
         if dev {
             self.dev_start(sh);
         } else if !self.settings.general.first_run_done {
             self.cmds.push(Command::OpenOnboarding);
-        } else if startup.request.is_none() && !startup.background {
+        } else if startup.request.is_none() && !background {
             self.cmds.push(Command::OpenLibrary);
         }
         if let Some(request) = startup.request {
