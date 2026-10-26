@@ -81,3 +81,6 @@ body = "A report was saved. Open it to see what went wrong, or attach it to a bu
 
 [macos.app.notice]
 show_in_folder = "Show in Finder"
+
+[app.countdown]
+cancel = "Esc to cancel"

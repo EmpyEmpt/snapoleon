@@ -139,8 +139,8 @@ pub fn truncate(s: &str, max: usize) -> String {
 }
 
 /// The line of instructions at the top of the screen before the first interaction. It never takes the
-/// pointer, and fades while the pointer is near so it cannot be in the way.
-pub fn hint(ctx: &Context, win: Rect, message: &str, glyph: &str, pointer: Option<Pos2>) {
+/// pointer, and fades while the pointer is near so it cannot be in the way. `whole_screen` adds the F key.
+pub fn hint(ctx: &Context, win: Rect, message: &str, glyph: &str, pointer: Option<Pos2>, whole_screen: bool) {
     let id = Id::unique("snap-overlay-hint");
     let rect: Option<Rect> = ctx.data(|d| d.get_temp(id));
     let near = matches!((rect, pointer), (Some(r), Some(p)) if r.expand(48.0).contains(p));
@@ -158,6 +158,12 @@ pub fn hint(ctx: &Context, win: Rect, message: &str, glyph: &str, pointer: Optio
                 ui.label(egui::RichText::new(glyph).color(p.accent).size(15.0));
                 ui.add_space(6.0);
                 ui.label(message);
+                if whole_screen {
+                    ui.add_space(12.0);
+                    kbd(ui, "F");
+                    ui.add_space(6.0);
+                    ui.label(text::caption(snap_core::t("overlay.monitor.hint")));
+                }
                 ui.add_space(12.0);
                 kbd(ui, "Esc");
                 ui.add_space(6.0);

@@ -5,7 +5,12 @@ use snap_engine::{Notice, NoticeKind};
 use snap_platform::hotkeys::{self, HotkeyEvent, HotkeyManager};
 use snap_shell::{Proxy, Shell};
 
-use crate::{app::App, events::AppEvent};
+use crate::{
+    app::App,
+    commands::Command,
+    events::AppEvent,
+    views::{OpenCx, countdown, overlay},
+};
 
 /// A binding the OS refused, for the conflict notice. `reason` names the shortcut itself.
 pub struct Conflict {
@@ -19,17 +24,19 @@ pub struct Hotkeys {
     bindings: Vec<HotkeyBinding>,
     /// Indices into `bindings` the OS refused at the last `apply`.
     refused: Vec<usize>,
+    /// Escape is wanted globally (whether or not the OS granted it).
+    escape: bool,
 }
 
 impl Hotkeys {
     /// Must be called on the UI thread after the event loop started.
     pub fn new(proxy: Proxy<AppEvent>) -> Result<Self> {
-        let manager = HotkeyManager::new(move |event| {
-            if let HotkeyEvent::Pressed(index) = event {
-                proxy.send(AppEvent::Hotkey(index));
-            }
+        let manager = HotkeyManager::new(move |event| match event {
+            HotkeyEvent::Pressed(index) => proxy.send(AppEvent::Hotkey(index)),
+            HotkeyEvent::Escape => proxy.send(AppEvent::Command(Command::Open(Box::new(escape)))),
+            HotkeyEvent::Released(_) => {}
         })?;
-        Ok(Self { manager, bindings: Vec::new(), refused: Vec::new() })
+        Ok(Self { manager, bindings: Vec::new(), refused: Vec::new(), escape: false })
     }
 
     /// Replace every registration. Returns the bindings that could not be registered.
@@ -66,6 +73,21 @@ impl Hotkeys {
             .filter_map(|(_, b)| hotkeys::system_conflict(&b.accel))
             .collect()
     }
+
+    fn grab_escape(&mut self, on: bool) {
+        if std::mem::replace(&mut self.escape, on) == on {
+            return;
+        }
+        if let Err(e) = self.manager.grab_escape(on) {
+            tracing::warn!("cannot take Escape while the overlay or a count-down is up: {e}");
+        }
+    }
+}
+
+/// Escape pressed anywhere while it was grabbed: end the overlay session and drop a delayed capture's count-down.
+fn escape(cx: &mut OpenCx) {
+    overlay::cancel(cx);
+    countdown::cancel(cx);
 }
 
 fn conflicts(bindings: &[HotkeyBinding], refused: impl IntoIterator<Item = (usize, Error)>) -> Vec<Conflict> {
@@ -126,6 +148,13 @@ impl App {
             };
             self.notice(sh, notice);
         }
+    }
+
+    /// Grab Escape globally exactly while an overlay session or a delayed capture's count-down is up: the overlay's
+    /// own Escape needs the keyboard focus, which macOS may give to a system alert, and the count-down never has it.
+    pub(crate) fn sync_escape(&mut self, sh: &Shell<AppEvent>) {
+        let Some(hotkeys) = &mut self.hotkeys else { return };
+        hotkeys.grab_escape(overlay::active() || !sh.windows_with_tag(countdown::TAG).is_empty());
     }
 
     pub(crate) fn on_hotkey(&mut self, sh: &mut Shell<AppEvent>, index: usize) {

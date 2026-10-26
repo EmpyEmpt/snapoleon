@@ -1,5 +1,7 @@
 //! What input does: selecting, snapping, picking colours, measuring. Runs once per window frame, before painting.
 
+use std::time::{Duration, Instant};
+
 use egui::{Context, Key, Pos2, vec2};
 use snap_core::{CaptureKind, Rect as PxRect, tf};
 
@@ -16,7 +18,11 @@ use crate::views::ViewCx;
 use crate::views::colors::ColorSample;
 
 /// How long "Copied #3D5AFE" stays on screen.
-const FLASH: std::time::Duration = std::time::Duration::from_millis(1400);
+const FLASH: Duration = Duration::from_millis(1400);
+/// How long the app may be inactive (macOS) before the session lets go.
+const LET_GO: Duration = Duration::from_millis(300);
+/// A session nobody touched for this long ends by itself.
+const IDLE_LIMIT: Duration = Duration::from_secs(600);
 
 impl Session {
     pub fn update(&mut self, cx: &mut ViewCx, ctx: &Context, input: &Input, space: Space, win: snap_shell::WindowKey) -> Option<Finish> {
@@ -24,7 +30,7 @@ impl Session {
         if input.focused {
             self.ctrl = input.ctrl;
         }
-        if input.pressed_key(Key::Escape) {
+        if input.pressed_key(Key::Escape) || self.lost_activation(cx.shell.app_active(), input, ctx) || self.abandoned(input, ctx) {
             return Some(Finish::Cancel);
         }
         if input.pressed_key(Key::Enter) || input.arrows != (0, 0) {
@@ -62,6 +68,32 @@ impl Session {
                 None
             }
         }
+    }
+
+    /// macOS: another app took the activation (a system alert, Cmd+Tab, a click on the Dock). The covers sit above all
+    /// of that without the keyboard, so the session ends instead of hiding what took over.
+    fn lost_activation(&mut self, app_active: bool, input: &Input, ctx: &Context) -> bool {
+        if !cfg!(target_os = "macos") {
+            return false;
+        }
+        self.had_focus |= input.focused;
+        if app_active || !self.had_focus {
+            self.inactive_since = None;
+            return false;
+        }
+        let since = *self.inactive_since.get_or_insert_with(Instant::now);
+        ctx.request_repaint_after(Duration::from_millis(150));
+        since.elapsed() >= LET_GO
+    }
+
+    /// The last way out, whatever else went wrong: an untouched session ends after [`IDLE_LIMIT`].
+    fn abandoned(&mut self, input: &Input, ctx: &Context) -> bool {
+        if input.active {
+            self.last_input = Instant::now();
+        }
+        let idle = self.last_input.elapsed();
+        ctx.request_repaint_after(IDLE_LIMIT.saturating_sub(idle));
+        idle >= IDLE_LIMIT
     }
 
     /// A colour picked from the recent-colors strip.
@@ -173,6 +205,13 @@ impl Session {
     /// Keys that act on a finished selection: nudge, accept, and the toolbar's hotkeys.
     fn selection_keys(&mut self, input: &Input) -> Option<Finish> {
         let Some(rect) = self.sel.rect else {
+            if input.hotkey(Key::F, false, false) {
+                // The whole monitor under the pointer, as a selection the toolbar and the keys work on.
+                let monitor = self.monitor_rect();
+                self.sel.set(monitor, CaptureKind::Monitor);
+                self.engaged = true;
+                return self.finishes_on_release().then_some(Finish::Selected(monitor, CaptureKind::Monitor));
+            }
             return input.pressed_key(Key::Enter).then(|| self.enter_target());
         };
         if input.arrows != (0, 0) {

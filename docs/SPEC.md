@@ -503,7 +503,7 @@ forwards its args over IPC). Subcommands: `capture`, `record`, `ocr`, `qr`,
 Windows/views: **Overlay** (per monitor `cover` window over a frozen snapshot:
 crosshair + loupe w/ pixel grid and HEX/RGB readout, window & element snapping
 with scroll-to-parent, drag/resize handles, size label, aspect lock (Shift),
-arrow-key nudge, Space to move, instant toolbar: Copy, Save, Edit, Pin, Upload,
+arrow-key nudge, Space to move, F for the whole monitor, instant toolbar: Copy, Save, Edit, Pin, Upload,
 OCR, QR, Record, Scroll-capture, Redact, Cancel; color picker mode; measure mode
 (px distance, element-to-element gaps)), **Editor** (tools: select, crop, arrow,
 line, rect, ellipse, pen, highlighter, text, callout, step badge, redact

@@ -44,7 +44,7 @@ egui-wgpu = { version = "0.37", default-features = false, features = ["macos-win
 wgpu = { version = "30", default-features = false, features = ["std", "parking_lot", "wgsl", "metal"] }
 pollster = "0.4"
 objc2 = "0.6"
-objc2-app-kit = { version = "0.3", features = ["NSApplication", "NSResponder", "NSView", "NSWindow"] }
+objc2-app-kit = { version = "0.3", features = ["NSApplication", "NSResponder", "NSRunningApplication", "NSScreen", "NSView", "NSWindow", "NSWorkspace"] }
 
 [target.'cfg(target_os = "linux")'.dependencies]
 egui-winit = { version = "0.37", default-features = false, features = ["clipboard", "links", "wayland", "x11"] }

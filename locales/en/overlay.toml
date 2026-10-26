@@ -43,3 +43,10 @@ measure = "Drag to measure, or click two elements. Hold Ctrl for distances to ed
 [macos.overlay.hint]
 region = "Drag to select an area, or click a window. Hold ⌘ to pick a UI element."
 measure = "Drag to measure, or click two elements. Hold ⌘ for distances to edges."
+
+[overlay.monitor]
+hint = "whole screen"
+
+[overlay.alert]
+title = "macOS is waiting for an answer"
+body = "A system dialog is open. Answer it, then press the shortcut again."

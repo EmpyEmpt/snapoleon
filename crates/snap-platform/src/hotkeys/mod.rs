@@ -22,7 +22,7 @@ use std::thread::JoinHandle;
 use std::time::Duration;
 
 use crossbeam_channel::RecvTimeoutError;
-use global_hotkey::hotkey::HotKey;
+use global_hotkey::hotkey::{Code, HotKey};
 use global_hotkey::{GlobalHotKeyEvent, GlobalHotKeyManager, HotKeyState};
 use parking_lot::Mutex;
 use snap_core::hotkey::HotkeyBinding;
@@ -40,6 +40,8 @@ use accel::Accel;
 pub enum HotkeyEvent {
     Pressed(usize),
     Released(usize),
+    /// Escape was pressed while grabbed with [`HotkeyManager::grab_escape`].
+    Escape,
 }
 
 /// Check that an accelerator string can be parsed and bound.
@@ -152,6 +154,13 @@ struct Routes {
     /// OS hotkey id -> binding index.
     ids: Mutex<HashMap<u32, usize>>,
     paused: AtomicBool,
+    /// Escape is grabbed (see [`HotkeyManager::grab_escape`]).
+    escape: AtomicBool,
+}
+
+/// Plain Escape, the key [`HotkeyManager::grab_escape`] takes.
+fn escape_hotkey() -> HotKey {
+    HotKey::new(None, Code::Escape)
 }
 
 enum Backend {
@@ -182,7 +191,7 @@ impl HotkeyManager {
         if ACTIVE.swap(true, Ordering::SeqCst) {
             return Err(Error::invalid("a HotkeyManager already exists"));
         }
-        let routes = Arc::new(Routes { ids: Mutex::new(HashMap::new()), paused: AtomicBool::new(false) });
+        let routes = Arc::new(Routes { ids: Mutex::new(HashMap::new()), paused: AtomicBool::new(false), escape: AtomicBool::new(false) });
         match Self::backend(on_event, &routes) {
             Ok(backend) => Ok(Self { backend, routes, bound: Vec::new(), paused: false }),
             Err(e) => {
@@ -301,11 +310,38 @@ impl HotkeyManager {
         }
         refused
     }
+
+    /// Take plain Escape from every app while `on`, reported as [`HotkeyEvent::Escape`]: the way out of a full-screen
+    /// overlay or a count-down whatever window has the keyboard (on macOS a system alert can take it from the
+    /// overlay). Bindings cannot use Escape without a modifier, so it never collides with one. The Wayland portal binds
+    /// its shortcuts once per session and cannot add one on demand: there this does nothing.
+    pub fn grab_escape(&mut self, on: bool) -> Result<()> {
+        if self.routes.escape.load(Ordering::SeqCst) == on {
+            return Ok(());
+        }
+        match &self.backend {
+            Backend::Native(native) => {
+                let hotkey = escape_hotkey();
+                if on {
+                    native.manager.register(hotkey).map_err(|e| native_error(Accel { mods: hotkey.mods, key: hotkey.key }, e))?;
+                } else if let Err(e) = native.manager.unregister(hotkey) {
+                    tracing::debug!("unregister Escape: {e}");
+                }
+            }
+            #[cfg(all(target_os = "linux", feature = "wayland-portal"))]
+            Backend::Portal(_) => return Ok(()),
+        }
+        self.routes.escape.store(on, Ordering::SeqCst);
+        Ok(())
+    }
 }
 
 impl Drop for HotkeyManager {
     fn drop(&mut self) {
         self.unregister_all();
+        if let Err(e) = self.grab_escape(false) {
+            tracing::debug!("release Escape: {e}");
+        }
         match &mut self.backend {
             Backend::Native(native) => {
                 native.stop.store(true, Ordering::SeqCst);
@@ -335,6 +371,12 @@ fn spawn_poller(on_event: impl Fn(HotkeyEvent) + Send + 'static, routes: Arc<Rou
             while !stop.load(Ordering::SeqCst) {
                 match rx.recv_timeout(Duration::from_millis(100)) {
                     Ok(ev) => {
+                        if ev.id == escape_hotkey().id() && routes.escape.load(Ordering::SeqCst) {
+                            if ev.state == HotKeyState::Pressed {
+                                on_event(HotkeyEvent::Escape);
+                            }
+                            continue;
+                        }
                         if routes.paused.load(Ordering::SeqCst) {
                             continue;
                         }

@@ -87,6 +87,15 @@ pub struct Session {
     /// A press that began on empty space (not on a bar) is held.
     pub pressing: bool,
     pub ready_logged: bool,
+    /// A cover of this session has had the keyboard focus.
+    pub had_focus: bool,
+    /// Since when the app has not been the active one, after a cover had the focus.
+    pub inactive_since: Option<Instant>,
+    /// The last input in any cover, for the idle limit.
+    pub last_input: Instant,
+    /// When the screen was last checked for a system alert.
+    #[cfg(target_os = "macos")]
+    pub alert_checked: Instant,
 }
 
 impl Session {
@@ -125,6 +134,11 @@ impl Session {
             engaged: false,
             pressing: false,
             ready_logged: false,
+            had_focus: false,
+            inactive_since: None,
+            last_input: opened,
+            #[cfg(target_os = "macos")]
+            alert_checked: opened,
         }
     }
 

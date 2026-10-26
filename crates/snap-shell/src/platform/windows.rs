@@ -157,3 +157,20 @@ pub(crate) fn activate(window: &Window) {
         AttachThreadInput(ours, theirs, 0);
     }
 }
+
+pub(crate) fn show(window: &Window, _key: bool) {
+    window.set_visible(true);
+}
+
+pub(crate) fn app_active(windows: &mut dyn Iterator<Item = &Window>) -> bool {
+    windows.any(Window::has_focus)
+}
+
+/// The OS gives the focus back to the window below when ours goes away.
+pub(crate) fn remember_frontmost() {}
+
+pub(crate) fn restore_frontmost() {}
+
+pub(crate) fn safe_area_top(_window: &Window) -> f32 {
+    0.0
+}
