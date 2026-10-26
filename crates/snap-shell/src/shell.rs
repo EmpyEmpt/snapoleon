@@ -139,6 +139,7 @@ impl<E: Send + 'static> Shell<'_, E> {
             Err(e) if self.core.gfx.fall_back(&e) => self.make_window(attrs, &spec)?,
             Err(e) => return Err(e),
         };
+        platform::app::hook_edit(&window);
 
         let ctx = egui::Context::default();
         (self.core.theme_init)(&ctx);
@@ -312,11 +313,12 @@ impl<E: Send + 'static> Shell<'_, E> {
         platform::outer_rect(&self.core.windows.get(&w)?.window)
     }
 
-    /// The width, in logical pixels from the left edge, that the OS's own window controls take in the title bar the
-    /// app draws (`WindowSpec::title_bar`): the macOS traffic lights, 0 in full screen. `None` where the app draws
-    /// its own controls (Windows, Linux, windows without a `title_bar`).
+    /// The width, in egui points from the left edge (scaled by the window's zoom), that the OS's own window controls
+    /// take in the title bar the app draws (`WindowSpec::title_bar`): the macOS traffic lights, 0 in full screen.
+    /// `None` where the app draws its own controls (Windows, Linux, windows without a `title_bar`).
     pub fn title_bar_inset(&self, w: WindowKey) -> Option<f32> {
-        self.core.windows.get(&w)?.controls_inset
+        let w = self.core.windows.get(&w)?;
+        w.controls_inset.map(|inset| inset / w.ctx.zoom_factor())
     }
 
     /// The user double-clicked the title bar the app draws: do what the OS does for its own. macOS follows the Desktop

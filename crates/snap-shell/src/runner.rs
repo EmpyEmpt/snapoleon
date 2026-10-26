@@ -140,9 +140,10 @@ impl<E: Send + 'static, A: ShellApp<E>> Runner<E, A> {
         };
         let close = w.handle_output(el, &mut out);
         // AppKit puts the traffic lights back into its own title bar now and then (a changed style or appearance
-        // among them); on most frames this only checks that they are still where they belong.
+        // among them); on most frames this only checks that they are still where they belong. The bar is in egui
+        // points, which the window's zoom (the interface size) scales.
         if let Some(height) = w.title_bar {
-            w.controls_inset = platform::app::layout_title_bar(&w.window, height);
+            w.controls_inset = platform::app::layout_title_bar(&w.window, height * w.ctx.zoom_factor());
         }
         let retry = w.paint(out);
         w.first_pass_done = true;
@@ -251,7 +252,7 @@ impl<E: Send + 'static, A: ShellApp<E>> ApplicationHandler<Msg<E>> for Runner<E,
                 }
                 // AppKit has just laid its title bar out for the new size; redo ours before the window is drawn.
                 if let (Some(height), WindowEvent::Resized(_)) = (w.title_bar, &event) {
-                    w.controls_inset = platform::app::layout_title_bar(&w.window, height);
+                    w.controls_inset = platform::app::layout_title_bar(&w.window, height * w.ctx.zoom_factor());
                 }
             }
             _ => {}

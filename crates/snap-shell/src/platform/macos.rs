@@ -144,19 +144,17 @@ pub(crate) fn show(window: &Window, key: bool) {
 }
 
 /// Accessory apps are never active on their own; bring the app forward so the window gets keys. The window is put in
-/// front by itself too, so it is seen even when macOS declines the activation (it is cooperative since macOS 14).
+/// front by itself too, so it is seen whatever the activation does.
 pub(crate) fn activate(window: &Window) {
     let Some(mtm) = MainThreadMarker::new() else { return };
     if let Some(ns) = ns_window(window) {
         ns.orderFrontRegardless();
     }
-    let app = NSApplication::sharedApplication(mtm);
-    if available!(macos = 14.0) {
-        app.activate();
-    } else {
-        #[allow(deprecated)]
-        app.activateIgnoringOtherApps(true);
-    }
+    // Not `NSApp.activate()`: it is cooperative since macOS 14 and refused when the frontmost app has not yielded (an
+    // open from the command line, a hotkey). This is the call winit's `focus_window` makes, so a first open and a
+    // re-focus behave alike.
+    #[allow(deprecated)]
+    NSApplication::sharedApplication(mtm).activateIgnoringOtherApps(true);
 }
 
 pub(crate) fn app_active(_windows: &mut dyn Iterator<Item = &Window>) -> bool {

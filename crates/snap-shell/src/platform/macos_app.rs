@@ -25,7 +25,7 @@ use objc2_app_kit::{
     NSApplication, NSApplicationActivationPolicy, NSApplicationTerminateReply, NSEvent, NSEventModifierFlags, NSMenu, NSMenuItem, NSScreen,
     NSWindow, NSWindowButton, NSWindowStyleMask,
 };
-use objc2_foundation::{NSArray, NSPoint, NSRect, NSRunLoop, NSString, NSURL, NSUserDefaults, ns_string};
+use objc2_foundation::{NSArray, NSPoint, NSRect, NSRunLoop, NSRunLoopCommonModes, NSString, NSURL, NSUserDefaults, ns_string};
 use snap_core::{APP_NAME, Point, Rect, t, tf};
 use winit::{
     event_loop::ActiveEventLoop,
@@ -48,6 +48,17 @@ thread_local! {
     static TERMINATE_PENDING: Cell<bool> = const { Cell::new(false) };
     /// The content view class answers `mouseDownCanMoveWindow` with NO (see `keep_title_bar_clicks`).
     static VIEW_HOOKED: Cell<bool> = const { Cell::new(false) };
+    /// The content view class takes Undo and Redo (see [`hook_edit`]).
+    static EDIT_HOOKED: Cell<bool> = const { Cell::new(false) };
+}
+
+type Validate = extern "C-unwind" fn(&AnyObject, Sel, &NSMenuItem) -> Bool;
+type Action = extern "C-unwind" fn(&AnyObject, Sel, Option<&AnyObject>);
+
+/// [`validate_menu_item`] and [`menu_action`] as the runtime takes them.
+fn menu_imps() -> (Imp, Imp) {
+    // SAFETY: only the types change; the runtime calls each function with the signature its encoding declares.
+    unsafe { (mem::transmute::<Validate, Imp>(validate_menu_item), mem::transmute::<Action, Imp>(menu_action)) }
 }
 
 /// Give the app delegate the methods the shell needs. Called once, after winit set its delegate and before the loop
@@ -64,18 +75,15 @@ pub(crate) fn install(sink: Sink) {
     type OpenUrls = extern "C-unwind" fn(&AnyObject, Sel, &AnyObject, &NSArray<NSURL>);
     type Reopen = extern "C-unwind" fn(&AnyObject, Sel, &AnyObject, Bool) -> Bool;
     type ShouldTerminate = extern "C-unwind" fn(&AnyObject, Sel, &AnyObject) -> NSApplicationTerminateReply;
-    type Validate = extern "C-unwind" fn(&AnyObject, Sel, &NSMenuItem) -> Bool;
-    type Action = extern "C-unwind" fn(&AnyObject, Sel, Option<&AnyObject>);
     // SAFETY: only the types change; the runtime calls each function with the signature its encoding declares.
-    let (open_urls, reopen, should_terminate, validate, action) = unsafe {
+    let (open_urls, reopen, should_terminate) = unsafe {
         (
             mem::transmute::<OpenUrls, Imp>(open_urls),
             mem::transmute::<Reopen, Imp>(should_handle_reopen),
             mem::transmute::<ShouldTerminate, Imp>(should_terminate),
-            mem::transmute::<Validate, Imp>(validate_menu_item),
-            mem::transmute::<Action, Imp>(menu_action),
         )
     };
+    let (validate, action) = menu_imps();
     let object = || Encoding::Object;
     add_method(class, sel!(application:openURLs:), open_urls, Encoding::Void, &[object(), object()]);
     add_method(class, sel!(applicationShouldHandleReopen:hasVisibleWindows:), reopen, Bool::ENCODING, &[object(), Bool::ENCODING]);
@@ -127,8 +135,9 @@ pub(crate) fn build_menu() {
         ],
     );
     let (file_item, _) = submenu(mtm, &t("shell.menu.file"), &[item(mtm, &t("shell.menu.close"), sel!(snapShellClose:), "w", cmd, own)]);
-    // The Edit actions travel the responder chain: a system text field (a file dialog) takes them first, and the app
-    // delegate, last in the chain, passes them to the egui window with the focus.
+    // The Edit actions travel the responder chain: a system text field (a file dialog) takes them first. The app
+    // delegate, last in the chain, passes Cut, Copy, Paste and Select All to the egui window with the focus. NSWindow
+    // answers Undo and Redo itself, ahead of the delegate, so the window's content view passes those on (`hook_edit`).
     let (edit_item, _) = submenu(
         mtm,
         &t("shell.menu.edit"),
@@ -178,14 +187,17 @@ pub(crate) fn allow_terminate() -> bool {
         return false;
     }
     // Not from inside this callback: answering makes AppKit tell winit that the app terminates, and winit must not be
-    // re-entered while it runs the app's callback. The main run loop runs the block next, in any mode.
+    // re-entered while it runs the app's callback. The main run loop runs the block next. It must run in the common
+    // modes: AppKit waits for the answer in NSModalPanelRunLoopMode, and `performBlock` only runs in the default mode.
     let reply = RcBlock::new(|| {
         if let Some(mtm) = MainThreadMarker::new() {
             NSApplication::sharedApplication(mtm).replyToApplicationShouldTerminate(true);
         }
     });
+    // SAFETY: a constant Foundation exports.
+    let modes = NSArray::from_slice(&[unsafe { NSRunLoopCommonModes }]);
     // SAFETY: the block runs on the main thread, where it was made.
-    unsafe { NSRunLoop::mainRunLoop().performBlock(&reply) };
+    unsafe { NSRunLoop::mainRunLoop().performInModes_block(&modes, &reply) };
     true
 }
 
@@ -313,6 +325,23 @@ fn keep_title_bar_clicks(ns: &NSWindow) {
     add_method(view.class(), sel!(mouseDownCanMoveWindow), imp, Bool::ENCODING, &[]);
 }
 
+/// NSWindow implements `undo:` and `redo:` for its own undo manager, which has nothing, so the Edit menu's Undo and
+/// Redo would stop there, disabled, and still take Cmd+Z and Cmd+Shift+Z from egui. The content view, winit's and
+/// the first responder of an egui window, comes before it in the responder chain: its class takes them and passes
+/// them on as the app delegate does the other Edit actions. Added once, for every window.
+pub(crate) fn hook_edit(window: &Window) {
+    if EDIT_HOOKED.get() {
+        return;
+    }
+    let Some(view) = ns_window(window).and_then(|ns| ns.contentView()) else { return };
+    EDIT_HOOKED.set(true);
+    let (validate, action) = menu_imps();
+    let class = view.class();
+    add_method(class, sel!(undo:), action, Encoding::Void, &[Encoding::Object]);
+    add_method(class, sel!(redo:), action, Encoding::Void, &[Encoding::Object]);
+    add_method(class, sel!(validateMenuItem:), validate, Bool::ENCODING, &[Encoding::Object]);
+}
+
 extern "C-unwind" fn no(_this: &AnyObject, _cmd: Sel) -> Bool {
     Bool::NO
 }
@@ -386,7 +415,7 @@ enum Command {
 }
 
 /// Every menu action the app delegate implements. The shell's own reach it as the items' target; the Edit ones
-/// through the responder chain.
+/// through the responder chain, where Undo and Redo reach the content view instead (see [`hook_edit`]).
 fn commands() -> [(Sel, Command); 12] {
     [
         (sel!(snapShellAbout:), Command::Request(|| OsRequest::About)),
