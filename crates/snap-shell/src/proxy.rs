@@ -2,13 +2,22 @@ use std::time::Instant;
 
 use winit::event_loop::EventLoopProxy;
 
-use crate::WindowKey;
+use crate::{OsRequest, WindowKey, window::EditAction};
 
 /// Everything the event loop can be woken with.
 pub(crate) enum Msg<E> {
     User(E),
     Repaint { key: WindowKey, at: Instant },
     RepaintAll,
+    Hook(AppHook),
+}
+
+/// What the OS integration (the macOS app delegate and app menu) hands the loop.
+#[cfg_attr(not(target_os = "macos"), allow(dead_code))]
+pub(crate) enum AppHook {
+    Request(OsRequest),
+    /// An Edit menu command for the window with the keyboard focus.
+    Edit(EditAction),
 }
 
 /// Thread-safe handle to the running shell; wakes the loop from any thread.

@@ -13,8 +13,8 @@ use winit::{
 };
 
 use crate::{
-    Shell, ShellApp, ShellConfig, WindowKey, platform,
-    proxy::{Msg, Proxy},
+    OsRequest, Shell, ShellApp, ShellConfig, WindowKey, platform,
+    proxy::{AppHook, Msg, Proxy},
     render::{Gfx, Graphics},
     shell::Core,
 };
@@ -24,12 +24,19 @@ use crate::{
 pub fn run<E: Send + 'static>(cfg: ShellConfig, app: impl ShellApp<E>) -> Result<()> {
     let mut builder = EventLoop::<Msg<E>>::with_user_event();
     #[cfg(target_os = "macos")]
-    if cfg.accessory {
+    {
         use winit::platform::macos::{ActivationPolicy, EventLoopBuilderExtMacOS};
-        builder.with_activation_policy(ActivationPolicy::Accessory).with_activate_ignoring_other_apps(false);
+        // The shell builds the app menu itself (`platform::app`), with its own Quit.
+        builder.with_default_menu(false);
+        if cfg.accessory {
+            builder.with_activation_policy(ActivationPolicy::Accessory).with_activate_ignoring_other_apps(false);
+        }
     }
     let event_loop = builder.build().map_err(|e| Error::Other(anyhow!(e)))?;
     event_loop.set_control_flow(ControlFlow::Wait);
+    // Before the loop runs: the OS hands over the file or URL the app was launched for while it starts up.
+    let hooks = event_loop.create_proxy();
+    platform::app::install(Box::new(move |hook| hooks.send_event(Msg::Hook(hook)).is_ok()));
 
     let display = event_loop.owned_display_handle();
     let mut runner = Runner {
@@ -43,6 +50,10 @@ pub fn run<E: Send + 'static>(cfg: ShellConfig, app: impl ShellApp<E>) -> Result
             ids: HashMap::new(),
             next_key: 1,
             closed: Vec::new(),
+            focused: None,
+            accessory: cfg.accessory,
+            regular: !cfg.accessory,
+            launched_to_open: false,
         },
         started: false,
     };
@@ -73,6 +84,33 @@ impl<E: Send + 'static, A: ShellApp<E>> Runner<E, A> {
         self.flush(el);
     }
 
+    fn hook(&mut self, el: &ActiveEventLoop, hook: AppHook) {
+        match hook {
+            AppHook::Request(request) => {
+                self.app.os_request(&mut Shell { core: &mut self.core, el }, request);
+                self.flush(el);
+            }
+            AppHook::Edit(action) => {
+                if let Some(w) = self.core.focused.and_then(|key| self.core.windows.get_mut(&key)) {
+                    w.edit(action);
+                }
+            }
+        }
+    }
+
+    /// macOS: a regular app (Dock icon, app switcher, menu bar) while an app window is shown, an accessory one
+    /// otherwise. Runs before new windows are shown, so they come up with the app menu.
+    fn sync_activation_policy(&mut self) {
+        if !self.core.accessory {
+            return;
+        }
+        let regular = self.core.windows.values().any(|w| w.app_window && w.want_visible);
+        if regular != self.core.regular {
+            self.core.regular = regular;
+            platform::app::set_regular(regular);
+        }
+    }
+
     fn schedule(&mut self, key: WindowKey, at: Instant) {
         let Some(w) = self.core.windows.get_mut(&key) else { return };
         if at <= Instant::now() {
@@ -100,6 +138,11 @@ impl<E: Send + 'static, A: ShellApp<E>> Runner<E, A> {
             return;
         };
         let close = w.handle_output(el, &mut out);
+        // AppKit puts the traffic lights back into its own title bar now and then (a changed style or appearance
+        // among them); on most frames this only checks that they are still where they belong.
+        if let Some(height) = w.title_bar {
+            w.controls_inset = platform::app::layout_title_bar(&w.window, height);
+        }
         let retry = w.paint(out);
         w.first_pass_done = true;
         if retry {
@@ -138,8 +181,14 @@ impl<E: Send + 'static, A: ShellApp<E>> Runner<E, A> {
 impl<E: Send + 'static, A: ShellApp<E>> ApplicationHandler<Msg<E>> for Runner<E, A> {
     fn resumed(&mut self, el: &ActiveEventLoop) {
         if !std::mem::replace(&mut self.started, true) {
+            let launch = platform::app::start();
+            self.core.launched_to_open =
+                launch.iter().any(|hook| matches!(hook, AppHook::Request(OsRequest::OpenUrl(_) | OsRequest::OpenFile(_))));
             self.app.init(&mut Shell { core: &mut self.core, el });
             self.flush(el);
+            for hook in launch {
+                self.hook(el, hook);
+            }
         }
     }
 
@@ -149,6 +198,7 @@ impl<E: Send + 'static, A: ShellApp<E>> ApplicationHandler<Msg<E>> for Runner<E,
                 self.app.event(&mut Shell { core: &mut self.core, el }, ev);
                 self.flush(el);
             }
+            Msg::Hook(hook) => self.hook(el, hook),
             Msg::Repaint { key, at } => self.schedule(key, at),
             Msg::RepaintAll => {
                 let now = Instant::now();
@@ -171,6 +221,8 @@ impl<E: Send + 'static, A: ShellApp<E>> ApplicationHandler<Msg<E>> for Runner<E,
 
         let Some(w) = self.core.windows.get_mut(&key) else { return };
         match &mut event {
+            WindowEvent::Focused(true) => self.core.focused = Some(key),
+            WindowEvent::Focused(false) if self.core.focused == Some(key) => self.core.focused = None,
             WindowEvent::ScaleFactorChanged { inner_size_writer, .. } => {
                 if let Some(cover) = w.cover {
                     w.cover_attempts = 0;
@@ -183,6 +235,10 @@ impl<E: Send + 'static, A: ShellApp<E>> ApplicationHandler<Msg<E>> for Runner<E,
                 if w.pill && matches!(event, WindowEvent::Resized(_)) {
                     platform::set_pill(&w.window, true);
                 }
+                // AppKit has just laid its title bar out for the new size; redo ours before the window is drawn.
+                if let (Some(height), WindowEvent::Resized(_)) = (w.title_bar, &event) {
+                    w.controls_inset = platform::app::layout_title_bar(&w.window, height);
+                }
             }
             _ => {}
         }
@@ -194,6 +250,7 @@ impl<E: Send + 'static, A: ShellApp<E>> ApplicationHandler<Msg<E>> for Runner<E,
 
     fn about_to_wait(&mut self, el: &ActiveEventLoop) {
         self.flush(el);
+        self.sync_activation_policy();
 
         // First frames render here, hidden, so showing a window never flashes blank.
         let fresh: Vec<_> = self.core.windows.iter().filter(|(_, w)| !w.first_pass_done).map(|(k, _)| *k).collect();

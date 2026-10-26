@@ -62,7 +62,7 @@ pub(crate) fn outer_rect(window: &Window) -> Option<Rect> {
     Some(PointLayout::current().rect_to_pixels(pos.x, pos.y, size.width, size.height))
 }
 
-fn ns_window(window: &Window) -> Option<Retained<NSWindow>> {
+pub(crate) fn ns_window(window: &Window) -> Option<Retained<NSWindow>> {
     let RawWindowHandle::AppKit(h) = window.window_handle().ok()?.as_raw() else {
         return None;
     };

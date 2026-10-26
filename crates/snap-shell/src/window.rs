@@ -5,11 +5,23 @@ use std::{
     time::{Duration, Instant},
 };
 
-use egui::{FullOutput, RawInput, ViewportId};
+use egui::{Event, FullOutput, Key, Modifiers, RawInput, ViewportId};
 use snap_core::Rect;
 use winit::{event_loop::ActiveEventLoop, window::Window};
 
 use crate::render::{Paint, Surface, Target};
+
+/// A command from the Edit menu (macOS), for the window with the keyboard focus.
+#[derive(Debug, Clone, Copy)]
+#[cfg_attr(not(target_os = "macos"), allow(dead_code))]
+pub(crate) enum EditAction {
+    Undo,
+    Redo,
+    Cut,
+    Copy,
+    Paste,
+    SelectAll,
+}
 
 pub(crate) struct WindowState {
     pub window: Arc<Window>,
@@ -26,6 +38,12 @@ pub(crate) struct WindowState {
     pub tool_style: bool,
     /// The window is clipped to a pill; the clip follows every resize.
     pub pill: bool,
+    /// An ordinary app window (`WindowSpec::is_app_window`).
+    pub app_window: bool,
+    /// Height of the title bar the app draws (`WindowSpec::title_bar`).
+    pub title_bar: Option<f32>,
+    /// Width the OS's own window controls take at the left of that title bar (macOS traffic lights).
+    pub controls_inset: Option<f32>,
     pub want_visible: bool,
     /// Ask the OS for the foreground when the window appears (`WindowSpec::activate`).
     pub activate: bool,
@@ -46,6 +64,9 @@ pub(crate) struct Setup {
     pub cover: Option<Rect>,
     pub tool_style: bool,
     pub pill: bool,
+    pub app_window: bool,
+    pub title_bar: Option<f32>,
+    pub controls_inset: Option<f32>,
     pub want_visible: bool,
     pub activate: bool,
     pub opened_at: Instant,
@@ -75,6 +96,9 @@ impl WindowState {
             cover_attempts: 0,
             tool_style: setup.tool_style,
             pill: setup.pill,
+            app_window: setup.app_window,
+            title_bar: setup.title_bar,
+            controls_inset: setup.controls_inset,
             want_visible: setup.want_visible,
             activate: setup.activate,
             first_pass_done: false,
@@ -120,6 +144,30 @@ impl WindowState {
         if let Some(on) = self.pending_passthrough.take() {
             self.set_passthrough(on);
         }
+        self.window.request_redraw();
+    }
+
+    /// Hand an Edit menu command to egui as the input its keyboard shortcut produces: the menu takes the shortcut
+    /// before the window sees it. Cut, copy and paste mirror `egui_winit`; the others are the Cmd+key presses that
+    /// text fields and views look for.
+    pub fn edit(&mut self, action: EditAction) {
+        let key = |key: Key, shift: bool| {
+            let modifiers = Modifiers { mac_cmd: true, command: true, shift, ..Modifiers::default() };
+            [true, false].map(|pressed| Event::Key { key, physical_key: Some(key), pressed, repeat: false, modifiers })
+        };
+        let events = match action {
+            EditAction::Cut => vec![Event::Cut],
+            EditAction::Copy => vec![Event::Copy],
+            EditAction::Paste => match self.egui_state.clipboard_text() {
+                Some(text) if text.is_empty() => Vec::new(),
+                Some(text) => vec![Event::Paste(text.replace("\r\n", "\n"))],
+                None => self.egui_state.clipboard_image().map(|image| Event::PasteImage(Arc::new(image))).into_iter().collect(),
+            },
+            EditAction::Undo => key(Key::Z, false).into(),
+            EditAction::Redo => key(Key::Z, true).into(),
+            EditAction::SelectAll => key(Key::A, false).into(),
+        };
+        self.egui_state.egui_input_mut().events.extend(events);
         self.window.request_redraw();
     }
 

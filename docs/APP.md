@@ -83,10 +83,12 @@ calls `open` when the matching command arrives (table below). Inside `open`:
 cx.open(window_spec(t("editor.title"), TAG, (1100.0, 760.0), (720.0, 480.0)), MyView::new(..));
 ```
 
-- `window_spec(title, tag, size, min_size)` gives the standard app window: no OS decorations
-  (custom title bar), rounded, resizable, app icon. Sizes are logical pixels. Build other kinds
-  (pins, HUDs, overlays) from `WindowSpec` directly; see `pin`, `recorder`, `scroll` and
-  `overlay`.
+- `window_spec(title, tag, size, min_size)` gives the standard app window: the app's own title bar
+  (`WindowSpec::title_bar`; on macOS the system's traffic lights, rounded corners and shadow stay around
+  it, elsewhere there are no OS decorations and Windows 11 rounds the corners), resizable, app icon.
+  Sizes are logical pixels; on a small screen the shell shrinks them to fit, and on macOS it centres the
+  window on the screen under the pointer. Build other kinds (pins, HUDs, overlays) from `WindowSpec`
+  directly; see `pin`, `recorder`, `scroll` and `overlay`.
 - `WindowSpec::activate` (default `true`): the window asks for the foreground when it appears, so a window opened by
   a hotkey or the tray does not come up behind the app the user is in. Windows that sit over the user's work and
   must not take the keyboard from it (pins, the recorder and scroll HUDs, count-down tiles) set it to `false`.
@@ -114,7 +116,9 @@ Chrome::new(&title).center(|ui| search_field(ui, &mut q, hint)).no_maximize().sh
 
 `Chrome` draws the title bar (`snap_ui::widgets::title_bar`: drag, minimize/maximize/close, logo,
 optional center slot), the 1 px window outline, and performs the requested window actions. The
-body gets the rest of the window. Use `snap_ui::widgets` and `Palette` for everything inside; never
+body gets the rest of the window. On macOS the window controls and the outline are the system's: the
+bar keeps room for the traffic lights (`Shell::title_bar_inset`), and a double-click on it does what
+the Desktop & Dock setting says. `.close_on_escape()` makes Escape close a dialog-like window (About). Use `snap_ui::widgets` and `Palette` for everything inside; never
 hand-pick colors, radii or fonts (`docs/DESIGN.md`).
 
 ## Messages and background work
@@ -354,3 +358,10 @@ notices), create the tray, sync autostart, set the toast icon, purge history by 
 thread, make sure the URL scheme points at this executable, and on first run open onboarding; a plain non-background launch
 opens the Library; `--background` (autostart) stays in the tray. Portable installs never register
 autostart or the URL scheme.
+
+On macOS a second launch (Finder, Spotlight, the Dock icon), a `snapoleon://` link and a document opened with
+the app never start a second process: they reach the running app as Apple Events, which `snap-shell` turns into
+`OsRequest`s (`App::handle_os_request` in `ipc.rs` gives them the IPC paths above). The app menu's About,
+Settings and Quit (Cmd+Q, and logout or restart, which wait for `App::quit`) arrive the same way; its Edit
+menu feeds the focused window the input of the matching shortcut. The app is an accessory (the menu bar extra
+only) until an app window opens, and has a Dock icon and the app menu until the last one closes.

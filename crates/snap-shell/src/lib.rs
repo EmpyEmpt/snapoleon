@@ -19,5 +19,5 @@ mod window;
 
 pub use proxy::Proxy;
 pub use runner::run;
-pub use shell::{Shell, ShellApp};
+pub use shell::{OsRequest, Shell, ShellApp};
 pub use spec::{ShellConfig, WindowKey, WindowSpec};

@@ -13,7 +13,7 @@ use egui::Context;
 use snap_core::{Settings, paths, policy::Policy, t, tf};
 use snap_engine::{Engine, Notice, NoticeKind};
 use snap_platform::tray::Tray;
-use snap_shell::{Shell, ShellApp, WindowKey};
+use snap_shell::{OsRequest, Shell, ShellApp, WindowKey};
 use snap_ui::Toasts;
 
 use crate::{
@@ -211,6 +211,7 @@ impl App {
         if general.language != old.general.language {
             snap_core::i18n::set_language(&general.language);
             snap_platform::notify::set_action_labels(&notices::action_labels());
+            sh.refresh_app_menu();
         }
         theme::apply(general, self.dev.as_ref().and_then(|d| d.dark));
         sh.proxy().repaint_all();
@@ -365,7 +366,8 @@ impl App {
             self.dev_start(sh);
         } else if !self.settings.general.first_run_done {
             self.cmds.push(Command::OpenOnboarding);
-        } else if startup.request.is_none() && !background {
+        } else if startup.request.is_none() && !background && !sh.launched_to_open() {
+            // A launch to open a document or a link (macOS) is not a plain launch: that request follows instead.
             self.cmds.push(Command::OpenLibrary);
         }
         if let Some(request) = startup.request {
@@ -464,6 +466,11 @@ impl ShellApp<AppEvent> for App {
         let allowed = self.with_view(sh, win, |view, cx| view.close_requested(cx)).unwrap_or(true);
         self.flush(sh);
         allowed
+    }
+
+    fn os_request(&mut self, sh: &mut Shell<AppEvent>, request: OsRequest) {
+        self.handle_os_request(sh, request);
+        self.flush(sh);
     }
 
     fn closed(&mut self, sh: &mut Shell<AppEvent>, win: WindowKey) {

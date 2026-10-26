@@ -2,13 +2,14 @@
 
 use std::{
     collections::HashMap,
+    path::PathBuf,
     sync::Arc,
     time::{Duration, Instant},
 };
 
-use snap_core::{Error, Rect, Result};
+use snap_core::{Error, Point, Rect, Result};
 use winit::{
-    dpi::{LogicalSize, PhysicalPosition, PhysicalSize},
+    dpi::{LogicalPosition, LogicalSize, PhysicalPosition, PhysicalSize, Position},
     event_loop::ActiveEventLoop,
     raw_window_handle::{HasWindowHandle, RawWindowHandle},
     window::{Icon, Window, WindowAttributes, WindowId, WindowLevel},
@@ -24,6 +25,9 @@ use crate::{
 /// Size used when a spec gives neither `size` nor `cover`.
 const DEFAULT_SIZE: (f32, f32) = (640.0, 480.0);
 
+/// The largest share of the free screen area a new app window takes.
+const FIT: f64 = 0.92;
+
 pub(crate) struct Core<E: Send + 'static> {
     pub app_id: String,
     pub theme_init: Box<dyn Fn(&egui::Context)>,
@@ -34,6 +38,14 @@ pub(crate) struct Core<E: Send + 'static> {
     pub next_key: WindowKey,
     /// Windows closed since the app was last told about it.
     pub closed: Vec<WindowKey>,
+    /// The window with the keyboard focus; the Edit menu acts on it.
+    pub focused: Option<WindowKey>,
+    /// `ShellConfig::accessory`: the macOS app is regular only while an app window is shown.
+    pub accessory: bool,
+    /// The activation policy last set: regular (Dock icon, app switcher, menu bar) or accessory.
+    pub regular: bool,
+    /// The OS started the app to open files or a URL ([`Shell::launched_to_open`]).
+    pub launched_to_open: bool,
 }
 
 impl<E: Send + 'static> Core<E> {
@@ -42,6 +54,9 @@ impl<E: Send + 'static> Core<E> {
             return false;
         };
         self.ids.remove(&state.window.id());
+        if self.focused == Some(key) {
+            self.focused = None;
+        }
         self.closed.push(key);
         true
     }
@@ -91,15 +106,32 @@ impl<E: Send + 'static> Shell<'_, E> {
                 .with_position(PhysicalPosition::new(r.x, r.y));
         } else {
             let (w, h) = spec.size.unwrap_or(DEFAULT_SIZE);
+            let (mut w, mut h) = (f64::from(w), f64::from(h));
+            let mut min = spec.min_size.map(|(w, h)| (f64::from(w), f64::from(h)));
+            let mut position: Option<Position> = spec.position.map(|p| PhysicalPosition::new(p.x, p.y).into());
+            // Default sizes are made for a roomy screen. On a small one (a 13-inch laptop with larger text) the window
+            // must still fit, and the OS does not pull a borderless window back onto the screen.
+            if spec.is_app_window()
+                && let Some(area) = platform::app::new_window_area(self.el, spec.position)
+            {
+                min = min.map(|(mw, mh)| (mw.min(area.w), mh.min(area.h)));
+                let (min_w, min_h) = min.unwrap_or_default();
+                w = w.min(area.w * FIT).max(min_w);
+                h = h.min(area.h * FIT).max(min_h);
+                if area.centre && position.is_none() {
+                    position = Some(LogicalPosition::new(area.x + (area.w - w) / 2.0, area.y + (area.h - h) / 2.0).into());
+                }
+            }
             attrs = attrs.with_inner_size(LogicalSize::new(w, h));
-            if let Some((w, h)) = spec.min_size {
+            if let Some((w, h)) = min {
                 attrs = attrs.with_min_inner_size(LogicalSize::new(w, h));
             }
-            if let Some(p) = spec.position {
-                attrs = attrs.with_position(PhysicalPosition::new(p.x, p.y));
+            if let Some(p) = position {
+                attrs = attrs.with_position(p);
             }
         }
         let attrs = platform::window_attributes(self.el, attrs, &spec, &self.core.app_id);
+        let attrs = platform::app::chrome_attributes(attrs, &spec);
 
         let (window, target) = match self.make_window(attrs.clone(), &spec) {
             Ok(made) => made,
@@ -113,9 +145,13 @@ impl<E: Send + 'static> Shell<'_, E> {
         let proxy = self.core.proxy.clone();
         ctx.set_request_repaint_callback(move |info| proxy.repaint_at(key, Instant::now() + info.delay));
 
+        let title_bar = spec.title_bar.filter(|_| spec.cover.is_none());
         let setup = Setup {
             tool_style: spec.is_tool(),
             pill: spec.pill,
+            app_window: spec.is_app_window(),
+            title_bar,
+            controls_inset: title_bar.and_then(|height| platform::app::layout_title_bar(&window, height)),
             tag: spec.tag,
             cover: spec.cover,
             want_visible: spec.visible,
@@ -203,6 +239,10 @@ impl<E: Send + 'static> Shell<'_, E> {
     /// first frame hidden) takes the focus when it appears: the OS ignores the request for a hidden window.
     pub fn focus(&mut self, w: WindowKey) {
         let Some(state) = self.core.windows.get_mut(&w) else { return };
+        // winit does not focus a minimized window; it has to come back first.
+        if state.window.is_minimized() == Some(true) {
+            state.window.set_minimized(false);
+        }
         if !state.shown {
             state.focus_on_show = true;
             return;
@@ -265,6 +305,27 @@ impl<E: Send + 'static> Shell<'_, E> {
 
     pub fn outer_rect(&self, w: WindowKey) -> Option<Rect> {
         platform::outer_rect(&self.core.windows.get(&w)?.window)
+    }
+
+    /// The width, in logical pixels from the left edge, that the OS's own window controls take in the title bar the
+    /// app draws (`WindowSpec::title_bar`): the macOS traffic lights, 0 in full screen. `None` where the app draws
+    /// its own controls (Windows, Linux, windows without a `title_bar`).
+    pub fn title_bar_inset(&self, w: WindowKey) -> Option<f32> {
+        self.core.windows.get(&w)?.controls_inset
+    }
+
+    /// The user double-clicked the title bar the app draws: do what the OS does for its own. macOS follows the Desktop
+    /// & Dock setting (zoom, fill, minimize or nothing); elsewhere the window is maximized or restored.
+    pub fn title_bar_double_clicked(&mut self, w: WindowKey) {
+        if let Some(state) = self.core.windows.get(&w) {
+            platform::app::title_bar_double_click(&state.window);
+        }
+    }
+
+    /// The part of the monitor containing `at` (physical pixels) where windows belong, in physical pixels: without the
+    /// menu bar and the Dock on macOS, the whole monitor elsewhere. For placing popup windows such as menus.
+    pub fn work_area(&self, at: Point) -> Option<Rect> {
+        platform::app::work_area(self.el, at)
     }
 
     pub fn set_always_on_top(&mut self, w: WindowKey, on: bool) {
@@ -341,10 +402,44 @@ impl<E: Send + 'static> Shell<'_, E> {
         keys
     }
 
-    /// Stop the event loop; `run` returns after the current callback.
+    /// Stop the event loop; `run` returns after the current callback. When macOS asked the app to quit (logout,
+    /// restart, Quit in the Dock) and waits for the answer, the answer is given instead and the OS ends the process.
     pub fn quit(&mut self) {
+        if platform::app::allow_terminate() {
+            return;
+        }
         self.el.exit();
     }
+
+    /// The OS started the app to open files or a URL (macOS: a document or a link opened from Finder or a browser).
+    /// They arrive right after [`ShellApp::init`] as [`OsRequest`]s, so the app need not show its usual first window.
+    pub fn launched_to_open(&self) -> bool {
+        self.core.launched_to_open
+    }
+
+    /// Rebuild the macOS app menu, after the UI language changed. Nothing to do elsewhere.
+    pub fn refresh_app_menu(&mut self) {
+        platform::app::build_menu();
+    }
+}
+
+/// What the OS asks of the app as a whole. Only macOS sends these, from the app menu, the Dock, Finder and
+/// LaunchServices; on Windows and Linux the same things arrive as command-line arguments of a second launch.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum OsRequest {
+    /// The app was launched again while it runs (Finder, Spotlight, the Dock icon).
+    Reopen,
+    /// A URL of a scheme the app registered (`snapoleon://...`). Untrusted: any web page can open one.
+    OpenUrl(String),
+    /// A document opened with the app (double-click in Finder, a drop on the Dock icon).
+    OpenFile(PathBuf),
+    /// "About" in the app menu.
+    About,
+    /// "Settings..." in the app menu (Cmd+,).
+    Settings,
+    /// "Quit" in the app menu (Cmd+Q), or the OS ending the session (logout, restart, Quit in the Dock). The app ends
+    /// with [`Shell::quit`], which may come later (after a recording is saved).
+    Quit,
 }
 
 /// Application logic driven by the shell. All callbacks run on the main thread.
@@ -365,4 +460,12 @@ pub trait ShellApp<E: Send + 'static>: 'static {
 
     /// A window has been destroyed, whether by the user or by [`Shell::close`].
     fn closed(&mut self, _sh: &mut Shell<E>, _win: WindowKey) {}
+
+    /// A request from the OS for the app as a whole (macOS only). The default ends the app on
+    /// [`OsRequest::Quit`] and ignores the rest.
+    fn os_request(&mut self, sh: &mut Shell<E>, request: OsRequest) {
+        if request == OsRequest::Quit {
+            sh.quit();
+        }
+    }
 }

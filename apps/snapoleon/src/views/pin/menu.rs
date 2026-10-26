@@ -36,6 +36,8 @@ pub fn open(cx: &mut OpenCx, init: MenuInit) {
     let height = menu_height();
     let monitors = cx.shell.monitors();
     let (screen, scale) = monitors.iter().copied().find(|(m, _)| m.contains(init.at)).or(monitors.first().copied()).unwrap_or_default();
+    // Not under the menu bar or the Dock (macOS).
+    let screen = cx.shell.work_area(init.at).unwrap_or(screen);
     let (w, h) = ((WIDTH * scale).round() as i32, (height * scale).round() as i32);
     // Open down and to the right of the pointer, flipping where that would leave the monitor.
     let x = if init.at.x + w > screen.right() { init.at.x - w } else { init.at.x };
