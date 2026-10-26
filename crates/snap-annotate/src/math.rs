@@ -110,7 +110,7 @@ fn ink_on(bg: [u8; 4], min_white: f32) -> [u8; 4] {
 }
 
 /// Ink for body text on a colored box.
-pub(crate) fn contrasting(bg: [u8; 4]) -> [u8; 4] {
+pub fn contrasting(bg: [u8; 4]) -> [u8; 4] {
     ink_on(bg, 3.0)
 }
 

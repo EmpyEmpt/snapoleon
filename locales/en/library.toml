@@ -181,3 +181,9 @@ b = "{n} B"
 kb = "{n} KB"
 mb = "{n} MB"
 gb = "{n} GB"
+
+[macos.library.action]
+reveal = "Show in Finder"
+
+[macos.library.empty]
+body_nokey = "Use the menu bar icon to take your first shot."

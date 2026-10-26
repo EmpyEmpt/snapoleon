@@ -67,6 +67,12 @@ pub fn show(ui: &mut Ui, rc: &mut Rows, st: &mut State, cx: &mut ViewCx, set: &m
         rc.choice_locked(ui, language_locked, "general.language", &mut g.language, languages);
         rc.segments(ui, "general.theme", &mut g.theme, &themes);
         rc.row(ui, "general.accent", |ui| accent_picker(ui, &mut g.accent));
+        let mut scale = g.interface_scale();
+        let offered = scales(scale);
+        rc.choice(ui, "general.ui_scale", &mut scale, &offered);
+        if scale != g.interface_scale() {
+            g.ui_scale = scale;
+        }
         rc.toggle(ui, "general.reduce_motion", &mut g.reduce_motion);
     });
 
@@ -114,6 +120,16 @@ pub fn show(ui: &mut Ui, rc: &mut Rows, st: &mut State, cx: &mut ViewCx, set: &m
             }
         });
     });
+}
+
+/// The interface sizes offered, plus `current` when the keyboard zoom (Cmd+= / Cmd+-) left it between them.
+fn scales(current: f32) -> Vec<(f32, String)> {
+    let mut values = vec![0.8, 0.9, 1.0, 1.1, 1.25, 1.5];
+    if !values.iter().any(|v| (v - current).abs() < 0.001) {
+        values.push(current);
+        values.sort_by(f32::total_cmp);
+    }
+    values.into_iter().map(|v| (v, format!("{} %", (v * 100.0).round()))).collect()
 }
 
 /// Brand blue, a handful of alternatives and a custom well. An empty setting means the brand accent.

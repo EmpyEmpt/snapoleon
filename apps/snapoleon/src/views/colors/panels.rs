@@ -218,27 +218,29 @@ fn slot(ui: &mut Ui, width: f32, label: &str, value: &mut [u8; 4], choices: &[[u
         .inner_margin(Margin::same(12))
         .shadow(p.shadow());
     let style = ui.style().clone();
-    egui::Popup::menu(&resp)
-        .close_behavior(egui::PopupCloseBehavior::CloseOnClick)
-        .frame(frame)
-        .gap(4.0)
-        .style(move |s: &mut egui::Style| *s = (*style).clone())
-        .show(|ui| {
+    // Eight 32 px chips a row, 6 px apart, in a 12 px frame.
+    let rows = choices.len().div_ceil(8).max(1) as f32;
+    let (popup, max_h) = snap_ui::widgets::popup::fitted(egui::Popup::menu(&resp), 4.0, rows * 38.0 - 6.0 + 26.0);
+    popup.close_behavior(egui::PopupCloseBehavior::CloseOnClick).frame(frame).style(move |s: &mut egui::Style| *s = (*style).clone()).show(
+        |ui| {
             ui.set_max_width(8.0 * 32.0 + 7.0 * 6.0);
-            ui.horizontal_wrapped(|ui| {
-                ui.spacing_mut().item_spacing = Vec2::splat(6.0);
-                for &c in choices {
-                    let (rect, resp) = ui.allocate_exact_size(Vec2::splat(32.0), Sense::click());
-                    paint_chip(ui, rect, c, 6.0);
-                    if c == *value {
-                        ui.painter().rect_stroke(rect.expand(2.0), 8.0, Stroke::new(2.0, p.accent), StrokeKind::Outside);
+            snap_ui::widgets::popup::scroll_body(ui, max_h - 26.0, |ui| {
+                ui.horizontal_wrapped(|ui| {
+                    ui.spacing_mut().item_spacing = Vec2::splat(6.0);
+                    for &c in choices {
+                        let (rect, resp) = ui.allocate_exact_size(Vec2::splat(32.0), Sense::click());
+                        paint_chip(ui, rect, c, 6.0);
+                        if c == *value {
+                            ui.painter().rect_stroke(rect.expand(2.0), 8.0, Stroke::new(2.0, p.accent), StrokeKind::Outside);
+                        }
+                        if tooltip(resp, &color::hex(c), None).clicked() {
+                            *value = c;
+                        }
                     }
-                    if tooltip(resp, &color::hex(c), None).clicked() {
-                        *value = c;
-                    }
-                }
+                })
             });
-        });
+        },
+    );
 }
 
 /// "Aa" and a sentence in the chosen text color on the chosen background.

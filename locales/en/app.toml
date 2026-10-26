@@ -78,3 +78,6 @@ open_link = "Open link"
 [app.crash]
 title = "Snapoleon quit unexpectedly"
 body = "A report was saved. Open it to see what went wrong, or attach it to a bug report."
+
+[macos.app.notice]
+show_in_folder = "Show in Finder"

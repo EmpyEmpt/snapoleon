@@ -180,3 +180,6 @@ install_cli = "Команды snapoleon нет в PATH. Выполните snapo
 windows = "Установщик для Windows уже добавляет Snapoleon в PATH."
 exists = "{path} уже существует и установлен не Snapoleon. Удалите его или выберите другую папку через --dir."
 not_on_path = "Папки {dir} нет в PATH. Добавьте её в профиль оболочки, чтобы запускать snapoleon откуда угодно."
+
+[macos.cli.arg]
+background = "Запуститься в строке меню без окна"

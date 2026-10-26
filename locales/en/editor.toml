@@ -64,6 +64,7 @@ fill = "Fill"
 rounded = "Rounded"
 shadow = "Shadow"
 size = "Size"
+outline = "Outline"
 
 [editor.arrow]
 solid = "Solid"
@@ -200,3 +201,6 @@ project = "Snapoleon project"
 png = "PNG image"
 jpg = "JPEG image"
 webp = "WebP image"
+
+[editor.canvas]
+outside = "Parts outside the picture are not saved"

@@ -390,10 +390,11 @@ pub fn source_menu(ui: &Ui, resp: &Response, latest: bool) -> Option<Pick> {
         .shadow(p.shadow());
     let style = ui.style().clone();
     let mut picked = None;
-    egui::Popup::menu(resp)
+    // Up to four 32 px rows, 2 px apart, in a 4 px frame: it fits anywhere, but must not open sideways.
+    let (popup, _) = snap_ui::widgets::popup::fitted(egui::Popup::menu(resp), 4.0, 4.0 * 34.0 - 2.0 + 10.0);
+    popup
         .close_behavior(egui::PopupCloseBehavior::CloseOnClick)
         .frame(frame)
-        .gap(4.0)
         .width(MENU_WIDTH)
         .style(move |s: &mut egui::Style| {
             *s = (*style).clone();

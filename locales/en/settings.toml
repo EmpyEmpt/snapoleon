@@ -1033,8 +1033,8 @@ default_destination = "Default destination"
 [settings.advanced.portable]
 label = "Portable mode"
 desc = "A portable copy keeps settings and data next to the program."
-yes = "Portable"
-no = "Installed"
+yes = "On"
+no = "Off"
 
 [settings.advanced.path.settings]
 label = "Settings file"
@@ -1109,3 +1109,84 @@ button = "Open Notifications"
 
 [settings.privacy.permissions]
 section = "Permissions"
+
+# Added for macOS wording, the interface scale and OCR language names.
+
+[settings.general.ui_scale]
+label = "Interface size"
+desc = "Scales every Snapoleon window. Ctrl+= and Ctrl+- change it too."
+
+[settings.text_ai.lang]
+yue = "Cantonese"
+th = "Thai"
+vi = "Vietnamese"
+ar = "Arabic"
+ars = "Najdi Arabic"
+id = "Indonesian"
+ms = "Malay"
+cs = "Czech"
+sk = "Slovak"
+da = "Danish"
+nl = "Dutch"
+no = "Norwegian"
+nb = "Norwegian Bokmål"
+nn = "Norwegian Nynorsk"
+sv = "Swedish"
+fi = "Finnish"
+ro = "Romanian"
+hu = "Hungarian"
+el = "Greek"
+he = "Hebrew"
+hi = "Hindi"
+bg = "Bulgarian"
+sr = "Serbian"
+hr = "Croatian"
+sl = "Slovenian"
+lt = "Lithuanian"
+lv = "Latvian"
+et = "Estonian"
+ca = "Catalan"
+fa = "Persian"
+
+[macos.settings.secret]
+stored = "Saved in the Keychain"
+
+[macos.settings.general.ui_scale]
+desc = "Scales every Snapoleon window. ⌘= and ⌘- change it too."
+
+[macos.settings.general.launch_at_login]
+desc = "Start in the menu bar when you log in."
+
+[macos.settings.general.tray_click]
+label = "Menu bar icon click"
+desc = "What a click on the Snapoleon icon in the menu bar does."
+
+[macos.settings.destinations.f.s3_secret]
+desc = "Kept in the Keychain."
+
+[macos.settings.destinations.f.password]
+desc = "Kept in the Keychain."
+
+[macos.settings.destinations.f.bot_token]
+desc = "From @BotFather. Kept in the Keychain."
+
+[macos.settings.destinations.f.server_token]
+desc = "Create one on the server's account page. Kept in the Keychain."
+
+[macos.settings.destinations.f.oauth_account]
+desc = "Sign in through your browser. Tokens are kept in the Keychain."
+
+[macos.settings.destinations.f.custom_secret]
+desc = "Available to the request as {secret}. Kept in the Keychain."
+
+[macos.settings.links.shortener_secret_yourls]
+desc = "From your YOURLS tools page. Kept in the Keychain."
+
+[macos.settings.links.shortener_secret_shlink]
+desc = "Kept in the Keychain."
+
+[macos.settings.text_ai.translate_key]
+desc = "Kept in the Keychain."
+
+[macos.settings.text_ai.ai_key]
+desc = "Not needed for local servers. Kept in the Keychain."

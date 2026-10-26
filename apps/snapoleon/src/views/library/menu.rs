@@ -5,7 +5,7 @@ use egui::{Area, Color32, Context, CornerRadius, FontId, Frame, Id, Key, LayerId
 use snap_ui::{
     Palette,
     text::body_style,
-    widgets::{accel_parts, util},
+    widgets::{accel_text, popup, util},
 };
 
 const ROW_H: f32 = 30.0;
@@ -80,7 +80,7 @@ pub fn show<T: Copy>(ctx: &Context, id: Id, anchor: Anchor, items: &[Item<T>]) -
     let p = snap_ui::palette(ctx);
     let width = menu_width(ctx, id, items);
     let height = items.iter().map(|i| ROW_H + if i.separator { SEPARATOR_H } else { 0.0 }).sum::<f32>() + PAD * 2.0 + 2.0;
-    let pos = place(anchor, Vec2::new(width, height), ctx.content_rect());
+    let (pos, max_h) = place(ctx, anchor, Vec2::new(width, height));
 
     let mut chosen = None;
     let frame = Frame::new()
@@ -93,15 +93,17 @@ pub fn show<T: Copy>(ctx: &Context, id: Id, anchor: Anchor, items: &[Item<T>]) -
         frame.show(ui, |ui| {
             ui.spacing_mut().item_spacing = Vec2::ZERO;
             ui.set_width(width - PAD * 2.0 - 2.0);
-            for item in items {
-                if item.separator {
-                    let (rect, _) = ui.allocate_exact_size(Vec2::new(ui.available_width(), SEPARATOR_H), Sense::hover());
-                    ui.painter().hline(rect.x_range().shrink(6.0), rect.center().y, Stroke::new(1.0, p.border));
+            popup::scroll_body(ui, max_h - PAD * 2.0 - 2.0, |ui| {
+                for item in items {
+                    if item.separator {
+                        let (rect, _) = ui.allocate_exact_size(Vec2::new(ui.available_width(), SEPARATOR_H), Sense::hover());
+                        ui.painter().hline(rect.x_range().shrink(6.0), rect.center().y, Stroke::new(1.0, p.border));
+                    }
+                    if row(ui, &p, item) {
+                        chosen = Some(item.value);
+                    }
                 }
-                if row(ui, &p, item) {
-                    chosen = Some(item.value);
-                }
-            }
+            });
         });
     });
 
@@ -118,24 +120,34 @@ pub fn show<T: Copy>(ctx: &Context, id: Id, anchor: Anchor, items: &[Item<T>]) -
     if esc || pressed_outside { Outcome::Closed } else { Outcome::Open }
 }
 
-fn place(anchor: Anchor, size: Vec2, bounds: Rect) -> Pos2 {
-    let margin = 8.0;
-    let (x, y) = match anchor {
+/// Where the menu's top-left corner goes and the most height it may take: under (or above) a widget, never over it,
+/// or at the pointer; always inside the window, scrolling when even the larger side is too short.
+fn place(ctx: &Context, anchor: Anchor, size: Vec2) -> (Pos2, f32) {
+    let gap = 4.0;
+    let (x, y, max_h) = match anchor {
         Anchor::Widget(rect) | Anchor::Start(rect) => {
-            let below = rect.bottom() + 4.0;
-            let y = if below + size.y <= bounds.bottom() - margin { below } else { rect.top() - 4.0 - size.y };
-            (if matches!(anchor, Anchor::Start(_)) { rect.left() } else { rect.right() - size.x }, y)
+            let (align, max_h) = popup::fit(ctx, rect, gap, size.y);
+            let h = size.y.min(max_h);
+            let y = if align == egui::RectAlign::BOTTOM_START { rect.bottom() + gap } else { rect.top() - gap - h };
+            (if matches!(anchor, Anchor::Start(_)) { rect.left() } else { rect.right() - size.x }, y, max_h)
         }
-        Anchor::Point(pos) => (pos.x, if pos.y + size.y <= bounds.bottom() - margin { pos.y } else { pos.y - size.y }),
+        Anchor::Point(pos) => {
+            let bounds = popup::popup_bounds(ctx, Rect::from_min_size(pos, Vec2::ZERO));
+            let h = size.y.min(bounds.height());
+            // Below the pointer when it fits, else above it, else as low as the window allows.
+            let y = if pos.y + h <= bounds.bottom() {
+                pos.y
+            } else if pos.y - h >= bounds.top() {
+                pos.y - h
+            } else {
+                bounds.bottom() - h
+            };
+            (pos.x, y, bounds.height())
+        }
     };
-    let x = x.clamp(bounds.left() + margin, (bounds.right() - size.x - margin).max(bounds.left() + margin));
-    Pos2::new(x, y.max(bounds.top() + margin))
-}
-
-/// The accelerator as one short string: `Ctrl+C`, or `⌘C` on macOS.
-fn hotkey_text(accel: &str) -> String {
-    let parts = accel_parts(accel);
-    if cfg!(target_os = "macos") { parts.concat() } else { parts.join("+") }
+    let bounds = ctx.content_rect().shrink(8.0);
+    let x = x.clamp(bounds.left(), (bounds.right() - size.x).max(bounds.left()));
+    (Pos2::new(x, y), max_h)
 }
 
 fn menu_width<T>(ctx: &Context, id: Id, items: &[Item<T>]) -> f32 {
@@ -145,7 +157,7 @@ fn menu_width<T>(ctx: &Context, id: Id, items: &[Item<T>]) -> f32 {
     let widest = items
         .iter()
         .map(|i| {
-            let hotkey = i.hotkey.map_or(0.0, |h| 20.0 + measure(&hotkey_text(h), FontId::monospace(10.5)));
+            let hotkey = i.hotkey.map_or(0.0, |h| 20.0 + measure(&accel_text(h), FontId::monospace(10.5)));
             measure(&i.label, body.clone()) + hotkey
         })
         .fold(0.0_f32, f32::max);
@@ -170,7 +182,7 @@ fn row<T>(ui: &mut Ui, p: &Palette, item: &Item<T>) -> bool {
         let pos = Pos2::new(rect.left() + 36.0, rect.center().y - galley.size().y / 2.0);
         ui.painter().galley(util::snap(ui, pos), galley, fg);
         if let Some(hotkey) = item.hotkey {
-            let galley = ui.painter().layout_no_wrap(hotkey_text(hotkey), FontId::monospace(10.5), p.text_faint);
+            let galley = ui.painter().layout_no_wrap(accel_text(hotkey), FontId::monospace(10.5), p.text_faint);
             let pos = Pos2::new(rect.right() - 10.0 - galley.size().x, rect.center().y - galley.size().y / 2.0);
             ui.painter().galley(util::snap(ui, pos), galley, p.text_faint);
         }

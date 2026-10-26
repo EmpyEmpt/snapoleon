@@ -504,13 +504,13 @@ fn paint_bar(ctx: &Context, rect: egui::Rect, pin: &PinView, fade: f32) -> Optio
                 if full {
                     if native::SUPPORTED {
                         let label = format!("{}%", (pin.opacity * 100.0).round());
-                        if readout(ui, icon::DROP_HALF, &label, &t("pin.tip.opacity"), Some("Ctrl+Scroll")).clicked() {
+                        if readout(ui, icon::DROP_HALF, &label, &t("pin.tip.opacity"), Some("CmdOrCtrl+Scroll")).clicked() {
                             let next = OPACITY_STEPS.iter().copied().find(|s| *s < pin.opacity - 0.01).unwrap_or(1.0);
                             action = Some(PinAction::SetOpacity(next));
                         }
                     }
                     let label = format!("{}%", (pin.zoom * 100.0).round());
-                    if readout(ui, icon::MAGNIFYING_GLASS, &label, &t("pin.tip.zoom"), Some("Ctrl+0")).clicked() {
+                    if readout(ui, icon::MAGNIFYING_GLASS, &label, &t("pin.tip.zoom"), Some("CmdOrCtrl+0")).clicked() {
                         action = Some(PinAction::ResetZoom);
                     }
                 }

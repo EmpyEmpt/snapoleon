@@ -60,3 +60,7 @@ body = "Nothing else needs your permission here. Snapoleon lives in the tray."
 launch = "Start with your system"
 launch_hint = "Snapoleon waits quietly in the tray after you sign in."
 portable = "Not available in the portable version."
+
+[macos.onboarding.ready]
+body = "Nothing else needs your permission here. Snapoleon lives in the menu bar."
+launch_hint = "Snapoleon waits quietly in the menu bar after you log in."

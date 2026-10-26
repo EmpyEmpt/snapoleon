@@ -1,7 +1,7 @@
 //! The context bar: the options of the active tool, or of the selected shape when the select tool is active.
 
 use egui::{Frame, Margin, Sense, Stroke, StrokeKind, Ui, Vec2};
-use snap_annotate::{ArrowHead, ShapeKind, Stamp, Style, TextBg};
+use snap_annotate::{ArrowHead, ShapeKind, Stamp, Style, TextBg, contrasting};
 use snap_core::{PointF, settings::RedactStyle, t};
 use snap_ui::{
     Palette, icon, palette, radius, text,
@@ -155,6 +155,18 @@ fn bar(ui: &mut Ui, cx: &mut OptionsCx) -> Option<Request> {
                 [(TextBg::None, t("editor.text.plain")), (TextBg::Solid, t("editor.text.box")), (TextBg::Bubble, t("editor.text.bubble"))];
             let backgrounds: Vec<(TextBg, &str)> = backgrounds.iter().map(|(b, l)| (*b, l.as_ref())).collect();
             segmented(ui, &mut extras.text_bg, &backgrounds);
+            // Plain text can carry an outline in the fill slot, light or dark against the text color. Boxed text uses
+            // the fill for its box, so the outline goes when a box is chosen.
+            if extras.text_bg == TextBg::None {
+                let had = style.fill.is_some();
+                let mut outlined = had;
+                toggle(ui, icon::DOT_OUTLINE, &t("editor.option.outline"), &mut outlined);
+                if outlined != had || (outlined && style.stroke != style_before.stroke) {
+                    style.fill = outlined.then(|| contrasting(style.stroke));
+                }
+            } else if extras.text_bg != extras_before.text_bg {
+                style.fill = None;
+            }
             toggle(ui, icon::SUN_DIM, &t("editor.option.shadow"), &mut style.shadow);
         }
         Tool::Callout => {
@@ -289,11 +301,15 @@ fn commit(cx: &mut OptionsCx, tool: Tool, before: Style, after: Style, extras_be
                 if shape.style.fill.is_some() && matches!(shape.kind, ShapeKind::Rect { .. } | ShapeKind::Ellipse { .. }) {
                     shape.style.fill = Some(translucent(after.stroke));
                 }
+                if shape.style.fill.is_some() && matches!(shape.kind, ShapeKind::Text { bg: TextBg::None, .. }) {
+                    shape.style.fill = Some(contrasting(after.stroke));
+                }
             }
             if after.width != before.width {
                 shape.style.width = after.width;
             }
-            if after.fill != before.fill && matches!(shape.kind, ShapeKind::Rect { .. } | ShapeKind::Ellipse { .. }) {
+            let text_outline = tool == Tool::Text && kind_tool == Some(Tool::Text);
+            if after.fill != before.fill && (matches!(shape.kind, ShapeKind::Rect { .. } | ShapeKind::Ellipse { .. }) || text_outline) {
                 shape.style.fill = after.fill;
             }
             if after.shadow != before.shadow {

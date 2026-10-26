@@ -180,3 +180,6 @@ install_cli = "No snapoleon command is on PATH. Run snapoleon install-cli, or in
 windows = "The Windows installer already puts Snapoleon on PATH."
 exists = "{path} already exists and was not installed by Snapoleon. Remove it, or choose another folder with --dir."
 not_on_path = "{dir} is not on your PATH. Add it to your shell profile to run snapoleon from anywhere."
+
+[macos.cli.arg]
+background = "Start in the menu bar without showing a window"

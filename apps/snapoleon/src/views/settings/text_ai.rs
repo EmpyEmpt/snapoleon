@@ -50,6 +50,15 @@ const LANGUAGES: [(&str, &str); 13] = [
     ("ko", "한국어"),
 ];
 
+/// A language code the OCR engine reports ("th-TH", "yue-Hans") as "Thai (th-TH)", or the bare code when the
+/// language has no name in the locale files.
+fn language_label(code: &str) -> String {
+    let primary = code.split(['-', '_']).next().unwrap_or(code).to_ascii_lowercase();
+    let key = format!("settings.text_ai.lang.{primary}");
+    let name = snap_core::t(&key);
+    if name == key { code.to_owned() } else { format!("{name} ({code})") }
+}
+
 #[derive(Clone, Copy, PartialEq)]
 enum Provider {
     None,
@@ -103,7 +112,7 @@ fn ocr(ui: &mut Ui, rc: &mut Rows, st: &mut State, cx: &mut ViewCx, o: &mut OcrS
         // "en-US" from the system is already covered by the "en" chip.
         let primary = code.split(['-', '_']).next().unwrap_or(code);
         if !languages.iter().any(|(c, _)| c.eq_ignore_ascii_case(code) || c.eq_ignore_ascii_case(primary)) {
-            languages.push((code.clone(), code.clone()));
+            languages.push((code.clone(), language_label(code)));
         }
     }
 
@@ -177,7 +186,7 @@ fn translate(ui: &mut Ui, rc: &mut Rows, st: &mut State, cx: &mut ViewCx, t: &mu
     let mut targets: Vec<(String, String)> =
         LANGUAGES.iter().map(|(code, name)| ((*code).to_owned(), format!("{name} ({code})"))).collect();
     if !targets.iter().any(|(c, _)| *c == t.target_lang) {
-        targets.push((t.target_lang.clone(), t.target_lang.clone()));
+        targets.push((t.target_lang.clone(), language_label(&t.target_lang)));
     }
 
     let locked = rc.env.policy.disable_ai;

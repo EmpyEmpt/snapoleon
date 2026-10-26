@@ -266,6 +266,8 @@ impl Rows<'_> {
 
     pub fn choice_locked<T: PartialEq + Clone>(&mut self, ui: &mut Ui, locked: bool, key: &str, value: &mut T, options: &[(T, String)]) {
         self.row_locked(ui, locked, key, |ui| {
+            // Short lists share one width so the controls in a card line up.
+            ui.spacing_mut().combo_width = CHOICE_WIDTH;
             dd(ui, key, value, options);
         });
     }
@@ -310,6 +312,14 @@ impl Rows<'_> {
             }
         });
     }
+}
+
+/// The width short dropdowns in setting rows share.
+const CHOICE_WIDTH: f32 = 180.0;
+
+/// `want`, or less when the row has less room: a field never pushes past the card edge or over its label.
+fn fit_width(ui: &Ui, want: f32) -> f32 {
+    want.min(ui.available_width() - space::SM).max(80.0)
 }
 
 /// "Managed by your organization" pill.
@@ -365,11 +375,13 @@ pub fn dd_opt<T: PartialEq + Clone>(
 
 /// Single-line text input of a given width.
 pub fn field(ui: &mut Ui, value: &mut String, hint: &str, width: f32) {
+    let width = fit_width(ui, width);
     ui.add(TextField::new(value).hint(hint).width(width));
 }
 
 /// [`field`] in the mono face, for URLs, paths and tokens.
 pub fn field_mono(ui: &mut Ui, value: &mut String, hint: &str, width: f32) {
+    let width = fit_width(ui, width);
     ui.add(TextField::new(value).hint(hint).mono(true).width(width));
 }
 
@@ -377,6 +389,7 @@ pub fn field_mono(ui: &mut Ui, value: &mut String, hint: &str, width: f32) {
 /// `lost_focus`; `stored` says whether a secret already exists. Returns true when the field was just committed.
 pub fn secret_field(ui: &mut Ui, draft: &mut String, stored: bool, width: f32) -> bool {
     let hint = if stored { s("secret.stored") } else { s("secret.empty") };
+    let width = fit_width(ui, width);
     let resp = ui.add(TextField::new(draft).hint(&hint).password(true).mono(true).width(width));
     resp.lost_focus() && !draft.is_empty()
 }
@@ -456,12 +469,15 @@ pub fn path_field(ui: &mut Ui, cx: &mut ViewCx, value: &mut String, hint: &str, 
     if widgets::icon_button(ui, if target.is_folder() { icon::FOLDER_OPEN } else { icon::FILE }, &tip, None).clicked() {
         browse(cx, value, target);
     }
-    ui.add(TextField::new(value).hint(hint).mono(true).width(width - 36.0));
+    let width = fit_width(ui, width - 36.0);
+    ui.add(TextField::new(value).hint(hint).mono(true).width(width));
 }
 
 /// [`path_field`] for left-to-right layouts such as a form row: the field first, then the button.
 pub fn path_field_ltr(ui: &mut Ui, cx: &mut ViewCx, value: &mut String, hint: &str, target: Pick, width: f32) {
-    ui.add(TextField::new(value).hint(hint).mono(true).width(width - 36.0));
+    // Leave room for the button that follows.
+    let width = (width - 36.0).min(ui.available_width() - 36.0 - space::SM).max(80.0);
+    ui.add(TextField::new(value).hint(hint).mono(true).width(width));
     let tip = if target.is_folder() { s("choose_folder") } else { s("choose_file") };
     if widgets::icon_button(ui, if target.is_folder() { icon::FOLDER_OPEN } else { icon::FILE }, &tip, None).clicked() {
         browse(cx, value, target);
@@ -537,10 +553,12 @@ pub fn ltr(ui: &mut Ui, width: f32, add: impl FnOnce(&mut Ui)) {
 }
 
 /// A labelled field inside a card: a 150 px label column, then the control, left to right.
+/// In a narrow card the label column shrinks to leave a wide field its room.
 pub fn form_row(ui: &mut Ui, label: &str, add: impl FnOnce(&mut Ui)) {
     let p = Palette::of(ui);
     ui.horizontal(|ui| {
-        let width = 150.0;
+        let avail = ui.available_width();
+        let width = if avail < 150.0 + space::SM + 320.0 { (avail * 0.3).clamp(96.0, 150.0) } else { 150.0 };
         let galley = util::layout_wrapped(ui, label, &text::body_style(), p.text_dim, width);
         let height = galley.size().y.max(util::control_height(ui));
         let (rect, _) = ui.allocate_exact_size(egui::vec2(width, height), Sense::hover());
@@ -629,7 +647,7 @@ pub fn unique_slug(name: &str, fallback: &str, taken: impl Fn(&str) -> bool) -> 
 /// A single color well editing a `#RRGGBB[AA]` setting. An unparsable value is shown as `fallback`.
 pub fn color_well(ui: &mut Ui, hex: &mut String, fallback: [u8; 4], alpha: bool) {
     let mut color = snap_core::settings::parse_hex_color(hex).unwrap_or(fallback);
-    if ui.add(widgets::ColorSwatches::new(&mut color, &[]).alpha(alpha)).changed() {
+    if widgets::color_well(ui, &mut color, alpha).changed() {
         *hex = snap_core::settings::to_hex_color(color);
     }
 }
