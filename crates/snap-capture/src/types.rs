@@ -12,6 +12,7 @@ pub struct MonitorInfo {
     pub name: String,
     /// Physical pixels in virtual-desktop space.
     pub rect: Rect,
+    /// `rect` without the taskbar, or without the menu bar and the Dock.
     pub work_area: Rect,
     /// 1.0 = 96 DPI.
     pub scale_factor: f32,
@@ -26,7 +27,7 @@ pub struct WindowInfo {
     pub pid: u32,
     pub title: String,
     pub app_name: String,
-    /// Executable path (Windows/Linux) or bundle id (macOS) when known.
+    /// Executable path when known.
     pub app_id: Option<String>,
     /// Visible frame, without invisible resize borders.
     pub rect: Rect,
@@ -49,19 +50,23 @@ pub struct ElementInfo {
 pub struct CaptureOptions {
     pub include_cursor: bool,
     pub hdr: HdrMode,
-    /// Window captures: keep the (synthesised) drop shadow instead of cropping to the visible frame.
+    /// Window captures: keep a drop shadow (the system's own on macOS 26 and later, synthesised elsewhere) instead
+    /// of cropping to the visible frame.
     pub window_shadow: bool,
+    /// macOS: leave Finder's desktop icons out of screen captures (from macOS 14). Windows hides them on screen
+    /// instead, through [`hide_desktop_icons`](crate::hide_desktop_icons).
+    pub hide_desktop_icons: bool,
 }
 
 impl Default for CaptureOptions {
     fn default() -> Self {
-        Self { include_cursor: false, hdr: HdrMode::Auto, window_shadow: false }
+        Self { include_cursor: false, hdr: HdrMode::Auto, window_shadow: false, hide_desktop_icons: false }
     }
 }
 
 impl From<&CaptureSettings> for CaptureOptions {
     fn from(s: &CaptureSettings) -> Self {
-        Self { include_cursor: s.include_cursor, hdr: s.hdr, window_shadow: s.window_shadow }
+        Self { include_cursor: s.include_cursor, hdr: s.hdr, window_shadow: s.window_shadow, hide_desktop_icons: s.hide_desktop_icons }
     }
 }
 

@@ -21,8 +21,6 @@ impl App {
         match cmd {
             Command::StartCapture { action, pipeline } => self.start_action(sh, action, pipeline),
             Command::OpenOverlay(request) => self.open_with(sh, |cx| views::overlay::open(cx, request)),
-            #[cfg(target_os = "macos")]
-            Command::OpenOverlayIconsHidden(request) => self.open_with(sh, |cx| views::overlay::open_frozen(cx, request)),
             Command::CaptureAndRun { request, work, reply } => self.capture_and_run(sh, request, work, reply),
             Command::RunPipeline { capture, pipeline } => {
                 let show_text = self.settings.pipeline(&pipeline).is_some_and(|p| shows_text(&p.steps));

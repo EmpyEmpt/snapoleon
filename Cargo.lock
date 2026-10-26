@@ -6052,10 +6052,17 @@ name = "snap-capture"
 version = "0.1.0"
 dependencies = [
  "anyhow",
+ "block2 0.6.2",
  "core-foundation 0.10.1",
  "core-graphics 0.25.0",
  "crossbeam-channel",
  "image",
+ "objc2 0.6.5",
+ "objc2-app-kit 0.3.2",
+ "objc2-core-foundation",
+ "objc2-core-graphics",
+ "objc2-foundation 0.3.2",
+ "objc2-screen-capture-kit",
  "parking_lot",
  "rayon",
  "serde",

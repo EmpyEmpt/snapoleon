@@ -42,7 +42,8 @@ pub(crate) fn scrolling(engine: &Engine, rect: Rect, cancel: &AtomicBool, on_pro
         rect.h,
         || match first_frame.take() {
             Some(frame) => Ok(frame),
-            None => Ok(snap_capture::capture_rect(rect, &opts)?.image),
+            // Later frames need only pixels: no window list, no app context.
+            None => snap_capture::capture_rect_pixels(rect, &opts),
         },
         |notches| {
             if notches == 0 {

@@ -67,7 +67,7 @@ pub(crate) fn grab_window(id: u64, o: &CaptureOptions) -> Result<WindowGrab> {
             tracing::warn!("Windows.Graphics.Capture failed ({e}); copying the window area from the screen");
             let bounds = monitors::virtual_bounds();
             let r = frame.intersect(bounds).ok_or_else(|| Error::invalid("window is off screen"))?;
-            Ok(WindowGrab { image: gdi::grab(r)?, screen_rect: r, tone_mapped: false })
+            Ok(WindowGrab { image: gdi::grab(r)?, screen_rect: r, tone_mapped: false, shadow: false })
         }
     }
 }
@@ -91,6 +91,13 @@ pub(crate) fn hide_desktop_icons() -> Option<IconsGuard> {
 pub(crate) fn scroll_at(p: Point, notches: i32) -> Result<()> {
     input::scroll_at(p, notches)
 }
+
+/// Windows asks no consent for screen capture, so no system prompt can be waiting.
+pub(crate) fn system_alert_on_screen() -> bool {
+    false
+}
+
+pub(crate) fn prime_capture_consent() {}
 
 pub(super) fn rect_of(r: windows::Win32::Foundation::RECT) -> Rect {
     Rect::new(r.left, r.top, (r.right - r.left).max(0) as u32, (r.bottom - r.top).max(0) as u32)

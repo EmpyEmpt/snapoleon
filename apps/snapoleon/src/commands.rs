@@ -32,9 +32,6 @@ pub enum Command {
     },
     /// Open the selection overlay. Normally reached through `StartCapture`.
     OpenOverlay(OverlayRequest),
-    /// macOS: the desktop icons have been hidden on a worker; open the overlay without hiding them again.
-    #[cfg(target_os = "macos")]
-    OpenOverlayIconsHidden(OverlayRequest),
     /// Capture without UI on a worker thread, then run `work` over the result.
     CaptureAndRun {
         request: CaptureRequest,

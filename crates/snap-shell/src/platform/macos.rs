@@ -2,7 +2,7 @@ use objc2::{MainThreadMarker, rc::Retained};
 use objc2_app_kit::{
     NSApplication, NSFloatingWindowLevel, NSScreenSaverWindowLevel, NSView, NSWindow, NSWindowCollectionBehavior, NSWindowSharingType,
 };
-use snap_core::{Error, Rect, Result};
+use snap_core::{Error, Point, Rect, Result, geom::PointLayout};
 use winit::{
     dpi::{LogicalPosition, LogicalSize},
     event_loop::ActiveEventLoop,
@@ -16,8 +16,47 @@ use crate::WindowSpec;
 /// Logical-point rounding on mixed-DPI setups can be off by a pixel or two.
 pub(crate) const COVER_TOLERANCE: i32 = 2;
 
+/// Global points of virtual-desktop pixel `p`, and the pixels per point there, from the layout every crate shares.
+fn to_points(p: Point) -> Option<(f64, f64, f64)> {
+    let layout = PointLayout::current();
+    let d = layout.display_at(p)?;
+    let (x, y) = d.to_points(f64::from(p.x), f64::from(p.y));
+    Some((x, y, d.scale))
+}
+
 pub(crate) fn window_attributes(_el: &ActiveEventLoop, attrs: WindowAttributes, spec: &WindowSpec, _app_id: &str) -> WindowAttributes {
-    if spec.cover.is_some() { attrs.with_has_shadow(false).with_movable_by_window_background(false) } else { attrs }
+    // winit turns a physical position into points with the main screen's scale, which misplaces windows on a display
+    // of another scale; hand it points from the shared layout instead.
+    match (spec.cover, spec.position) {
+        (Some(r), _) => {
+            let attrs = attrs.with_has_shadow(false).with_movable_by_window_background(false);
+            match to_points(r.origin()) {
+                Some((x, y, s)) => attrs
+                    .with_position(LogicalPosition::new(x, y))
+                    .with_inner_size(LogicalSize::new(f64::from(r.w) / s, f64::from(r.h) / s)),
+                None => attrs,
+            }
+        }
+        (None, Some(p)) => match to_points(p) {
+            Some((x, y, _)) => attrs.with_position(LogicalPosition::new(x, y)),
+            None => attrs,
+        },
+        (None, None) => attrs,
+    }
+}
+
+/// Every display as (rect, scale) in the shared layout, so the rects match `snap_capture::monitors()` also when the
+/// displays have different scales (winit scales each origin by its own display's scale, so those rects overlap).
+pub(crate) fn monitors(_el: &ActiveEventLoop) -> Vec<(Rect, f32)> {
+    PointLayout::current().displays.iter().map(|d| (d.rect, d.scale as f32)).collect()
+}
+
+/// The window's outer rect in the shared layout, from its frame in points.
+pub(crate) fn outer_rect(window: &Window) -> Option<Rect> {
+    let scale = window.scale_factor();
+    let pos = window.outer_position().ok()?.to_logical::<f64>(scale);
+    let size = window.outer_size().to_logical::<f64>(scale);
+    Some(PointLayout::current().rect_to_pixels(pos.x, pos.y, size.width, size.height))
 }
 
 fn ns_window(window: &Window) -> Option<Retained<NSWindow>> {
@@ -64,16 +103,24 @@ pub(crate) fn set_exclude_from_capture(window: &Window, on: bool) -> Result<()> 
     Ok(())
 }
 
-/// winit positions in logical points, but covers are specified in physical
-/// pixels of the monitor they sit on, so convert with that monitor's scale.
-pub(crate) fn place_cover(window: &Window, r: Rect, monitors: &[(Rect, f32)]) {
-    let scale = monitors.iter().find(|(m, _)| m.contains(r.origin())).map_or_else(|| window.scale_factor(), |(_, s)| f64::from(*s));
-    window.set_outer_position(LogicalPosition::new(f64::from(r.x) / scale, f64::from(r.y) / scale));
-    let _ = window.request_inner_size(LogicalSize::new(f64::from(r.w) / scale, f64::from(r.h) / scale));
+/// Covers have no frame, so placing one is placing its outer rect.
+pub(crate) fn place_cover(window: &Window, r: Rect) {
+    set_outer_rect(window, r);
 }
 
+/// winit places windows in points; `r` is in the shared layout's pixels, converted through the display that holds
+/// its top-left corner and at that display's scale.
 pub(crate) fn set_outer_rect(window: &Window, r: Rect) {
-    super::winit_set_outer_rect(window, r);
+    let (x, y, scale) = to_points(r.origin()).unwrap_or_else(|| {
+        let s = window.scale_factor();
+        (f64::from(r.x) / s, f64::from(r.y) / s, s)
+    });
+    let own = window.scale_factor();
+    let (outer, inner) = (window.outer_size().to_logical::<f64>(own), window.inner_size().to_logical::<f64>(own));
+    let (frame_w, frame_h) = (outer.width - inner.width, outer.height - inner.height);
+    window.set_outer_position(LogicalPosition::new(x, y));
+    let _ = window
+        .request_inner_size(LogicalSize::new((f64::from(r.w) / scale - frame_w).max(1.0), (f64::from(r.h) / scale - frame_h).max(1.0)));
 }
 
 /// The `NSWindow.windowNumber`, which is what `CGWindowList` reports as the window id.

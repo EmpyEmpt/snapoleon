@@ -1,10 +1,11 @@
 //! Screen, window and element capture.
 //!
-//! All integer geometry is in physical pixels of the virtual desktop (see `snap_core::geom`), so mixed-DPI
-//! layouts need no scaling on the caller's side.
+//! All integer geometry is in physical pixels of the virtual desktop (see `snap_core::geom`; on macOS laid out by
+//! `snap_core::geom::PointLayout`), so mixed-DPI layouts need no scaling on the caller's side.
 //!
 //! Backends: Windows uses GDI for fast monitor snapshots, Windows.Graphics.Capture for windows and HDR
-//! (tone-mapped to SDR) and UI Automation for elements; macOS and Linux build on `xcap`.
+//! (tone-mapped to SDR) and UI Automation for elements; macOS uses ScreenCaptureKit (sRGB pixels) and the
+//! Accessibility API; Linux builds on `xcap` and AT-SPI.
 
 mod blit;
 mod compose;
@@ -12,13 +13,13 @@ mod labels;
 mod platform;
 mod types;
 
-use snap_core::{Capture, CaptureContext, CaptureKind, Error, Point, Rect, Result};
+use snap_core::{Capture, CaptureContext, CaptureKind, Error, Point, Rect, Result, RgbaImage};
 
 pub use labels::{monitor_label, role_label};
 pub use types::{CaptureOptions, ElementInfo, Frozen, MonitorInfo, WindowInfo};
 
-/// Make the process per-monitor-v2 DPI aware (Windows). Every entry point calls this; it is also safe to
-/// call early from `main`. Already-aware processes are left untouched. No-op on other OSes.
+/// Make the process per-monitor-v2 DPI aware (Windows; already-aware processes are left untouched) or connect it to
+/// the window server (macOS). Every entry point calls this; it is also safe to call early from `main`. No-op on Linux.
 pub fn ensure_dpi_aware() {
     platform::init();
 }
@@ -75,6 +76,17 @@ pub fn capture_rect(r: Rect, o: &CaptureOptions) -> Result<Capture> {
     compose::capture_area(&monitors, r, CaptureKind::Region, o)
 }
 
+/// Only the pixels of `r` (the part that lies on a monitor), without the window and app context [`capture_rect`]
+/// looks up: for grabbing one area again and again, as the frames of a scrolling capture do.
+pub fn capture_rect_pixels(r: Rect, o: &CaptureOptions) -> Result<RgbaImage> {
+    ensure_dpi_aware();
+    if r.is_empty() {
+        return Err(Error::invalid("empty capture rectangle"));
+    }
+    let monitors = platform::monitors()?;
+    compose::area_pixels(&monitors, r, o)
+}
+
 /// One window, also when other windows cover it where the OS allows.
 pub fn capture_window(id: u64, o: &CaptureOptions) -> Result<Capture> {
     ensure_dpi_aware();
@@ -122,25 +134,29 @@ pub struct DesktopIconsGuard {
     _restore: platform::IconsGuard,
 }
 
-/// Hide the desktop icons (Windows: the SHELLDLL_DefView list view; macOS: Finder's desktop; Linux: not
-/// supported, returns `None`). `None` also when there is nothing to hide.
+/// Hide the desktop icons on screen (Windows: the SHELLDLL_DefView list view). `None` when there is nothing to hide,
+/// and always on macOS, where captures leave Finder's icons out themselves
+/// ([`CaptureOptions::hide_desktop_icons`]), and on Linux, which has no common icon layer.
 pub fn hide_desktop_icons() -> Option<DesktopIconsGuard> {
     ensure_dpi_aware();
     platform::hide_desktop_icons().map(|g| DesktopIconsGuard { _restore: g })
 }
 
-/// Whether the desktop icons are hidden at the moment, so that [`hide_desktop_icons`] returns at once. On macOS, hiding
-/// them restarts Finder and the icons stay hidden for a few seconds after the last guard is dropped, so a run of
-/// captures shares one hide and one restore.
-#[cfg(target_os = "macos")]
-pub fn desktop_icons_hidden() -> bool {
-    platform::desktop_icons_hidden()
+/// Whether a system prompt is on screen right now (macOS: the screen capture approval, a Gatekeeper or a password
+/// prompt). A full-screen overlay must not cover one, or it can never be answered. Always `false` on Windows and
+/// Linux.
+pub fn system_alert_on_screen() -> bool {
+    ensure_dpi_aware();
+    platform::system_alert_on_screen()
 }
 
-/// Bring the desktop icons back now, even if a guard is still alive or a postponed restore is pending (macOS). For shutdown.
-#[cfg(target_os = "macos")]
-pub fn restore_desktop_icons() {
-    platform::restore_desktop_icons();
+/// Right after Screen Recording is granted (macOS), take a throwaway capture of a few pixels so that macOS asks its
+/// recurring "bypass the private window picker" question now, while nothing of ours covers the prompt; then watch
+/// [`system_alert_on_screen`]. Does nothing without the grant, and nothing on Windows and Linux. Blocks for the
+/// capture (normally well under 100 ms, a few seconds at worst).
+pub fn prime_capture_consent() {
+    ensure_dpi_aware();
+    platform::prime_capture_consent();
 }
 
 /// Scroll the wheel over `p`: positive `notches` scroll down (content moves up), negative scroll up. The

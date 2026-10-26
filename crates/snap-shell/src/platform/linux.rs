@@ -53,10 +53,18 @@ pub(crate) fn set_exclude_from_capture(_window: &Window, _on: bool) -> Result<()
     Err(Error::unsupported("excluding a window from screen capture"))
 }
 
-pub(crate) fn place_cover(window: &Window, r: Rect, _monitors: &[(Rect, f32)]) {
+pub(crate) fn place_cover(window: &Window, r: Rect) {
     if window.fullscreen().is_none() {
         super::winit_set_outer_rect(window, r);
     }
+}
+
+pub(crate) fn monitors(el: &ActiveEventLoop) -> Vec<(Rect, f32)> {
+    super::winit_monitors(el)
+}
+
+pub(crate) fn outer_rect(window: &Window) -> Option<Rect> {
+    super::winit_outer_rect(window)
 }
 
 pub(crate) fn set_outer_rect(window: &Window, r: Rect) {

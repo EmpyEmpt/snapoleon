@@ -3,8 +3,15 @@
 <!--
   Example configuration profile that sets Snapoleon managed preferences (MDM: Jamf, Kandji, Intune, ...).
   The MDM writes the payload to /Library/Managed Preferences/app.snapoleon.plist, which Snapoleon reads.
-  Replace both PayloadUUID values with fresh UUIDs (uuidgen) before deploying, and remove keys you do not need.
+  Replace every PayloadUUID value with a fresh UUID (uuidgen) before deploying, and remove keys you do not need.
   Booleans may be <true/> or <false/>. The key names match docs/POLICY.md.
+
+  The second payload is optional. From macOS 15, the system asks about once a month whether an app that captures the
+  screen may "bypass the system private window picker", and captures can come back as the bare desktop until the user
+  answers. On supervised Macs (macOS 15.1 or later) the Restrictions key forceBypassScreenCaptureAlert stops that
+  prompt; it does not grant Screen Recording itself, which the user still allows once in System Settings. Drop the
+  payload for unsupervised Macs, where it has no effect. The com.apple.developer.persistent-content-capture
+  entitlement, the other documented way around the prompt, is reserved by Apple for remote-desktop software.
 -->
 <plist version="1.0">
 <dict>
@@ -61,6 +68,21 @@ name = "Company Snapoleon server"
 type = "snap_server"
 url = "https://snap.example.com"
 </string>
+    </dict>
+    <dict>
+      <key>PayloadType</key>
+      <string>com.apple.applicationaccess</string>
+      <key>PayloadVersion</key>
+      <integer>1</integer>
+      <key>PayloadIdentifier</key>
+      <string>app.snapoleon.policy.screen-capture-alert</string>
+      <key>PayloadUUID</key>
+      <string>00000000-0000-0000-0000-000000000003</string>
+      <key>PayloadDisplayName</key>
+      <string>Screen capture alert</string>
+
+      <key>forceBypassScreenCaptureAlert</key>
+      <true/>
     </dict>
   </array>
 </dict>

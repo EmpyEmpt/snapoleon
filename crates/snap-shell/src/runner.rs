@@ -16,7 +16,7 @@ use crate::{
     Shell, ShellApp, ShellConfig, WindowKey, platform,
     proxy::{Msg, Proxy},
     render::{Gfx, Graphics},
-    shell::{Core, monitor_list},
+    shell::Core,
 };
 
 /// Run the shell until [`Shell::quit`] is called. The loop keeps running with
@@ -125,7 +125,7 @@ impl<E: Send + 'static, A: ShellApp<E>> Runner<E, A> {
     }
 
     /// Re-apply an overlay's exact rect when the OS has moved or rescaled it.
-    fn enforce_cover(&mut self, el: &ActiveEventLoop, key: WindowKey) {
+    fn enforce_cover(&mut self, key: WindowKey) {
         let Some(w) = self.core.windows.get_mut(&key) else { return };
         let Some(want) = w.cover else { return };
         w.cover_dirty = false;
@@ -139,7 +139,7 @@ impl<E: Send + 'static, A: ShellApp<E>> Runner<E, A> {
             w.cover_attempts = 0;
         } else if w.cover_attempts < 8 {
             w.cover_attempts += 1;
-            platform::place_cover(&w.window, want, &monitor_list(el));
+            platform::place_cover(&w.window, want);
         } else {
             tracing::warn!(key, ?want, ?have, "the OS keeps refusing the exact cover rect");
         }
@@ -214,7 +214,7 @@ impl<E: Send + 'static, A: ShellApp<E>> ApplicationHandler<Msg<E>> for Runner<E,
 
         let dirty: Vec<_> = self.core.windows.iter().filter(|(_, w)| w.cover_dirty).map(|(k, _)| *k).collect();
         for key in dirty {
-            self.enforce_cover(el, key);
+            self.enforce_cover(key);
         }
 
         let now = Instant::now();

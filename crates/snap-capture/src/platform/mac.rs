@@ -1,12 +1,9 @@
-//! macOS extras next to the xcap backend: permissions, Accessibility (AXUIElement) elements and browser
-//! URLs, pointer position, event injection and Finder desktop icons.
+//! macOS extras next to the ScreenCaptureKit backend (`mac_sck.rs`): permissions, Accessibility (AXUIElement)
+//! elements and browser URLs, pointer position and event injection.
 
 use std::{
     ffi::c_void,
-    process::Command,
-    ptr,
-    sync::{Mutex, MutexGuard, PoisonError},
-    thread,
+    ptr, thread,
     time::{Duration, Instant},
 };
 
@@ -21,9 +18,9 @@ use core_graphics::{
     event_source::{CGEventSource, CGEventSourceStateID},
     geometry::{CGPoint, CGSize},
 };
-use snap_core::{Error, Point, Rect, Result, RgbaImage};
+use snap_core::{Error, Point, Result, geom::PointLayout};
 
-use super::xcap_backend::{native_rect_to_physical, to_native, windows};
+use super::mac_sck::windows;
 use crate::{ElementInfo, WindowInfo, labels::permission_error};
 
 type AxElementRef = *const c_void;
@@ -65,25 +62,6 @@ pub fn exe_path(pid: u32) -> Option<String> {
 /// Screen Recording permission, required for any pixel (and window title) access.
 pub fn check_capture_access() -> Result<()> {
     if unsafe { CGPreflightScreenCaptureAccess() } { Ok(()) } else { Err(permission_error("capture.permission.screen_recording")) }
-}
-
-/// `CGWindowListCreateImage` includes the window shadow; cut the image back to the opaque window body.
-pub fn trim_window_frame(img: RgbaImage, expected: Rect) -> RgbaImage {
-    if img.width() <= expected.w + 2 && img.height() <= expected.h + 2 {
-        return img;
-    }
-    let (mut x0, mut y0, mut x1, mut y1) = (u32::MAX, u32::MAX, 0, 0);
-    for (x, y, px) in img.enumerate_pixels() {
-        if px[3] >= 200 {
-            (x0, y0, x1, y1) = (x0.min(x), y0.min(y), x1.max(x), y1.max(y));
-        }
-    }
-    if x0 == u32::MAX {
-        return img;
-    }
-    let (w, h) = (x1 - x0 + 1, y1 - y0 + 1);
-    let plausible = w * 10 >= expected.w * 9 && h * 10 >= expected.h * 9 && (w < img.width() || h < img.height());
-    if plausible { image::imageops::crop_imm(&img, x0, y0, w, h).to_image() } else { img }
 }
 
 fn owned(raw: CFTypeRef) -> Option<CFType> {
@@ -143,7 +121,9 @@ fn require_trust() -> Result<()> {
 
 pub fn elements_at(p: Point) -> Result<Vec<ElementInfo>> {
     require_trust()?;
-    let (x, y) = to_native(p);
+    // One display snapshot converts the point and every frame up the chain.
+    let layout = PointLayout::current();
+    let (x, y) = layout.to_points(p);
     let own_pid = std::process::id();
     let windows = windows()?;
     let under = windows.iter().find(|w| !w.minimized && w.rect.contains(p));
@@ -172,7 +152,7 @@ pub fn elements_at(p: Point) -> Result<Vec<ElementInfo>> {
             break;
         }
         if let Some([fx, fy, fw, fh]) = frame(&el) {
-            let rect = native_rect_to_physical(fx, fy, fw, fh);
+            let rect = layout.rect_to_pixels(fx, fy, fw, fh);
             let name = string_attr(&el, "AXTitle")
                 .or_else(|| string_attr(&el, "AXDescription"))
                 .or_else(|| string_attr(&el, "AXValue"))
@@ -245,107 +225,12 @@ pub fn browser_url(w: &WindowInfo) -> Option<String> {
     None
 }
 
-/// Hiding the icons rewrites Finder's `CreateDesktop` and restarts Finder, which flickers the desktop and reloads its
-/// windows. Captures follow each other, so the hide is shared by everyone who holds a guard and the restore waits
-/// [`RESTORE_GRACE`] after the last guard is gone: a run of captures hides and restores once, and dropping a guard
-/// never blocks.
-struct Icons {
-    /// The value `CreateDesktop` had before we hid the icons (`None` = unset, shown); the outer `None` when not hidden.
-    hidden: Option<Option<bool>>,
-    holders: usize,
-    /// Bumped by every hide and release, so a postponed restore can tell it was overtaken.
-    epoch: u64,
-}
+/// Captures leave Finder's desktop icons out on request (`CaptureOptions::hide_desktop_icons`), so nothing is ever
+/// hidden on screen and no guard is created.
+pub enum IconsGuard {}
 
-static ICONS: Mutex<Icons> = Mutex::new(Icons { hidden: None, holders: 0, epoch: 0 });
-const RESTORE_GRACE: Duration = Duration::from_secs(4);
-
-fn icons() -> MutexGuard<'static, Icons> {
-    ICONS.lock().unwrap_or_else(PoisonError::into_inner)
-}
-
-/// Keeps the desktop icons hidden until dropped (and then for a short while longer, see [`Icons`]).
-pub struct IconsGuard;
-
-fn defaults(args: &[&str]) -> Option<String> {
-    let out = Command::new("defaults").args(args).output().ok().filter(|o| o.status.success())?;
-    Some(String::from_utf8_lossy(&out.stdout).trim().to_string())
-}
-
-fn restart_finder() {
-    let _ = Command::new("killall").arg("Finder").status();
-}
-
-fn restore(original: Option<bool>) {
-    let _ = match original {
-        Some(v) => Command::new("defaults")
-            .args(["write", "com.apple.finder", "CreateDesktop", "-bool", if v { "true" } else { "false" }])
-            .status(),
-        None => Command::new("defaults").args(["delete", "com.apple.finder", "CreateDesktop"]).status(),
-    };
-    restart_finder();
-}
-
-/// Slow (process spawns and a Finder restart) the first time: call it off the UI thread.
 pub fn hide_desktop_icons() -> Option<IconsGuard> {
-    let mut icons = icons();
-    if icons.hidden.is_none() {
-        let original = defaults(&["read", "com.apple.finder", "CreateDesktop"]).map(|v| !matches!(v.as_str(), "0" | "false"));
-        if original == Some(false) {
-            return None;
-        }
-        Command::new("defaults")
-            .args(["write", "com.apple.finder", "CreateDesktop", "-bool", "false"])
-            .status()
-            .ok()
-            .filter(|s| s.success())?;
-        restart_finder();
-        icons.hidden = Some(original);
-    }
-    icons.holders += 1;
-    icons.epoch += 1;
-    Some(IconsGuard)
-}
-
-/// Whether the icons are hidden at the moment, so that taking a guard is instant.
-pub fn desktop_icons_hidden() -> bool {
-    icons().hidden.is_some()
-}
-
-/// Put the icons back now, whoever still holds a guard. For shutdown, when no postponed restore would get to run.
-pub fn restore_desktop_icons() {
-    let mut icons = icons();
-    if let Some(original) = icons.hidden.take() {
-        icons.epoch += 1;
-        restore(original);
-    }
-}
-
-impl Drop for IconsGuard {
-    fn drop(&mut self) {
-        let epoch = {
-            let mut icons = icons();
-            icons.holders -= 1;
-            icons.epoch += 1;
-            if icons.holders > 0 {
-                return;
-            }
-            icons.epoch
-        };
-        let later = thread::Builder::new().name("snap-icons".into()).spawn(move || {
-            thread::sleep(RESTORE_GRACE);
-            let mut icons = icons();
-            if icons.holders == 0
-                && icons.epoch == epoch
-                && let Some(original) = icons.hidden.take()
-            {
-                restore(original);
-            }
-        });
-        if later.is_err() {
-            restore_desktop_icons();
-        }
-    }
+    None
 }
 
 /// Move the pointer to `p` and scroll `notches` lines (positive = down).
@@ -355,7 +240,7 @@ pub fn scroll_at(p: Point, notches: i32) -> Result<()> {
     }
     require_trust()?;
     let source = || CGEventSource::new(CGEventSourceStateID::HIDSystemState).map_err(|_| Error::Other(anyhow::anyhow!("CGEventSource")));
-    let (x, y) = to_native(p);
+    let (x, y) = PointLayout::current().to_points(p);
     let moved = CGEvent::new_mouse_event(source()?, CGEventType::MouseMoved, CGPoint::new(x, y), CGMouseButton::Left)
         .map_err(|_| Error::Other(anyhow::anyhow!("mouse move event")))?;
     moved.post(CGEventTapLocation::HID);
