@@ -187,3 +187,6 @@ reveal = "Показать в Finder"
 
 [macos.library.empty]
 body_nokey = "Сделайте первый снимок через значок в строке меню."
+
+[library.a11y]
+remove_tag = "Удалить тег {tag}"

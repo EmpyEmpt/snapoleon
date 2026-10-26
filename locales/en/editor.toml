@@ -204,3 +204,8 @@ webp = "WebP image"
 
 [editor.canvas]
 outside = "Parts outside the picture are not saved"
+
+[editor.a11y]
+canvas = "Canvas"
+tools_up = "Show the tools above"
+tools_down = "Show the tools below"

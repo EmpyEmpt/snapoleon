@@ -113,7 +113,7 @@ impl HudView {
                 ui.label(text::caption(t(label)).color(tone));
                 ui.label(text::mono_text(self.shots.len().to_string()).size(18.0).strong().color(p.gold));
             });
-            if ui.interact(counter.response.rect, ui.scope_id().with("drag"), Sense::drag()).drag_started() {
+            if ui.interact(counter.response.rect, ui.scope_id().with("drag"), Sense::DRAG).drag_started() {
                 cx.shell.drag_window(cx.win);
             }
             ui.add_space(4.0);

@@ -187,3 +187,6 @@ reveal = "Show in Finder"
 
 [macos.library.empty]
 body_nokey = "Use the menu bar icon to take your first shot."
+
+[library.a11y]
+remove_tag = "Remove tag {tag}"

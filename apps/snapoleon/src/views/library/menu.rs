@@ -1,7 +1,10 @@
 //! A small popup menu (card "more" menu, right click, "copy as"). Unlike a stock egui popup it is driven by the
 //! caller's own state, so it can stay open while the widget that opened it is hidden or re-created every frame.
 
-use egui::{Area, Color32, Context, CornerRadius, FontId, Frame, Id, Key, LayerId, Margin, Order, Pos2, Rect, Sense, Stroke, Ui, Vec2};
+use egui::{
+    Area, Color32, Context, CornerRadius, FontId, Frame, Id, Key, LayerId, Margin, Order, Pos2, Rect, Role, Sense, Stroke, Ui, Vec2,
+    WidgetInfo,
+};
 use snap_ui::{
     Palette,
     text::body_style,
@@ -168,6 +171,7 @@ fn menu_width<T>(ctx: &Context, id: Id, items: &[Item<T>]) -> f32 {
 fn row<T>(ui: &mut Ui, p: &Palette, item: &Item<T>) -> bool {
     let sense = if item.enabled { Sense::click() } else { Sense::hover() };
     let (rect, resp) = ui.allocate_exact_size(Vec2::new(ui.available_width(), ROW_H), sense);
+    resp.widget_info(|| WidgetInfo::labeled(Role::MenuItem, item.enabled, &item.label));
     if ui.is_rect_visible(rect) {
         let hover = if item.enabled { util::hover_anim(ui, &resp) } else { 0.0 };
         ui.painter().rect_filled(rect, 6.0, p.hover().gamma_multiply(hover));

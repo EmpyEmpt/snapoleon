@@ -18,7 +18,7 @@ snap-core.workspace = true
 egui.workspace = true
 tracing.workspace = true
 anyhow.workspace = true
-egui-winit = { version = "0.37", default-features = false, features = ["clipboard", "links"] }
+egui-winit = { version = "0.37", default-features = false, features = ["accesskit", "clipboard", "links"] }
 winit = { version = "0.30.13", default-features = false, features = ["rwh_06"] }
 
 egui-wgpu = { version = "0.37", default-features = false, optional = true }
@@ -62,7 +62,7 @@ objc2-app-kit = { version = "0.3", features = [
 objc2-foundation = "0.3"
 
 [target.'cfg(target_os = "linux")'.dependencies]
-egui-winit = { version = "0.37", default-features = false, features = ["clipboard", "links", "wayland", "x11"] }
+egui-winit = { version = "0.37", default-features = false, features = ["accesskit", "clipboard", "links", "wayland", "x11"] }
 glutin = { version = "0.32", default-features = false, features = ["egl", "glx", "x11", "wayland"], optional = true }
 glutin-winit = { version = "0.5", default-features = false, features = ["egl", "glx", "x11", "wayland"], optional = true }
 # Linux carries wgpu (Vulkan, or GL through wgpu-hal) as the fallback for a machine without a usable OpenGL context.

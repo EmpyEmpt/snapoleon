@@ -143,6 +143,11 @@ impl View for MenuView {
 fn row(ui: &mut Ui, icon: &str, label: &str, accel: Option<&str>, on: bool) -> egui::Response {
     let p = palette(ui.ctx());
     let (rect, resp) = ui.allocate_exact_size(Vec2::new(ui.available_width(), ROW_H), Sense::click());
+    resp.widget_info(|| {
+        let mut info = egui::WidgetInfo::labeled(egui::Role::MenuItem, ui.is_enabled(), label);
+        info.selected = on.then_some(true);
+        info
+    });
     if ui.is_rect_visible(rect) {
         let hover = util::hover_anim(ui, &resp);
         ui.painter().rect_filled(rect, 6.0, p.hover().gamma_multiply(hover));

@@ -349,6 +349,28 @@ the element-query worker is one thread for the process: an OpenGL driver keeps a
 created, so a thread per capture showed up as memory creeping up by about 1.3 MB per overlay session. Do not spawn
 threads per session on the overlay path.
 
+## Accessibility
+
+Every window carries an AccessKit adapter (`snap-shell`), so screen readers and UI agents (VoiceOver, peekaboo, Windows
+UI Automation, AT-SPI) see the egui widgets as buttons, switches, sliders and fields. egui builds the tree only while
+such a client is attached; without one it costs nothing.
+
+A widget is found by its accessible name, so every control needs one:
+
+- `snap_ui` widgets name themselves from their label or tooltip. Controls that show no text of their own (switches,
+  sliders, dropdowns, text and number fields, shortcut recorders, color wells) take the name of the row or field that
+  hosts them: `setting_row`, the settings `form_row` and `stacked`, and the views' `field` / `row` helpers wrap their
+  control in `snap_ui::widgets::util::with_control_name`. Do the same for a new label-plus-control layout.
+- A hand-drawn clickable (`allocate_exact_size(.., Sense::click())`) calls
+  `resp.widget_info(|| WidgetInfo::labeled(Role::Button, ui.is_enabled(), label))`, or `WidgetInfo::selected(..)` when
+  it shows an on/off or chosen state. Passing it through `snap_ui::widgets::tooltip` names an icon-only one after its
+  tooltip.
+- A surface that only moves the window takes `Sense::DRAG` (or `CLICK | DRAG`): not focusable, so it is neither a Tab
+  stop nor a nameless element.
+
+Window titles (`WindowSpec::title`) are what window lists and agents show, also for windows whose title bar the app
+draws: keep them meaningful.
+
 ## Startup, for reference
 
 `main`: `dev::prepare` (dev data dir) -> `dpi::init` -> `console::attach` -> settings (they decide the language

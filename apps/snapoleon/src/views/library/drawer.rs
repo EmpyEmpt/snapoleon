@@ -4,7 +4,7 @@ use egui::{
     Align, Color32, CornerRadius, FontId, Layout, Margin, Pos2, Rect, RichText, ScrollArea, Sense, Stroke, StrokeKind, TextureHandle, Ui,
     UiBuilder, Vec2,
 };
-use snap_core::{CaptureKind, t};
+use snap_core::{CaptureKind, t, tf};
 use snap_engine::LinkAccess;
 use snap_history::{Entry, LinkRecord};
 use snap_ui::{
@@ -326,6 +326,7 @@ fn info(ui: &mut Ui, p: &Palette, entry: &Entry, out: &mut Vec<Out>) {
             let galley = paint::clamped(ui, &url, font, p.accent, w, 2);
             let (rect, resp) = ui.allocate_exact_size(galley.size().max(Vec2::new(w.min(40.0), 18.0)), Sense::CLICK);
             let resp = resp.on_hover_cursor(egui::CursorIcon::PointingHand);
+            resp.widget_info(|| egui::WidgetInfo::labeled(egui::Role::Link, true, &url));
             ui.painter().galley(util::snap(ui, rect.min), galley, p.accent);
             if resp.hovered() {
                 ui.painter().hline(rect.x_range(), rect.bottom() - 1.0, Stroke::new(1.0, p.accent));
@@ -588,8 +589,11 @@ fn tag_pill(ui: &mut Ui, p: &Palette, tag: &str) -> bool {
     let galley = ui.painter().layout_no_wrap(tag.to_owned(), body_style().resolve(ui.style()), p.text);
     let size = Vec2::new(galley.size().x + 12.0 + 22.0, 24.0);
     let (rect, resp) = ui.allocate_exact_size(size, Sense::CLICK);
+    resp.widget_info(|| egui::WidgetInfo::labeled(egui::Role::Button, true, tf("library.a11y.remove_tag", &[("tag", tag)])));
     let close = Rect::from_center_size(Pos2::new(rect.right() - 13.0, rect.center().y), Vec2::splat(18.0));
-    let hover_close = ui.rect_contains_pointer(close);
+    // The pointer removes the tag with the little cross; assistive tools press the whole pill, which they name so.
+    let hover_close =
+        ui.rect_contains_pointer(close) || ui.input(|i| i.has_accesskit_action_request(resp.id, egui::accesskit::Action::Click));
     ui.painter().rect_filled(rect, 12.0, p.accent_soft);
     ui.painter().galley(util::snap(ui, Pos2::new(rect.left() + 10.0, rect.center().y - galley.size().y / 2.0)), galley, p.text);
     if hover_close {

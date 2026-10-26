@@ -46,7 +46,11 @@ pub fn hotkey_recorder(ui: &mut Ui, accel: &mut String, state: &mut RecorderStat
     let p = Palette::of(ui);
     let width = ui.available_width().clamp(210.0, 270.0);
     let (rect, mut resp) = ui.allocate_exact_size(Vec2::new(width, control_height(ui)), Sense::click());
-    resp.widget_info(|| WidgetInfo::labeled(Role::Button, ui.is_enabled(), accel.as_str()));
+    let name = util::control_name(ui);
+    resp.widget_info(|| {
+        let value = if accel.is_empty() { t("ui.hotkey.not_set") } else { accel.as_str().into() };
+        util::valued_info(name.as_deref(), Role::Button, ui.is_enabled(), &value)
+    });
     if resp.clicked() {
         resp.request_focus();
     }
@@ -108,7 +112,11 @@ pub fn hotkey_recorder(ui: &mut Ui, accel: &mut String, state: &mut RecorderStat
     let clear_rect = Rect::from_center_size(Pos2::new(rect.right() - 18.0, rect.center().y), Vec2::splat(22.0));
     let hovered = ui.rect_contains_pointer(rect);
     let show_clear = !recording && !accel.is_empty() && hovered && ui.is_enabled();
-    let clear = show_clear.then(|| ui.interact(clear_rect, resp.id.with("clear"), Sense::click()).on_hover_text(t("ui.hotkey.clear")));
+    let clear = show_clear.then(|| {
+        let clear = ui.interact(clear_rect, resp.id.with("clear"), Sense::click());
+        clear.widget_info(|| WidgetInfo::labeled(Role::Button, ui.is_enabled(), t("ui.hotkey.clear")));
+        clear.on_hover_text(t("ui.hotkey.clear"))
+    });
     if clear.as_ref().is_some_and(Response::clicked) {
         accel.clear();
         state.invalid = false;

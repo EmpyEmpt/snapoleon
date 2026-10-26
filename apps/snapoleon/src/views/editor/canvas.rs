@@ -8,8 +8,8 @@
 use std::time::Instant;
 
 use egui::{
-    Color32, ColorImage, Context, CornerRadius, CursorIcon, Event, Key, Mesh, Painter, PointerButton, Pos2, Rect, Response, Sense,
-    Shape as Paint, Stroke, StrokeKind, TextureHandle, TextureOptions, Ui, Vec2, epaint::TextureId,
+    Color32, ColorImage, Context, CornerRadius, CursorIcon, Event, Key, Mesh, Painter, PointerButton, Pos2, Rect, Response, Role, Sense,
+    Shape as Paint, Stroke, StrokeKind, TextureHandle, TextureOptions, Ui, Vec2, WidgetInfo, epaint::TextureId,
 };
 use snap_annotate::{Document, Handle, Shape, ShapeKind, View, bounds, drag, handles, hit_test, render_view};
 use snap_core::{PointF, RectF};
@@ -179,6 +179,7 @@ impl Canvas {
         let p = palette(&ctx);
         let avail = ui.available_rect_before_wrap();
         let (_, response) = ui.allocate_exact_size(avail.size(), Sense::click_and_drag());
+        response.widget_info(|| WidgetInfo::labeled(Role::Canvas, true, snap_core::t("editor.a11y.canvas")));
 
         // Align the canvas to physical pixels so that the textures map 1:1 onto the screen.
         let min = Pos2::new((avail.min.x * ppp).round() / ppp, (avail.min.y * ppp).round() / ppp);

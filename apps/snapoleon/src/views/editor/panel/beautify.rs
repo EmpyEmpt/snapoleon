@@ -157,6 +157,7 @@ fn presets(ui: &mut Ui, cx: &mut PanelCx) {
             let cell = ui.vertical(|ui| {
                 ui.spacing_mut().item_spacing.y = 4.0;
                 let (rect, resp) = ui.allocate_exact_size(Vec2::new(cell_w, CELL_H), Sense::click());
+                resp.widget_info(|| egui::WidgetInfo::selected(egui::Role::RadioButton, ui.is_enabled(), selected, &preset.name));
                 paint_cell(ui, rect, &resp, selected, textures.get(i), &p);
                 ui.add_sized([cell_w, 14.0], egui::Label::new(text::caption(&preset.name)).truncate());
                 resp

@@ -20,6 +20,7 @@ pub fn toggle(ui: &mut Ui, on: &mut bool) -> Response {
         resp.mark_changed();
     }
     resp.widget_info(|| WidgetInfo::selected(Role::Switch, ui.is_enabled(), *on, ""));
+    util::name_control(ui, &resp);
 
     if ui.is_rect_visible(outer) {
         let rect = Rect::from_center_size(outer.center(), Vec2::new(w, h));

@@ -263,6 +263,7 @@ fn line_row(ui: &mut Ui, line: &str, selected: bool, p: &snap_ui::Palette) -> eg
     );
     let size = Vec2::new(width, galley.size().y + 10.0);
     let (rect, resp) = ui.allocate_exact_size(size, Sense::click());
+    resp.widget_info(|| egui::WidgetInfo::selected(egui::Role::Button, ui.is_enabled(), selected, line));
     let hover = hover_anim(ui, &resp);
     let painter = ui.painter();
     painter.rect_filled(rect, radius::CONTROL, p.hover().gamma_multiply(hover * if selected { 0.0 } else { 1.0 }));

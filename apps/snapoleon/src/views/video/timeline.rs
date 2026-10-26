@@ -2,8 +2,9 @@
 
 use egui::{
     Align2, Color32, CornerRadius, CursorIcon, FontId, Id, Pos2, Rect, Sense, Shape, Stroke, StrokeKind, TextureHandle, Ui, Vec2,
-    epaint::RectShape, pos2,
+    WidgetInfo, epaint::RectShape, pos2,
 };
+use snap_core::t;
 use snap_ui::{
     palette, radius, text,
     widgets::util::{self, hover_anim},
@@ -80,6 +81,10 @@ impl Timeline<'_> {
             |x: f32| Rect::from_center_size(pos2(x, strip.center().y), Vec2::new(HANDLE_HIT_WIDTH, STRIP_HEIGHT + HANDLE_OVERHANG * 2.0));
         let in_resp = ui.interact(handle_rect(in_x), id.with("in"), Sense::drag());
         let out_resp = ui.interact(handle_rect(out_x), id.with("out"), Sense::drag());
+        let secs = |ms: u64| ms as f64 / 1000.0;
+        scrub.widget_info(|| WidgetInfo::slider(true, secs(self.playhead_ms), t("video.a11y.playhead")));
+        in_resp.widget_info(|| WidgetInfo::slider(true, secs(self.trim.0), t("video.in")));
+        out_resp.widget_info(|| WidgetInfo::slider(true, secs(self.trim.1), t("video.out")));
         for resp in [&in_resp, &out_resp] {
             if resp.hovered() || resp.dragged() {
                 ui.ctx().set_cursor_icon(CursorIcon::ResizeHorizontal);

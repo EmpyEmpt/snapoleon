@@ -374,7 +374,8 @@ impl View for PinView {
                 let rect = ui.max_rect();
                 surface_rect = rect;
                 hovered = ui.ctx().pointer_hover_pos().is_some_and(|p| rect.contains(p));
-                let surface = ui.interact(rect, Id::unique("pin-surface"), Sense::click_and_drag());
+                // Pointer only (move, double-click, menu); the pin's keys are read from the window's input.
+                let surface = ui.interact(rect, Id::unique("pin-surface"), Sense::CLICK | Sense::DRAG);
                 drag = surface.drag_started_by(PointerButton::Primary);
                 if surface.double_clicked() {
                     action = Some(PinAction::Edit);

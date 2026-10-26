@@ -158,7 +158,12 @@ impl<E: Send + 'static> Shell<'_, E> {
             activate: spec.activate,
             opened_at,
         };
-        let state = WindowState::new(window.clone(), target, setup, ctx);
+        let mut state = WindowState::new(window.clone(), target, setup, ctx);
+        // The adapter must exist before the window is first shown (it panics on a visible one); every window is created
+        // hidden. It only reports to the loop when an accessibility client asks (see `Runner::accesskit`).
+        if window.is_visible() != Some(true) {
+            state.egui_state.init_accesskit(self.el, &window, self.core.proxy.event_loop());
+        }
         self.core.ids.insert(window.id(), key);
         self.core.windows.insert(key, state);
         // The first frame is rendered from the event loop's idle hook.

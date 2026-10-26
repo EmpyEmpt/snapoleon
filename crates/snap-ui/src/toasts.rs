@@ -2,7 +2,7 @@
 
 use std::time::Duration;
 
-use egui::{Align2, Area, Context, Frame, Id, Margin, Order, Pos2, Rect, Sense, Stroke, Vec2, emath::easing};
+use egui::{Align2, Area, Context, Frame, Id, Margin, Order, Pos2, Rect, Role, Sense, Stroke, Vec2, WidgetInfo, emath::easing};
 use snap_core::t;
 
 use crate::{
@@ -258,6 +258,7 @@ fn toast_ui(ui: &mut egui::Ui, p: &Palette, toast: &Toast, width: f32) -> Clicke
         let text_h = galley.size().y.max(24.0);
         let height = if stacked { text_h + 8.0 + ACTION_H } else { text_h };
         let (rect, hover) = ui.allocate_exact_size(Vec2::new(inner_w, height), Sense::hover());
+        hover.widget_info(|| WidgetInfo::labeled(Role::Label, true, &toast.text));
         let hovered = hover.hovered() || ui.rect_contains_pointer(rect.expand(8.0));
 
         let cy = rect.top() + text_h / 2.0;
@@ -270,6 +271,7 @@ fn toast_ui(ui: &mut egui::Ui, p: &Palette, toast: &Toast, width: f32) -> Clicke
         let close_rect = Rect::from_center_size(Pos2::new(x - close_w / 2.0, cy), Vec2::splat(24.0));
         x -= close_w;
         let close = ui.interact(close_rect, ui.scope_id().with("close"), Sense::click());
+        close.widget_info(|| WidgetInfo::labeled(Role::Button, true, t("ui.toast.dismiss")));
         let close_t = util::anim(ui.ctx(), close.id.with("vis"), hovered, 0.1);
         if close_t > 0.0 {
             let h = hover_anim(ui, &close);
@@ -294,6 +296,7 @@ fn toast_ui(ui: &mut egui::Ui, p: &Palette, toast: &Toast, width: f32) -> Clicke
             let r = Rect::from_center_size(Pos2::new(x - w / 2.0 - 4.0, actions_cy), Vec2::new(w, ACTION_H));
             x -= w + 8.0;
             let resp = ui.interact(r, ui.scope_id().with(("action", n)), Sense::click());
+            resp.widget_info(|| WidgetInfo::labeled(Role::Button, true, &toast.actions[n].0));
             let h = hover_anim(ui, &resp);
             ui.painter().rect_filled(r, 6.0, p.accent_soft.gamma_multiply(0.5 + 0.5 * h));
             let color = if resp.is_pointer_button_down_on() { p.accent.gamma_multiply(0.8) } else { p.accent };

@@ -17,7 +17,8 @@ use snap_record::{
 use snap_ui::{
     ToastKind, icon, palette, radius, text,
     widgets::{
-        Button, ButtonKind, card_frame, dropdown, number_field, progress_indeterminate, progress_sized, segmented, spinner, toggle, tooltip,
+        Button, ButtonKind, card_frame, dropdown, number_field, progress_indeterminate, progress_sized, segmented, spinner, toggle,
+        tooltip, util,
     },
 };
 
@@ -261,9 +262,10 @@ impl Editor {
         });
         if self.info.has_audio && form.format == VideoFormat::Mp4 {
             ui.horizontal(|ui| {
-                ui.label(t("video.export.mute"));
+                let mute = t("video.export.mute");
+                ui.label(mute.as_ref());
                 ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
-                    toggle(ui, &mut form.mute);
+                    util::with_control_name(ui, &mute, |ui| toggle(ui, &mut form.mute));
                 });
             });
         }
@@ -400,7 +402,7 @@ fn field(ui: &mut Ui, label: &str, add: impl FnOnce(&mut Ui)) {
     ui.vertical(|ui| {
         ui.spacing_mut().item_spacing.y = 6.0;
         ui.label(text::caption(label));
-        add(ui);
+        util::with_control_name(ui, label, add);
     });
 }
 

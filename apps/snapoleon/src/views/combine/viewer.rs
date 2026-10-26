@@ -69,6 +69,7 @@ impl Viewer {
     pub fn place(&mut self, ui: &mut Ui, canvas: Rect, px: Vec2) -> Placed {
         let ppp = ui.pixels_per_point();
         let response = ui.interact(canvas, ui.scope_id().with("viewer"), Sense::click_and_drag());
+        response.widget_info(|| egui::WidgetInfo::labeled(egui::Role::Canvas, true, t("combine.a11y.preview")));
         let fit = Self::fit_zoom(canvas, px, ppp);
         let zoom_now = self.zoom.unwrap_or(fit);
         let center = canvas.center() + self.pan;

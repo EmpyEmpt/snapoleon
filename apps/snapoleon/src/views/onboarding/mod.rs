@@ -372,6 +372,7 @@ impl Onboarding {
             let active = card == self.card;
             let dot = Rect::from_min_size(Pos2::new(x, rect.center().y - 3.0), vec2(width, 6.0));
             let resp = ui.interact(dot.expand(6.0), ui.scope_id().with(("dot", card.index())), Sense::click());
+            resp.widget_info(|| egui::WidgetInfo::selected(egui::Role::Tab, true, active, t(&format!("onboarding.{}.title", card.key()))));
             let color = if active {
                 p.accent
             } else if resp.hovered() {

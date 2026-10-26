@@ -5,6 +5,7 @@ use std::ops::RangeInclusive;
 use egui::{
     Align, Align2, DragValue, Frame, Key, Layout, Margin, Modifiers, Popup, PopupCloseBehavior, Pos2, Rect, Response, RichText, Role,
     ScrollArea, Sense, Shape, Stroke, StrokeKind, TextEdit, Ui, UiBuilder, Vec2, Widget, WidgetInfo,
+    accesskit::{Action, ActionData},
     emath::Numeric,
     epaint::text::{LayoutJob, TextWrapping},
 };
@@ -86,7 +87,9 @@ impl Widget for TextField<'_> {
         let height = if multiline { (ui.text_style_height(&style) * self.rows as f32 + 20.0).max(row_h) } else { row_h };
         let width = self.width.unwrap_or(ui.spacing().text_edit_width);
 
-        let (rect, outer) = ui.allocate_exact_size(Vec2::new(width, height), Sense::click());
+        // Not focusable: the text edit inside takes the keyboard, and the frame is no stop of its own for Tab or for
+        // assistive tools.
+        let (rect, outer) = ui.allocate_exact_size(Vec2::new(width, height), Sense::CLICK);
         let edit_id = outer.id.with("edit");
         if outer.clicked() {
             ui.memory_mut(|m| m.request_focus(edit_id));
@@ -129,6 +132,7 @@ impl Widget for TextField<'_> {
         } else {
             child.add(edit)
         };
+        util::name_control(ui, &resp);
 
         let focused = ui.memory(|m| m.has_focus(edit_id));
         let hover = hover_anim(ui, &outer);
@@ -155,6 +159,7 @@ impl Widget for TextField<'_> {
         if show_clear {
             let r = Rect::from_center_size(Pos2::new(rect.right() - 12.0 - 8.0, rect.center().y), Vec2::splat(20.0));
             let clear = ui.interact(r, outer.id.with("clear"), Sense::click());
+            clear.widget_info(|| WidgetInfo::labeled(Role::Button, ui.is_enabled(), t("ui.search.clear")));
             let h = hover_anim(ui, &clear);
             ui.painter().circle_filled(r.center(), 9.0, p.hover().gamma_multiply(h));
             util::paint_icon(ui, r.center(), icon::X, 12.0, lerp_color(p.text_faint, p.text, h));
@@ -206,7 +211,9 @@ pub fn number_field_with<N: Numeric>(ui: &mut Ui, value: &mut N, range: RangeInc
             let text = format!("{v:.2}");
             text.trim_end_matches('0').trim_end_matches('.').to_owned()
         };
-        ui.add(DragValue::new(value).range(range).suffix(suffix).speed(speed).custom_formatter(format))
+        let resp = ui.add(DragValue::new(value).range(range).suffix(suffix).speed(speed).custom_formatter(format));
+        util::name_control(ui, &resp);
+        resp
     })
     .inner
 }
@@ -302,7 +309,41 @@ impl Widget for Slider<'_> {
                 resp.mark_changed();
             }
         }
+        // Assistive tools step the slider or set its value directly.
+        let (ax_steps, ax_value) = ui.input(|i| {
+            let steps = i.num_accesskit_action_requests(resp.id, Action::Increment) as f32
+                - i.num_accesskit_action_requests(resp.id, Action::Decrement) as f32;
+            let value = i
+                .accesskit_action_requests(resp.id, Action::SetValue)
+                .filter_map(|request| match request.data {
+                    Some(ActionData::NumericValue(v)) => Some(v as f32),
+                    _ => None,
+                })
+                .last();
+            (steps, value)
+        });
+        let ax_target = ax_value.unwrap_or(*self.value) + ax_steps * self.step.unwrap_or((hi - lo) / 100.0);
+        if (ax_value.is_some() || ax_steps != 0.0) && snap(ax_target) != *self.value {
+            *self.value = snap(ax_target);
+            resp.mark_changed();
+        }
         resp.widget_info(|| WidgetInfo::slider(ui.is_enabled(), *self.value as f64, ""));
+        util::name_control(ui, &resp);
+        let (value, step) = (*self.value, self.step);
+        ui.ctx().accesskit_node_builder(resp.id, |node| {
+            node.set_min_numeric_value(lo.into());
+            node.set_max_numeric_value(hi.into());
+            if let Some(step) = step {
+                node.set_numeric_value_step(step.into());
+            }
+            node.add_action(Action::SetValue);
+            if value < hi {
+                node.add_action(Action::Increment);
+            }
+            if value > lo {
+                node.add_action(Action::Decrement);
+            }
+        });
 
         if ui.is_rect_visible(outer) {
             let t = if hi > lo { ((*self.value - lo) / (hi - lo)).clamp(0.0, 1.0) } else { 0.0 };
@@ -368,7 +409,8 @@ fn dropdown_inner<T: PartialEq + Clone>(ui: &mut Ui, value: &mut T, options: &[(
 
     let (rect, resp) = ui.allocate_exact_size(Vec2::new(width, height), Sense::click());
     let selected = options.iter().position(|(v, _)| v == value);
-    resp.widget_info(|| WidgetInfo::labeled(Role::ComboBox, ui.is_enabled(), selected.map_or("", |i| options[i].1)));
+    let name = util::control_name(ui);
+    resp.widget_info(|| util::valued_info(name.as_deref(), Role::ComboBox, ui.is_enabled(), selected.map_or("", |i| options[i].1)));
 
     let popup_id = Popup::default_response_id(&resp);
     let open = Popup::is_id_open(ui.ctx(), popup_id);

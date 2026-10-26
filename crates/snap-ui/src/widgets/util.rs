@@ -4,7 +4,7 @@ use std::sync::Arc;
 
 use egui::{
     Align2, Color32, Context, FontId, Galley, Id, Mesh, Painter, Pos2, Rect, Response, Shape, Stroke, StrokeKind, TextStyle, Ui,
-    emath::easing,
+    WidgetInfo, emath::easing,
 };
 
 use crate::theme::Palette;
@@ -101,4 +101,51 @@ pub fn scroll_fade(painter: &Painter, rect: Rect, color: Color32, bottom: bool) 
     mesh.add_triangle(0, 1, 2);
     mesh.add_triangle(0, 2, 3);
     painter.add(Shape::mesh(mesh));
+}
+
+fn control_name_id() -> Id {
+    Id::unique("snap-ui/control-name")
+}
+
+/// Run `add` with `name` as the accessible name of the controls in it that show no text of their own (a switch, a
+/// slider, a dropdown, a text or number field), the way a form label names its field: screen readers and UI agents
+/// then find "Show magnifier" instead of an unnamed switch. [`setting_row`](super::setting_row) names its control
+/// with the row label this way.
+pub fn with_control_name<R>(ui: &mut Ui, name: &str, add: impl FnOnce(&mut Ui) -> R) -> R {
+    let id = control_name_id();
+    let outer = ui.data(|d| d.get_temp::<Arc<str>>(id));
+    ui.data_mut(|d| d.insert_temp(id, Arc::<str>::from(name)));
+    let out = add(ui);
+    ui.data_mut(|d| match outer {
+        Some(name) => {
+            d.insert_temp(id, name);
+        }
+        None => d.remove::<Arc<str>>(id),
+    });
+    out
+}
+
+/// The name an enclosing [`with_control_name`] gives the controls being added.
+pub fn control_name(ui: &Ui) -> Option<Arc<str>> {
+    ui.data(|d| d.get_temp(control_name_id()))
+}
+
+/// Name `resp` after the enclosing [`with_control_name`] unless it has a name already. For widgets whose
+/// accessibility info egui fills in itself (text edits, drag values) and for controls that show only a state.
+pub fn name_control(ui: &Ui, resp: &Response) {
+    let Some(name) = control_name(ui) else { return };
+    ui.ctx().accesskit_node_builder(resp.id, |node| {
+        if node.label().is_none_or(str::is_empty) && node.labelled_by().is_empty() {
+            node.set_label(&*name);
+        }
+    });
+}
+
+/// Accessibility info for a control that shows a value (a shortcut, a color, the chosen option): named `name`, from
+/// [`control_name`], or after its value where there is none. Read the name before `Response::widget_info`, which
+/// runs its closure with the context locked.
+pub fn valued_info(name: Option<&str>, role: egui::Role, enabled: bool, value: &str) -> WidgetInfo {
+    let mut info = WidgetInfo::labeled(role, enabled, name.unwrap_or(value));
+    info.current_text_value = Some(value.to_owned());
+    info
 }

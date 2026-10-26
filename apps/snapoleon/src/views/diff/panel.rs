@@ -102,6 +102,10 @@ impl DiffView {
         let (rect, resp) = ui.allocate_exact_size(Vec2::new(ui.available_width(), SLOT_H), Sense::click());
         let hover = util::hover_anim(ui, &resp);
         let label = t(slot_key(index));
+        resp.widget_info(|| {
+            let value = self.slots[index].as_ref().map_or_else(|| t("diff.choose"), |slot| slot.name.as_str().into());
+            util::valued_info(Some(&label), egui::Role::Button, ui.is_enabled(), &value)
+        });
         let thumb = Rect::from_min_size(rect.min + Vec2::splat(8.0), Vec2::new(72.0, SLOT_H - 16.0));
         if ui.is_rect_visible(rect) {
             let painter = ui.painter();
