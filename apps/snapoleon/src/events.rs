@@ -1,12 +1,12 @@
 //! Everything the UI thread can be woken with. Worker threads, the tray, the
 //! hotkey manager and the IPC server all talk to the app through these.
 
-use std::any::Any;
+use std::{any::Any, time::Instant};
 
 use crossbeam_channel::Sender;
 use snap_core::ipc::{Request, Response};
 use snap_engine::{Notice, Outcome};
-use snap_platform::tray::TrayEvent;
+use snap_platform::{notify::NotifyAction, tray::TrayEvent};
 use snap_shell::WindowKey;
 
 use crate::commands::Command;
@@ -23,6 +23,11 @@ pub enum AppEvent {
     /// sender is answered exactly once, possibly after a job has finished.
     Ipc(Request, Sender<Response>),
     Command(Command),
+    /// The user clicked an OS notification or one of its buttons (macOS).
+    Notified(NotifyAction),
+    /// A reopen of the app (`OsRequest::Reopen`, macOS) made at that moment, held back for a notification click it may
+    /// have come with (see `ipc::defer_reopen`).
+    Reopen(Instant),
     /// Progress of a running job; an empty label clears the progress pill.
     JobProgress {
         label: String,

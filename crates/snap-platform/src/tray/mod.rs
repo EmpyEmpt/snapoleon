@@ -71,7 +71,7 @@ impl TrayItem {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum TrayEvent {
-    /// Primary click on the icon.
+    /// Primary click on the icon. Not on macOS, where any click opens the menu.
     Click,
     /// Double click (Windows). On Linux, where StatusNotifierItem has no double
     /// click, a middle click is reported instead.

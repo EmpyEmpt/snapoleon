@@ -5,7 +5,7 @@
 
 use std::{
     path::{Path, PathBuf},
-    time::Duration,
+    time::{Duration, Instant},
 };
 
 use crossbeam_channel::Sender;
@@ -31,6 +31,24 @@ use crate::{
 /// How long a client waits for the app to answer. Interactive requests answer at once;
 /// non-interactive captures answer when the pipeline has finished.
 const ANSWER_TIMEOUT: Duration = Duration::from_secs(300);
+
+/// How long a reopen waits for the notification click it may have come with.
+const REOPEN_DELAY: Duration = Duration::from_millis(300);
+
+/// A reopen this close to a notification click, before or after it, came with the click.
+const NOTIFIED_REOPEN: Duration = Duration::from_secs(2);
+
+/// Clicking a notification also reopens the app, and macOS delivers the reopen and the click in either order. The
+/// Library the reopen opens would cover what the click opens (the editor), so a reopen waits a moment and
+/// [`App::reopen`] drops it when a click came close to it.
+fn defer_reopen(sh: &mut Shell<AppEvent>) {
+    let at = Instant::now();
+    let proxy = sh.proxy();
+    std::thread::spawn(move || {
+        std::thread::sleep(REOPEN_DELAY);
+        proxy.send(AppEvent::Reopen(at));
+    });
+}
 
 /// Start serving. Fails with `AlreadyRunning` when another instance owns the endpoint.
 pub fn serve(proxy: Proxy<AppEvent>) -> Result<Server> {
@@ -101,10 +119,7 @@ impl App {
     /// A request from macOS: the app menu, the Dock, Finder and LaunchServices.
     pub(crate) fn handle_os_request(&mut self, sh: &mut Shell<AppEvent>, request: OsRequest) {
         match request {
-            // What a second launch does elsewhere (`forward` with no request).
-            OsRequest::Reopen => {
-                self.cmds.push(if self.settings.general.first_run_done { Command::OpenLibrary } else { Command::OpenOnboarding })
-            }
+            OsRequest::Reopen => defer_reopen(sh),
             OsRequest::OpenUrl(url) => match snap_core::ipc::parse_url(&url) {
                 Some(request) => self.handle_os_ipc(sh, request),
                 None => self.os_request_failed(sh, t("app.ipc.link_refused").into_owned()),
@@ -114,6 +129,16 @@ impl App {
             OsRequest::Settings => self.cmds.push(Command::OpenSettings { page: None }),
             OsRequest::Quit => self.cmds.push(Command::Quit),
         }
+    }
+
+    /// What a second launch does elsewhere (`forward` with no request), unless the reopen came with a notification
+    /// click (see [`defer_reopen`]).
+    pub(crate) fn reopen(&mut self, at: Instant) {
+        let near = |n: Instant| n.saturating_duration_since(at).max(at.saturating_duration_since(n)) < NOTIFIED_REOPEN;
+        if self.notified.is_some_and(near) {
+            return;
+        }
+        self.cmds.push(if self.settings.general.first_run_done { Command::OpenLibrary } else { Command::OpenOnboarding });
     }
 
     /// [`App::handle_request`] for a request nobody waits on: a refusal (a link that may not start its action, a
