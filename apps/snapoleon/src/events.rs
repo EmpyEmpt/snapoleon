@@ -1,12 +1,12 @@
 //! Everything the UI thread can be woken with. Worker threads, the tray, the
 //! hotkey manager and the IPC server all talk to the app through these.
 
-use std::any::Any;
+use std::{any::Any, time::Instant};
 
 use crossbeam_channel::Sender;
 use snap_core::ipc::{Request, Response};
 use snap_engine::{Notice, Outcome};
-use snap_platform::tray::TrayEvent;
+use snap_platform::{notify::NotifyAction, tray::TrayEvent};
 use snap_shell::WindowKey;
 
 use crate::commands::Command;
@@ -17,10 +17,17 @@ pub enum AppEvent {
     /// Index into `settings.hotkeys` as registered.
     Hotkey(usize),
     Tray(TrayEvent),
+    /// The latest capture's quick actions ran out (see `App::arm_tray_expiry`): rebuild the tray menu.
+    RefreshTray,
     /// A request from the CLI, a second instance or a `snapoleon://` URL. The
     /// sender is answered exactly once, possibly after a job has finished.
     Ipc(Request, Sender<Response>),
     Command(Command),
+    /// The user clicked an OS notification or one of its buttons (macOS).
+    Notified(NotifyAction),
+    /// A reopen of the app (`OsRequest::Reopen`, macOS) made at that moment, held back for a notification click it may
+    /// have come with (see `ipc::defer_reopen`).
+    Reopen(Instant),
     /// Progress of a running job; an empty label clears the progress pill.
     JobProgress {
         label: String,
@@ -50,7 +57,7 @@ pub struct HistoryChanged;
 
 pub struct JobDone {
     pub label: String,
-    pub result: Result<Outcome, String>,
+    pub result: Result<Outcome, snap_core::Error>,
     /// The job's steps produce text for the text window (OCR without copy, translation).
     pub show_text: bool,
     /// The engine already showed the text through `PipelineUi::show_text`.

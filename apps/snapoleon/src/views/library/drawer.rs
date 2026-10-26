@@ -4,7 +4,7 @@ use egui::{
     Align, Color32, CornerRadius, FontId, Layout, Margin, Pos2, Rect, RichText, ScrollArea, Sense, Stroke, StrokeKind, TextureHandle, Ui,
     UiBuilder, Vec2,
 };
-use snap_core::{CaptureKind, t};
+use snap_core::{CaptureKind, t, tf};
 use snap_engine::LinkAccess;
 use snap_history::{Entry, LinkRecord};
 use snap_ui::{
@@ -73,6 +73,8 @@ pub struct Props<'a> {
     pub file_ok: bool,
     pub now_ms: i64,
     pub recognizing: bool,
+    /// Text recognition is still being prepared ([`snap_ocr::warming_up`]).
+    pub ocr_warming: bool,
     pub uploading: bool,
 }
 
@@ -156,8 +158,14 @@ fn content(ui: &mut Ui, p: &Palette, state: &mut State, props: &Props, out: &mut
     ui.label(text::caption(format!("{kind} · {}", format::relative(props.now_ms, entry.created_ms))));
     ui.add_space(4.0);
 
-    if !props.file_ok {
-        missing_notice(ui, p);
+    // A capture that was only copied, pinned or read never had a file: say so plainly, it is not a fault. One kept as
+    // an editor project alone needs no note: it opens from that.
+    if entry.file.is_none() {
+        if entry.project.is_none() {
+            notice(ui, p, Tone::Neutral, icon::INFO, &t("library.drawer.not_saved"));
+        }
+    } else if !props.file_ok {
+        notice(ui, p, Tone::Warning, icon::WARNING, &t("library.drawer.missing"));
     }
     actions(ui, props, recording, out);
     ui.add_space(4.0);
@@ -217,7 +225,11 @@ fn preview(ui: &mut Ui, p: &Palette, props: &Props, width: f32, out: &mut Vec<Ou
     let close_resp = ui.interact(close, resp.id.with("close"), Sense::CLICK);
     let h = util::hover_anim(ui, &close_resp);
     ui.painter().circle_filled(close.center(), 13.0, Color32::from_black_alpha((110.0 + 60.0 * h) as u8));
-    util::paint_icon(ui, close.center(), icon::X, 13.0, Color32::WHITE);
+    // Drawn as two strokes rather than the icon glyph, which did not show on the dark disc over the preview.
+    let (c, arm) = (close.center(), 4.5);
+    for d in [Vec2::new(arm, arm), Vec2::new(arm, -arm)] {
+        ui.painter().line_segment([c - d, c + d], Stroke::new(1.6, Color32::WHITE));
+    }
     if tooltip(close_resp, &t("library.drawer.close"), Some("Esc")).clicked() {
         out.push(Out::Close);
     }
@@ -231,12 +243,13 @@ fn spinner_at(ui: &mut Ui, center: Pos2) {
     ui.scope_builder(UiBuilder::new().max_rect(rect), spinner);
 }
 
-fn missing_notice(ui: &mut Ui, p: &Palette) {
-    egui::Frame::new().fill(p.tone_soft(Tone::Warning)).corner_radius(8).inner_margin(Margin::symmetric(10, 8)).show(ui, |ui| {
+fn notice(ui: &mut Ui, p: &Palette, tone: Tone, glyph: &str, message: &str) {
+    let fg = p.tone(tone);
+    egui::Frame::new().fill(p.tone_soft(tone)).corner_radius(8).inner_margin(Margin::symmetric(10, 8)).show(ui, |ui| {
         ui.set_width(ui.available_width());
         ui.horizontal(|ui| {
-            ui.label(RichText::new(icon::WARNING).color(p.warning));
-            ui.add(egui::Label::new(RichText::new(t("library.drawer.missing")).color(p.warning).size(12.0)).wrap());
+            ui.label(RichText::new(glyph).color(fg));
+            ui.add(egui::Label::new(RichText::new(message).color(fg).size(12.0)).wrap());
         });
     });
 }
@@ -269,7 +282,8 @@ fn actions(ui: &mut Ui, props: &Props, recording: bool, out: &mut Vec<Out>) {
                     out.push(Out::Act(Act::Upload));
                 }
             });
-            if icon_button(ui, icon::FOLDER_OPEN, &t("library.action.reveal"), None).clicked() {
+            let on_disk = props.entry.file.is_some() || props.entry.project.is_some();
+            if ui.add_enabled_ui(on_disk, |ui| icon_button(ui, icon::FOLDER_OPEN, &t("library.action.reveal"), None)).inner.clicked() {
                 out.push(Out::Act(Act::Reveal));
             }
             let more = icon_button(ui, icon::DOTS_THREE, &t("library.action.more"), None);
@@ -320,6 +334,7 @@ fn info(ui: &mut Ui, p: &Palette, entry: &Entry, out: &mut Vec<Out>) {
             let galley = paint::clamped(ui, &url, font, p.accent, w, 2);
             let (rect, resp) = ui.allocate_exact_size(galley.size().max(Vec2::new(w.min(40.0), 18.0)), Sense::CLICK);
             let resp = resp.on_hover_cursor(egui::CursorIcon::PointingHand);
+            resp.widget_info(|| egui::WidgetInfo::labeled(egui::Role::Link, true, &url));
             ui.painter().galley(util::snap(ui, rect.min), galley, p.accent);
             if resp.hovered() {
                 ui.painter().hline(rect.x_range(), rect.bottom() - 1.0, Stroke::new(1.0, p.accent));
@@ -333,7 +348,7 @@ fn info(ui: &mut Ui, p: &Palette, entry: &Entry, out: &mut Vec<Out>) {
         info_row(ui, p, &t("library.info.size"), |ui, w| plain(ui, p, &format!("{} × {}", entry.width, entry.height), w, true));
     }
     if entry.bytes > 0 {
-        info_row(ui, p, &t("library.info.file_size"), |ui, w| plain(ui, p, &format::bytes(entry.bytes), w, true));
+        info_row(ui, p, &t("library.info.file_size"), |ui, w| plain(ui, p, &crate::views::file_size(entry.bytes), w, true));
     }
     if let Some(ms) = entry.duration_ms {
         info_row(ui, p, &t("library.info.duration"), |ui, w| plain(ui, p, &format::duration(ms), w, true));
@@ -389,8 +404,11 @@ fn text_block(ui: &mut Ui, p: &Palette, props: &Props, out: &mut Vec<Out>) {
         None if props.recognizing => {
             ui.horizontal(|ui| {
                 spinner(ui);
-                ui.label(text::dim(t("library.text.recognizing")));
+                ui.label(text::dim(t(if props.ocr_warming { "ocr.warmup.label" } else { "library.text.recognizing" })));
             });
+            if props.ocr_warming {
+                ui.label(text::caption(t("ocr.warmup.hint")));
+            }
         }
         None => {
             ui.label(text::caption(t("library.text.none")));
@@ -579,8 +597,11 @@ fn tag_pill(ui: &mut Ui, p: &Palette, tag: &str) -> bool {
     let galley = ui.painter().layout_no_wrap(tag.to_owned(), body_style().resolve(ui.style()), p.text);
     let size = Vec2::new(galley.size().x + 12.0 + 22.0, 24.0);
     let (rect, resp) = ui.allocate_exact_size(size, Sense::CLICK);
+    resp.widget_info(|| egui::WidgetInfo::labeled(egui::Role::Button, true, tf("library.a11y.remove_tag", &[("tag", tag)])));
     let close = Rect::from_center_size(Pos2::new(rect.right() - 13.0, rect.center().y), Vec2::splat(18.0));
-    let hover_close = ui.rect_contains_pointer(close);
+    // The pointer removes the tag with the little cross; assistive tools press the whole pill, which they name so.
+    let hover_close =
+        ui.rect_contains_pointer(close) || ui.input(|i| i.has_accesskit_action_request(resp.id, egui::accesskit::Action::Click));
     ui.painter().rect_filled(rect, 12.0, p.accent_soft);
     ui.painter().galley(util::snap(ui, Pos2::new(rect.left() + 10.0, rect.center().y - galley.size().y / 2.0)), galley, p.text);
     if hover_close {

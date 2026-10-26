@@ -1,5 +1,6 @@
 [editor]
 title = "Editor"
+title_named = "Editor – {name}"
 undo = "Undo"
 redo = "Redo"
 copy_tip = "Copy image"
@@ -64,6 +65,7 @@ fill = "Fill"
 rounded = "Rounded"
 shadow = "Shadow"
 size = "Size"
+outline = "Outline"
 
 [editor.arrow]
 solid = "Solid"
@@ -200,3 +202,11 @@ project = "Snapoleon project"
 png = "PNG image"
 jpg = "JPEG image"
 webp = "WebP image"
+
+[editor.canvas]
+outside = "Parts outside the picture are not saved"
+
+[editor.a11y]
+canvas = "Canvas"
+tools_up = "Show the tools above"
+tools_down = "Show the tools below"

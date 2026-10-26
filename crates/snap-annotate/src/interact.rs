@@ -2,7 +2,9 @@
 
 use snap_core::{PointF, RectF};
 
-use crate::geometry::{self, arrow_geom, callout_box, inflate, magnifier_geom, measure_geom, norm_rect, polygon_bounds, text_box, union};
+use crate::geometry::{
+    self, arrow_geom, callout_box, inflate, magnifier_geom, measure_geom, norm_rect, polygon_bounds, text_box, text_outline_width, union,
+};
 use crate::math::{Scale, V};
 use crate::model::{Document, Shape, ShapeKind, TextBg};
 
@@ -44,7 +46,10 @@ pub(crate) fn bounds_with(shape: &Shape, sc: Scale) -> RectF {
         ShapeKind::Pen { points } => points_bounds(points, w / 2.0 + 1.5),
         ShapeKind::Highlighter { points } => points_bounds(points, w * 1.5 + 1.5),
         ShapeKind::Text { pos, text, size, bold, bg, max_width } => {
-            inflate(text_box(*pos, text, *size, *bold, *bg, *max_width, sc).bounds(), 1.0)
+            let tb = text_box(*pos, text, *size, *bold, *bg, *max_width, sc);
+            // The outline of plain text reaches past the glyphs, and a faded shape is drawn into a layer of this size.
+            let outline = if *bg == TextBg::None && shape.style.fill.is_some() { text_outline_width(tb.layout.size) / 2.0 } else { 0.0 };
+            inflate(tb.bounds(), 1.0 + outline)
         }
         ShapeKind::Callout { rect, tail, text, size } => inflate(callout_box(norm_rect(*rect), *tail, text, *size, sc).bounds(), 1.0),
         ShapeKind::Step { center, radius, .. } => circle_bounds(*center, sc.badge(*radius) * 1.15 + 2.0),

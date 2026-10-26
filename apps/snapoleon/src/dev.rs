@@ -154,7 +154,7 @@ impl App {
             "about" => self.open_windows(sh, views::about::open),
             "steps" => self.open_windows(sh, views::steps::open),
             "combine" => {
-                let images: Vec<RgbaImage> = (0..3).filter_map(&crop).collect();
+                let images: Vec<(RgbaImage, f32)> = (0..3).filter_map(&crop).map(|image| (image, 1.0)).collect();
                 self.open_windows(sh, |cx| views::combine::open(cx, images))
             }
             "diff" => {
@@ -238,7 +238,7 @@ fn take_shot(native: Option<u64>, rect: Option<Rect>, path: &Path) -> snap_core:
     if let Some(dir) = path.parent().filter(|d| !d.as_os_str().is_empty()) {
         std::fs::create_dir_all(dir)?;
     }
-    snap_image::encode::save(&capture.image, path, ImageFormat::Png, 90, false)?;
+    snap_image::encode::save(&capture.image, path, ImageFormat::Png, 90, false, Some(capture.scale_factor))?;
     Ok(how)
 }
 
@@ -259,8 +259,12 @@ fn overlay_mode(name: Option<&str>) -> OverlayMode {
     }
 }
 
-/// A real screenshot of the primary monitor.
+/// A real screenshot of the primary monitor, or the picture `SNAPOLEON_DEV_SCREEN` names: README and store screenshots
+/// must not carry whatever happens to be on the developer's screen, and a fixed picture makes them reproducible.
 fn demo_screenshot() -> Option<RgbaImage> {
+    if let Some(path) = std::env::var_os("SNAPOLEON_DEV_SCREEN") {
+        return image::open(&path).map(|i| i.to_rgba8()).map_err(|e| tracing::warn!("SNAPOLEON_DEV_SCREEN: {e}")).ok();
+    }
     let monitors = snap_capture::monitors().ok()?;
     let primary = monitors.iter().find(|m| m.is_primary).or(monitors.first())?;
     snap_capture::capture_monitor(primary.index, &CaptureOptions::default()).ok().map(|c| c.image)
@@ -316,7 +320,7 @@ fn seed_history(engine: &Engine, screen: Option<&RgbaImage>) {
         capture.context = demo_context(i);
         capture.taken_at_ms = now - (i as i64) * 7 * 3_600_000;
         let file = dir.join(format!("Snapoleon demo {i:02}.png"));
-        let bytes = snap_image::encode::save(&capture.image, &file, ImageFormat::Png, 90, false).unwrap_or(0);
+        let bytes = snap_image::encode::save(&capture.image, &file, ImageFormat::Png, 90, false, Some(capture.scale_factor)).unwrap_or(0);
         let mut entry = Entry::from_capture(&capture, Some(file), bytes);
         entry.thumb = snap_history::write_thumbnail(&capture.image, &capture.id).ok();
         entry.text = Some(DEMO_TEXT.lines().skip(i % 4).take(3).collect::<Vec<_>>().join(" "));

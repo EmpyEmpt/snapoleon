@@ -15,6 +15,9 @@ use crate::{
     theme::{Palette, radius, with_alpha},
 };
 
+/// How long each recording hint ("Esc to cancel", "Backspace to clear") stays before the other one takes its place.
+const HINT_SECS: f64 = 2.5;
+
 /// State kept by the caller across frames.
 #[derive(Debug, Default)]
 pub struct RecorderState {
@@ -32,9 +35,10 @@ enum Outcome {
 
 /// Records a global-hotkey accelerator into `accel`.
 ///
-/// While focused it shows "Press keys…" plus the modifiers currently held. `Esc` cancels, `Backspace`
-/// or `Delete` clears. Bare letters are rejected (a global hotkey needs a modifier), but F-keys,
-/// PrintScreen and similar standalone keys are accepted. `changed()` is set when `accel` is rewritten.
+/// While focused it shows "Press keys…" plus the modifiers currently held, with "Esc to cancel" and "Backspace to
+/// clear" taking turns beside it and both in its tooltip. `Esc` cancels, `Backspace` or `Delete` clears. Bare letters
+/// are rejected (a global hotkey needs a modifier), but F-keys, PrintScreen and similar standalone keys are accepted.
+/// `changed()` is set when `accel` is rewritten.
 ///
 /// PrintScreen, Pause, ScrollLock and the Windows key cannot be seen through egui, so on Windows they
 /// are sampled from the OS; on macOS/Linux they cannot be recorded.
@@ -42,7 +46,11 @@ pub fn hotkey_recorder(ui: &mut Ui, accel: &mut String, state: &mut RecorderStat
     let p = Palette::of(ui);
     let width = ui.available_width().clamp(210.0, 270.0);
     let (rect, mut resp) = ui.allocate_exact_size(Vec2::new(width, control_height(ui)), Sense::click());
-    resp.widget_info(|| WidgetInfo::labeled(Role::Button, ui.is_enabled(), accel.as_str()));
+    let name = util::control_name(ui);
+    resp.widget_info(|| {
+        let value = if accel.is_empty() { t("ui.hotkey.not_set") } else { accel.as_str().into() };
+        util::valued_info(name.as_deref(), Role::Button, ui.is_enabled(), &value)
+    });
     if resp.clicked() {
         resp.request_focus();
     }
@@ -96,12 +104,19 @@ pub fn hotkey_recorder(ui: &mut Ui, accel: &mut String, state: &mut RecorderStat
         state.prev_extra_key = None;
     }
     let recording = recording && resp.has_focus();
+    if recording {
+        resp = resp.on_hover_text(t("ui.hotkey.recording_tip"));
+    }
 
     // Clear button, only on a hovered, filled, idle field.
     let clear_rect = Rect::from_center_size(Pos2::new(rect.right() - 18.0, rect.center().y), Vec2::splat(22.0));
     let hovered = ui.rect_contains_pointer(rect);
     let show_clear = !recording && !accel.is_empty() && hovered && ui.is_enabled();
-    let clear = show_clear.then(|| ui.interact(clear_rect, resp.id.with("clear"), Sense::click()).on_hover_text(t("ui.hotkey.clear")));
+    let clear = show_clear.then(|| {
+        let clear = ui.interact(clear_rect, resp.id.with("clear"), Sense::click());
+        clear.widget_info(|| WidgetInfo::labeled(Role::Button, ui.is_enabled(), t("ui.hotkey.clear")));
+        clear.on_hover_text(t("ui.hotkey.clear"))
+    });
     if clear.as_ref().is_some_and(Response::clicked) {
         accel.clear();
         state.invalid = false;
@@ -128,9 +143,20 @@ pub fn hotkey_recorder(ui: &mut Ui, accel: &mut String, state: &mut RecorderStat
                 let galley = util::layout(ui, &t("ui.hotkey.press_keys"), &body_style(), p.text_dim);
                 let end = origin.x + 2.0 + galley.size().x;
                 ui.painter().galley(util::snap(ui, Pos2::new(origin.x + 2.0, rect.center().y - galley.size().y / 2.0)), galley, p.text_dim);
-                let hint = util::layout(ui, &t("ui.hotkey.esc_hint"), &caption_style(), p.text_faint);
-                let hint_x = rect.right() - 10.0 - hint.size().x;
-                if hint_x > end + 12.0 {
+                // The two keys take turns in the one spot there is room for; the one whose turn it is falls back to
+                // the other where it does not fit (long words in a narrow field).
+                let clear_first = (ui.input(|i| i.time) / HINT_SECS) as i64 % 2 == 1;
+                let keys = if clear_first {
+                    ["ui.hotkey.clear_hint", "ui.hotkey.esc_hint"]
+                } else {
+                    ["ui.hotkey.esc_hint", "ui.hotkey.clear_hint"]
+                };
+                let fits = keys
+                    .into_iter()
+                    .map(|key| util::layout(ui, &t(key), &caption_style(), p.text_faint))
+                    .map(|hint| (rect.right() - 10.0 - hint.size().x, hint))
+                    .find(|(hint_x, _)| *hint_x > end + 12.0);
+                if let Some((hint_x, hint)) = fits {
                     ui.painter().galley(util::snap(ui, Pos2::new(hint_x, rect.center().y - hint.size().y / 2.0)), hint, p.text_faint);
                 }
             } else {

@@ -1,13 +1,11 @@
-//! macOS and Linux capture on top of `xcap`. OS-specific extras live in `mac.rs` / `linux.rs` (`os`).
+//! Linux capture on top of `xcap`. Desktop extras (pointer, input, accessibility) live in `linux.rs`.
 //!
-//! `xcap` reports macOS geometry in points; everything crossing this module's boundary is converted to
-//! physical pixels with each monitor's own scale factor (`mac_scale`). On Linux coordinates already are
-//! pixels.
+//! `xcap` reports Linux geometry in pixels of the root window, which already is virtual-desktop space.
 
 use snap_core::{Error, Point, Rect, Result, RgbaImage};
 use xcap::{Monitor, Window};
 
-use super::{CursorSprite, Grab, WindowGrab, os};
+use super::{CursorSprite, Grab, WindowGrab, linux};
 use crate::{CaptureOptions, MonitorInfo, WindowInfo, blit};
 
 pub(crate) fn init() {}
@@ -25,132 +23,59 @@ fn guarded<T>(f: impl FnOnce() -> Result<T>) -> Result<T> {
         .unwrap_or_else(|_| Err(Error::unsupported(snap_core::t("capture.error.backend_crashed"))))
 }
 
-/// Points-to-pixels multiplier for geometry reported by xcap.
-fn unit_scale(display_scale: f32) -> f64 {
-    if cfg!(target_os = "macos") { display_scale.max(1.0) as f64 } else { 1.0 }
-}
-
-/// A monitor together with its native (point) geometry.
-struct Display {
-    info: MonitorInfo,
-    /// x, y, w, h in xcap units.
-    native: [f64; 4],
-    k: f64,
-}
-
-fn displays() -> Result<Vec<Display>> {
+fn displays() -> Result<Vec<MonitorInfo>> {
     guarded(displays_unguarded)
 }
 
-fn displays_unguarded() -> Result<Vec<Display>> {
+fn displays_unguarded() -> Result<Vec<MonitorInfo>> {
     let mut out = Vec::new();
     for m in Monitor::all().map_err(xerr)? {
-        let scale = m.scale_factor().unwrap_or(1.0);
-        let k = unit_scale(scale);
-        let native =
-            [m.x().map_err(xerr)? as f64, m.y().map_err(xerr)? as f64, m.width().map_err(xerr)? as f64, m.height().map_err(xerr)? as f64];
-        let rect = Rect::new(
-            (native[0] * k).round() as i32,
-            (native[1] * k).round() as i32,
-            (native[2] * k).round() as u32,
-            (native[3] * k).round() as u32,
-        );
-        out.push(Display {
-            info: MonitorInfo {
-                index: 0,
-                id: m.id().map_err(xerr)?,
-                name: m.friendly_name().or_else(|_| m.name()).unwrap_or_default(),
-                rect,
-                work_area: rect,
-                scale_factor: scale.max(1.0),
-                is_primary: m.is_primary().unwrap_or(false),
-                hdr: false,
-                refresh_hz: m.frequency().unwrap_or(0.0),
-            },
-            native,
-            k,
+        let rect = Rect::new(m.x().map_err(xerr)?, m.y().map_err(xerr)?, m.width().map_err(xerr)?, m.height().map_err(xerr)?);
+        out.push(MonitorInfo {
+            index: 0,
+            id: m.id().map_err(xerr)?,
+            name: m.friendly_name().or_else(|_| m.name()).unwrap_or_default(),
+            rect,
+            work_area: rect,
+            scale_factor: m.scale_factor().unwrap_or(1.0).max(1.0),
+            is_primary: m.is_primary().unwrap_or(false),
+            hdr: false,
+            refresh_hz: m.frequency().unwrap_or(0.0),
         });
     }
     if out.is_empty() {
         return Err(Error::NotFound("no monitors".into()));
     }
-    out.sort_by_key(|d| (!d.info.is_primary, d.info.rect.x, d.info.rect.y));
-    for (i, d) in out.iter_mut().enumerate() {
-        d.info.index = i;
+    out.sort_by_key(|m| (!m.is_primary, m.rect.x, m.rect.y));
+    for (i, m) in out.iter_mut().enumerate() {
+        m.index = i;
     }
     Ok(out)
 }
 
-impl Display {
-    fn contains_native(&self, x: f64, y: f64) -> bool {
-        x >= self.native[0] && y >= self.native[1] && x < self.native[0] + self.native[2] && y < self.native[1] + self.native[3]
-    }
-}
-
-/// Native point to physical pixel, using the display the point lies on (primary when none does).
-fn to_physical(ds: &[Display], x: f64, y: f64) -> (Point, f64) {
-    let d = ds.iter().find(|d| d.contains_native(x, y)).unwrap_or(&ds[0]);
-    let p = Point::new(d.info.rect.x + ((x - d.native[0]) * d.k).round() as i32, d.info.rect.y + ((y - d.native[1]) * d.k).round() as i32);
-    (p, d.k)
-}
-
-/// Physical pixel to native point (inverse of [`to_physical`]).
-#[cfg(target_os = "macos")]
-pub(super) fn to_native(p: Point) -> (f64, f64) {
-    let Ok(ds) = displays() else { return (p.x as f64, p.y as f64) };
-    let d = ds.iter().find(|d| d.info.rect.contains(p)).unwrap_or(&ds[0]);
-    (d.native[0] + (p.x - d.info.rect.x) as f64 / d.k, d.native[1] + (p.y - d.info.rect.y) as f64 / d.k)
-}
-
-/// Native point to physical pixel for the OS modules.
-pub(super) fn native_to_physical(x: f64, y: f64) -> Point {
-    displays().map_or(Point::new(x.round() as i32, y.round() as i32), |ds| to_physical(&ds, x, y).0)
-}
-
-fn rect_to_physical(ds: &[Display], x: f64, y: f64, w: f64, h: f64) -> Rect {
-    let (_, k) = to_physical(ds, x + w / 2.0, y + h / 2.0);
-    let origin = to_physical(ds, x, y).0;
-    Rect::new(origin.x, origin.y, (w * k).round().max(0.0) as u32, (h * k).round().max(0.0) as u32)
-}
-
-/// Native rectangle to physical pixels for the OS modules.
-#[cfg(target_os = "macos")]
-pub(super) fn native_rect_to_physical(x: f64, y: f64, w: f64, h: f64) -> Rect {
-    match displays() {
-        Ok(ds) => rect_to_physical(&ds, x, y, w, h),
-        Err(_) => Rect::new(x.round() as i32, y.round() as i32, w.round().max(0.0) as u32, h.round().max(0.0) as u32),
-    }
+fn round_point(x: f64, y: f64) -> Point {
+    Point::new(x.round() as i32, y.round() as i32)
 }
 
 pub(crate) fn monitors() -> Result<Vec<MonitorInfo>> {
-    Ok(displays()?.into_iter().map(|d| d.info).collect())
+    displays()
 }
 
-/// System/shell surfaces that are never useful capture targets.
-const SHELL_APPS: &[&str] =
-    &["Window Server", "Dock", "SystemUIServer", "Control Center", "Notification Center", "Spotlight", "WindowManager"];
-
-fn describe(w: &Window, ds: &[Display], own_pid: u32) -> Option<(i32, WindowInfo)> {
+fn describe(w: &Window, own_pid: u32) -> Option<(i32, WindowInfo)> {
     let pid = w.pid().unwrap_or(0);
     if pid == own_pid {
         return None;
     }
-    let (x, y, wd, ht) = (w.x().ok()? as f64, w.y().ok()? as f64, w.width().ok()? as f64, w.height().ok()? as f64);
-    if wd < 1.0 || ht < 1.0 {
+    let rect = Rect::new(w.x().ok()?, w.y().ok()?, w.width().ok()?, w.height().ok()?);
+    if rect.is_empty() {
         return None;
     }
-    let title = w.title().unwrap_or_default();
-    let app_name = w.app_name().unwrap_or_default();
-    if SHELL_APPS.contains(&app_name.as_str()) {
-        return None;
-    }
-    let rect = rect_to_physical(ds, x, y, wd, ht);
     let info = WindowInfo {
         id: w.id().ok()? as u64,
         pid,
-        title,
-        app_name,
-        app_id: os::exe_path(pid),
+        title: w.title().unwrap_or_default(),
+        app_name: w.app_name().unwrap_or_default(),
+        app_id: linux::exe_path(pid),
         rect,
         z: 0,
         minimized: w.is_minimized().unwrap_or(false),
@@ -159,10 +84,9 @@ fn describe(w: &Window, ds: &[Display], own_pid: u32) -> Option<(i32, WindowInfo
 }
 
 pub(crate) fn windows() -> Result<Vec<WindowInfo>> {
-    let ds = displays()?;
     let own_pid = std::process::id();
     let all = guarded(|| Window::all().map_err(xerr))?;
-    let mut list: Vec<(i32, WindowInfo)> = all.iter().filter_map(|w| describe(w, &ds, own_pid)).collect();
+    let mut list: Vec<(i32, WindowInfo)> = all.iter().filter_map(|w| describe(w, own_pid)).collect();
     // xcap's z grows towards the viewer; ours is 0 = front-most.
     list.sort_by_key(|(z, _)| std::cmp::Reverse(*z));
     Ok(list
@@ -181,11 +105,10 @@ pub(crate) fn foreground_window() -> Option<WindowInfo> {
 }
 
 pub(crate) fn cursor_position() -> Point {
-    os::pointer().map_or(Point::default(), |(x, y)| native_to_physical(x, y))
+    linux::pointer().map_or(Point::default(), |(x, y)| round_point(x, y))
 }
 
 pub(crate) fn grab_monitor(m: &MonitorInfo, region: Rect, _o: &CaptureOptions) -> Result<Grab> {
-    os::check_capture_access()?;
     let full = guarded(|| {
         let mon = Monitor::all()
             .map_err(xerr)?
@@ -203,15 +126,13 @@ pub(crate) fn grab_monitor(m: &MonitorInfo, region: Rect, _o: &CaptureOptions) -
 }
 
 pub(crate) fn grab_window(id: u64, _o: &CaptureOptions) -> Result<WindowGrab> {
-    os::check_capture_access()?;
-    let listed = guarded(|| grab_listed_window(id));
     // Bare X servers (no EWMH window manager, as in WSLg) cannot list windows, but a known id can still be read.
-    #[cfg(target_os = "linux")]
-    let listed = listed.or_else(|e| match e {
+    guarded(|| grab_listed_window(id)).or_else(|e| match e {
         Error::NotFound(_) | Error::Invalid(_) => Err(e),
-        _ => os::window_by_id(id).map(|(image, screen_rect)| WindowGrab { image, screen_rect, tone_mapped: false }).map_err(|_| e),
-    });
-    listed
+        _ => linux::window_by_id(id)
+            .map(|(image, screen_rect)| WindowGrab { image, screen_rect, tone_mapped: false, shadow: false })
+            .map_err(|_| e),
+    })
 }
 
 fn grab_listed_window(id: u64) -> Result<WindowGrab> {
@@ -223,22 +144,25 @@ fn grab_listed_window(id: u64) -> Result<WindowGrab> {
     if w.is_minimized().unwrap_or(false) {
         return Err(Error::invalid("window is minimized"));
     }
-    let ds = displays_unguarded()?;
-    let (x, y, wd, ht) =
-        (w.x().map_err(xerr)? as f64, w.y().map_err(xerr)? as f64, w.width().map_err(xerr)? as f64, w.height().map_err(xerr)? as f64);
-    let screen_rect = rect_to_physical(&ds, x, y, wd, ht);
-    let image = os::trim_window_frame(w.capture_image().map_err(xerr)?, screen_rect);
-    let screen_rect = Rect::new(screen_rect.x, screen_rect.y, image.width(), image.height());
-    Ok(WindowGrab { image, screen_rect, tone_mapped: false })
+    let (x, y) = (w.x().map_err(xerr)?, w.y().map_err(xerr)?);
+    let image = w.capture_image().map_err(xerr)?;
+    let screen_rect = Rect::new(x, y, image.width(), image.height());
+    Ok(WindowGrab { image, screen_rect, tone_mapped: false, shadow: false })
 }
 
 /// xcap does not draw the pointer, so synthesise a standard arrow at the cursor position.
 pub(crate) fn cursor_sprite() -> Option<CursorSprite> {
-    let pos = os::pointer()?;
-    let ds = displays().ok()?;
-    let (origin, k) = to_physical(&ds, pos.0, pos.1);
-    Some(CursorSprite { image: arrow(k as f32), origin })
+    let (x, y) = linux::pointer()?;
+    Some(CursorSprite { image: arrow(1.0), origin: round_point(x, y) })
 }
+
+/// No system prompt can cover a Linux capture.
+pub(crate) fn system_alert_on_screen() -> bool {
+    false
+}
+
+/// The desktop portal asks at capture time; there is nothing to prime.
+pub(crate) fn prime_capture_consent() {}
 
 /// Classic arrow pointer, tip at the top-left pixel, `scale` times the 1x size.
 fn arrow(scale: f32) -> RgbaImage {

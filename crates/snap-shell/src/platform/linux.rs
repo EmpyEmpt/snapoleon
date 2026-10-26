@@ -53,10 +53,18 @@ pub(crate) fn set_exclude_from_capture(_window: &Window, _on: bool) -> Result<()
     Err(Error::unsupported("excluding a window from screen capture"))
 }
 
-pub(crate) fn place_cover(window: &Window, r: Rect, _monitors: &[(Rect, f32)]) {
+pub(crate) fn place_cover(window: &Window, r: Rect) {
     if window.fullscreen().is_none() {
         super::winit_set_outer_rect(window, r);
     }
+}
+
+pub(crate) fn monitors(el: &ActiveEventLoop) -> Vec<(Rect, f32)> {
+    super::winit_monitors(el)
+}
+
+pub(crate) fn outer_rect(window: &Window) -> Option<Rect> {
+    super::winit_outer_rect(window)
 }
 
 pub(crate) fn set_outer_rect(window: &Window, r: Rect) {
@@ -73,3 +81,26 @@ pub(crate) fn native_id(window: &Window) -> Option<u64> {
 }
 
 pub(crate) fn activate(_window: &Window) {}
+
+pub(crate) fn show(window: &Window, _key: bool) {
+    window.set_visible(true);
+}
+
+pub(crate) fn app_active(windows: &mut dyn Iterator<Item = &Window>) -> bool {
+    // `Iterator::any` needs a sized receiver; a loop works on the trait object.
+    for w in windows {
+        if w.has_focus() {
+            return true;
+        }
+    }
+    false
+}
+
+/// The OS gives the focus back to the window below when ours goes away.
+pub(crate) fn remember_frontmost() {}
+
+pub(crate) fn restore_frontmost() {}
+
+pub(crate) fn safe_area_top(_window: &Window) -> f32 {
+    0.0
+}

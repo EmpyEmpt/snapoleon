@@ -13,6 +13,10 @@
 //! gives `t("editor.tool.arrow")`. Placeholders use `{name}`:
 //! `tf("history.count", &[("n", "3")])`. Missing keys fall back to English,
 //! then to the key itself, so a missing string is visible but never fatal.
+//!
+//! On macOS a `macos.<key>` entry replaces `<key>` (a `[macos.settings.general]` table overrides
+//! `settings.general.*`). It carries the platform's own words, "menu bar" for the tray or "Finder" for the file
+//! manager, while the code keeps asking for one key.
 
 use std::{borrow::Cow, collections::HashMap};
 
@@ -139,6 +143,11 @@ fn load(lang: &str) -> HashMap<String, String> {
                 merge(&mut map, &text);
             }
         }
+    }
+    if cfg!(target_os = "macos") {
+        let overrides: Vec<(String, String)> =
+            map.iter().filter_map(|(k, v)| k.strip_prefix("macos.").map(|base| (base.to_owned(), v.clone()))).collect();
+        map.extend(overrides);
     }
     map
 }

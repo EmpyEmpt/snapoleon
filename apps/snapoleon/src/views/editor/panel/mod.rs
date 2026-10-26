@@ -2,7 +2,10 @@
 
 use egui::{Frame, Margin, RichText, Ui, Vec2};
 use snap_core::{RectF, t};
-use snap_ui::{palette, space, text, widgets::segmented};
+use snap_ui::{
+    palette, space, text,
+    widgets::{segmented, util},
+};
 
 use super::{previews::Previews, session::Session};
 use crate::views::ViewCx;
@@ -117,7 +120,7 @@ pub fn field<R>(ui: &mut Ui, label: &str, add: impl FnOnce(&mut Ui) -> R) -> R {
     ui.vertical(|ui| {
         ui.spacing_mut().item_spacing.y = 4.0;
         ui.label(text::caption(label));
-        add(ui)
+        util::with_control_name(ui, label, add)
     })
     .inner
 }
@@ -163,7 +166,7 @@ pub fn switch_row(ui: &mut Ui, label: &str, hint: Option<&str>, on: &mut bool) -
         }
         let align = if hint.is_some() { egui::Align::Min } else { egui::Align::Center };
         ui.with_layout(egui::Layout::right_to_left(align), |ui| {
-            flipped = snap_ui::widgets::toggle(ui, on).changed();
+            flipped = util::with_control_name(ui, label, |ui| snap_ui::widgets::toggle(ui, on)).changed();
         });
     });
     flipped
@@ -173,17 +176,4 @@ pub fn switch_row(ui: &mut Ui, label: &str, hint: Option<&str>, on: &mut bool) -
 pub fn heading(ui: &mut Ui, label: &str) {
     ui.add_space(space::XS);
     ui.label(RichText::new(label).text_style(text::body_strong_style()));
-}
-
-/// `1.2 MB`, `482 KB`, `812 B`.
-pub fn bytes_label(bytes: u64) -> String {
-    const KB: f64 = 1024.0;
-    let b = bytes as f64;
-    if b < KB {
-        format!("{bytes} B")
-    } else if b < KB * KB {
-        format!("{:.0} KB", b / KB)
-    } else {
-        format!("{:.1} MB", b / (KB * KB))
-    }
 }

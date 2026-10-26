@@ -1,6 +1,19 @@
 //! Logging: stderr, plus a size-capped file in `paths::logs_dir()` for the running app.
+//!
+//! A panic in the running app also leaves a crash report next to the log. A clean exit removes it, and so does the
+//! app getting past the panic; the next start turns one that is still there into a "quit unexpectedly" notice.
 
-use std::{fs::File, io::Write, path::PathBuf, sync::Mutex};
+use std::{
+    backtrace::Backtrace,
+    fs::File,
+    io::Write,
+    panic::PanicHookInfo,
+    path::PathBuf,
+    sync::{
+        Mutex,
+        atomic::{AtomicBool, Ordering},
+    },
+};
 
 use snap_core::paths;
 use tracing_subscriber::{EnvFilter, Layer, fmt, layer::SubscriberExt, util::SubscriberInitExt};
@@ -28,7 +41,63 @@ pub fn init(sink: Sink) {
         .flatten()
         .map(|file| fmt::layer().with_writer(Mutex::new(file)).with_ansi(false).with_filter(filter()));
     tracing_subscriber::registry().with(stderr).with(file).init();
-    std::panic::set_hook(Box::new(|info| tracing::error!("panic: {info}")));
+    std::panic::set_hook(Box::new(move |info| {
+        tracing::error!("panic: {info}");
+        if sink == Sink::Application {
+            write_crash_report(info);
+            if std::thread::current().name() != Some("main") {
+                WORKER_PANIC.store(true, Ordering::Release);
+            }
+        }
+    }));
+}
+
+/// A panic off the main thread wrote the crash report. It may still end the process (on a foreign thread, such as a
+/// framework callback, it cannot unwind), so the report stays until the main loop shows it got past it (`settle`).
+static WORKER_PANIC: AtomicBool = AtomicBool::new(false);
+
+/// Called by the main loop: a panic off the main thread that the process outlived was no crash.
+pub fn settle() {
+    if WORKER_PANIC.swap(false, Ordering::AcqRel) {
+        clear_crash_report();
+    }
+}
+
+fn crash_report_path() -> PathBuf {
+    paths::logs_dir().join("last-crash.txt")
+}
+
+/// Written before unwinding starts: a panic that ends the process (one the main loop does not catch, or one on a
+/// foreign thread that cannot unwind) leaves this behind. A panic the app survives is cleared by `App::with_view`'s
+/// catch or by [`settle`].
+fn write_crash_report(info: &PanicHookInfo) {
+    let thread = std::thread::current();
+    let report = format!(
+        "Snapoleon {} on {} {}\nthread '{}' {info}\n\n{}\n",
+        snap_core::VERSION,
+        std::env::consts::OS,
+        std::env::consts::ARCH,
+        thread.name().unwrap_or("unnamed"),
+        Backtrace::force_capture(),
+    );
+    let _ = std::fs::write(crash_report_path(), report);
+}
+
+/// The process got past a panic (a view's panic is caught, its window closed) or is exiting cleanly: no crash.
+pub fn clear_crash_report() {
+    let _ = std::fs::remove_file(crash_report_path());
+}
+
+/// The report the previous run left behind when it crashed, kept under a dated name so the next crash does not
+/// replace it.
+pub fn take_crash_report() -> Option<PathBuf> {
+    let path = crash_report_path();
+    if !path.is_file() {
+        return None;
+    }
+    let kept = path.with_file_name(format!("crash-{}.txt", chrono::Local::now().format("%Y%m%d-%H%M%S")));
+    std::fs::rename(&path, &kept).ok()?;
+    Some(kept)
 }
 
 fn log_path() -> PathBuf {

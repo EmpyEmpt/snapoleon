@@ -46,8 +46,8 @@ impl RecorderView {
                 pill_window_frame(ui, 20)
             };
             egui::CentralPanel::default().frame(frame).show(ui, |ui| {
-                // Behind every control: dragging anywhere else moves the pill.
-                let surface = ui.interact(ctx.content_rect(), Id::unique("recorder-drag"), Sense::click_and_drag());
+                // Behind every control: dragging anywhere else moves the pill. Pointer only, so not focusable.
+                let surface = ui.interact(ctx.content_rect(), Id::unique("recorder-drag"), Sense::DRAG);
                 drag = surface.drag_started_by(PointerButton::Primary);
                 ui.spacing_mut().item_spacing.x = 8.0;
                 ui.spacing_mut().interact_size.y = 32.0;

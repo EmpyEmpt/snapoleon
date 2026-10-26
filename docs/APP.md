@@ -23,6 +23,7 @@ apps/snapoleon/
   src/jobs.rs         worker threads, GuiPipelineUi (the engine's PipelineUi)
   src/tray.rs         tray icon and menu       src/hotkeys.rs  global hotkeys
   src/ipc.rs          single instance, CLI/URL requests
+  src/launch.rs       macOS: a start from a terminal relaunches through LaunchServices
   src/theme.rs        active theme shared by all windows
   src/logging.rs      stderr + %APPDATA%/.../logs/snapoleon.log
   src/dev.rs          dev harness (SNAPOLEON_DEV=...)
@@ -82,10 +83,12 @@ calls `open` when the matching command arrives (table below). Inside `open`:
 cx.open(window_spec(t("editor.title"), TAG, (1100.0, 760.0), (720.0, 480.0)), MyView::new(..));
 ```
 
-- `window_spec(title, tag, size, min_size)` gives the standard app window: no OS decorations
-  (custom title bar), rounded, resizable, app icon. Sizes are logical pixels. Build other kinds
-  (pins, HUDs, overlays) from `WindowSpec` directly; see `pin`, `recorder`, `scroll` and
-  `overlay`.
+- `window_spec(title, tag, size, min_size)` gives the standard app window: the app's own title bar
+  (`WindowSpec::title_bar`; on macOS the system's traffic lights, rounded corners and shadow stay around
+  it, elsewhere there are no OS decorations and Windows 11 rounds the corners), resizable, app icon.
+  Sizes are logical pixels; on a small screen the shell shrinks them to fit, and on macOS it centres the
+  window on the screen under the pointer. Build other kinds (pins, HUDs, overlays) from `WindowSpec`
+  directly; see `pin`, `recorder`, `scroll` and `overlay`.
 - `WindowSpec::activate` (default `true`): the window asks for the foreground when it appears, so a window opened by
   a hotkey or the tray does not come up behind the app the user is in. Windows that sit over the user's work and
   must not take the keyboard from it (pins, the recorder and scroll HUDs, count-down tiles) set it to `false`.
@@ -113,7 +116,9 @@ Chrome::new(&title).center(|ui| search_field(ui, &mut q, hint)).no_maximize().sh
 
 `Chrome` draws the title bar (`snap_ui::widgets::title_bar`: drag, minimize/maximize/close, logo,
 optional center slot), the 1 px window outline, and performs the requested window actions. The
-body gets the rest of the window. Use `snap_ui::widgets` and `Palette` for everything inside; never
+body gets the rest of the window. On macOS the window controls and the outline are the system's: the
+bar keeps room for the traffic lights (`Shell::title_bar_inset`), and a double-click on it does what
+the Desktop & Dock setting says. `.close_on_escape()` makes Escape close a dialog-like window (About). Use `snap_ui::widgets` and `Palette` for everything inside; never
 hand-pick colors, radii or fonts (`docs/DESIGN.md`).
 
 ## Messages and background work
@@ -155,7 +160,8 @@ vocabulary; the "view must send back" column is what the receiving view owes the
 | `PinFile(path)` | loads on a thread, then `OpenPin` | (no view) |
 | `OpenLibrary` | `library::open` (singleton) | |
 | `OpenSettings { page }` | `settings::open` (singleton); an open window gets `on_msg(Box<SettingsPage>)` | switch to the page. Pages: General, Capture, Hotkeys, Pipelines, Destinations, Links, Recording, TextAi, Privacy, History, Advanced. |
-| `OpenOnboarding` | `onboarding::open` (singleton) | set `general.first_run_done = true` via `cx.update_settings` when finished. |
+| `OpenOnboarding` | `onboarding::open` (singleton) | set `general.first_run_done = true` via `cx.update_settings` when finished, and push `FirstRunDone` when that ends the very first run. |
+| `FirstRunDone` | `App::first_run_hint`: a notification that the app now lives in the menu bar (the tray elsewhere) with the capture hotkey, and the menu bar icon blinks (`Tray::flash`) | (no view) |
 | `OpenAbout` | `about::open` (singleton) | |
 | `ShowText { title, text }` | `text::open` | |
 | `ShowCodes { title, text, codes }` | `text::open_with_codes` | decoded QR codes and barcodes (`PipelineUi::show_codes`, i.e. a `DecodeCodes { copy: false }` step). |
@@ -170,6 +176,7 @@ vocabulary; the "view must send back" column is what the receiving view owes the
 | `OpenColorTool(ColorToolInput)` | `colors::open` (singleton); a sample or measurement reaches an open window as `on_msg(Box<ColorSample>)` / `Box<Measurement>` | keep a history of picks and measurements. `ColorToolInput::Open` (tray: "Colors and measurements") just shows the history. |
 | `PauseHotkeys(bool)` | hotkey manager | the Settings hotkey recorder sends `true` on focus and `false` on blur. |
 | `CopyText`, `Reveal`, `OpenPath`, `OpenUrl` | platform helpers (errors become a notice) | |
+| `FixPermission(Perm)` | `notices::fix_permission`: the system prompt while the permission is undecided, its System Settings page after that | the button of a notice whose `permission` is set (toast and macOS notification). |
 | `Open(closure)` | runs the closure with an `OpenCx` | see "Opening windows". |
 | `Quit` | stops a running recording first, closes windows, exits | |
 
@@ -183,6 +190,9 @@ vocabulary; the "view must send back" column is what the receiving view owes the
   path, link or text back when the job finishes.
   A `snapoleon://` URL becomes `Request::Link { action }`, which carries nothing but the action: it runs as
   the interactive form (overlay, picker), never with a target, pipeline or path from the URL.
+  `Request::Grab` (a headless CLI or MCP capture that may not read the screen itself, see
+  `snap_engine::agent` and `docs/CLI.md#macos`) is answered on a worker thread with the image in a PNG file;
+  `Request::Status` answers the app's version and privacy permissions for `snapoleon doctor`.
 - `actions::start_action` is the single table from `Action` to flow:
   CaptureRegion/Window/Element/Scrolling -> overlay; CaptureMonitor/AllMonitors/LastRegion ->
   immediate job; CaptureDelayed -> the count-down tile (`views::countdown`), then the region overlay; RecordRegion/Gif
@@ -237,9 +247,13 @@ side panel) do not use a job: `cx.spawn` it and handle the typed result in `on_m
 - **View-local feedback** ("Copied", "Saved as ..."): `cx.toast(ToastKind::Success, t("editor.copied"))`.
   A toast with a button: `cx.toast_action(kind, text, label, Command::Reveal(path))`.
 - **Results that matter even when no window is focused** (job results, hotkey conflicts, background
-  failures): `cx.notify(Notice { kind, title, body, url, file, image })`. The app shows an in-app
+  failures): `cx.notify(Notice { kind, title, body, url, file, image, permission })`. The app shows an in-app
   toast (with "Copy link" / "Show in folder") when an app window is focused and an OS notification
   otherwise (respecting `general.show_notifications`; errors are always shown).
+- **A missing privacy permission** (macOS): set `Notice::permission` to `notices::missing_permission(&err)`. The toast
+  and the notification then carry "Open System Settings" (`Command::FixPermission`). Jobs, the overlay, scrolling
+  capture and element snapping already do this for `Error::Permission`; while Screen Recording is off the tray menu
+  starts with "Allow Screen Recording…", which opens Settings > Privacy.
 - Errors: `cx.toast_error(&err)` uses the localised message for known error types.
 
 ## Settings
@@ -288,7 +302,10 @@ SNAPOLEON_DEV=library SNAPOLEON_DEV_SHOT=$TEMP/library.png cargo run -p snapoleo
 | `SNAPOLEON_DEV_VIDEO` | video file for the `video` view (default: a generated slideshow) |
 | `SNAPOLEON_DEV_THEME` | `light` or `dark` |
 | `SNAPOLEON_DEV_LANG` | `en` or `ru` |
-| `SNAPOLEON_DEV_SHOT=<path.png>` | after `SNAPOLEON_DEV_SHOT_DELAY_MS` (default 1500) screenshot the view's first window via `snap_capture::capture_window` on its native id (falls back to cropping the screen at its outer rect), print the path, quit. Windows that hide themselves from captures (recorder and scroll HUDs) are un-hidden for the shot. |
+| `SNAPOLEON_DEV_SHOT=<path.png>` | after `SNAPOLEON_DEV_SHOT_DELAY_MS` (default 1500) screenshot the view's first window via `snap_capture::capture_window` on its native id (falls back to cropping the screen at its outer rect), print the path, quit. Windows that hide themselves from captures (recorder and scroll HUDs) are un-hidden for the shot. On macOS this runs with the terminal's Screen Recording permission and goes through the capture code under test; screenshot the window with peekaboo instead (below). |
+| `SNAPOLEON_DEV_DEMO` | `1`: demo content where a view would otherwise wait for real input: the steps HUD records a simulated session, the scroll view "scrolls" the screen below its area, the colors tool starts with sample picks. `guide`: the steps view opens the guide editor on a finished demo guide. |
+| `SNAPOLEON_DEV_EDITOR_*` | editor state for screenshots (`views/editor/demo.rs`): `_DEMO=1` sample shapes, `_TOOL=<id>` active tool, `_SELECT=last\|all`, `_TAB=beautify\|text\|export`, `_PANEL=0` hides the side panel, `_BEAUTIFY=1`, `_EDIT_TEXT=1`, `_RUN=ocr\|redact`, `_OPEN=<file.snap>`, `_PII=1` a page with personal data instead of the screenshot. |
+| `SNAPOLEON_DEV_SCREEN=<image>` | use this picture instead of a live screenshot of the primary monitor as the demo source (editor, pin, combine, diff, library thumbnails), for screenshots that must not show the real screen. |
 | `SNAPOLEON_DEV_SHARED_DATA` | use the real settings, history and logs instead of the private ones |
 | `SNAPOLEON_RENDERER` | not a dev-only variable: `wgpu` or `glow` forces that renderer (and `glow` never falls back); `glow-fail` makes OpenGL context creation fail on purpose, to test the fallback. The log line `snap-shell renderer` says what is in use. See "Renderer" below. |
 
@@ -300,6 +317,22 @@ sample; `settings` opens the requested page; `video` generates a slideshow MP4 w
 Dev runs use **portable data** (`<exe dir>/data`, which sits in your private `CARGO_TARGET_DIR`), so
 they never touch the installed app's settings or history. The log is in `data/logs/snapoleon.log`.
 Read your screenshots (the Read tool shows PNGs) and fix what looks off before you report.
+
+### On macOS
+
+`cargo run` starts the app as part of the terminal, which is fine for the harness. For capture, permissions,
+notifications, hotkeys and links use the signed bundle (`packaging/macos/bundle.sh --debug --install`, see
+`docs/MACOS.md`). To look at a window, use peekaboo, which reads windows without focusing them, even when covered:
+
+```
+peekaboo window list --app snapoleon --json               # ids, titles, frames
+peekaboo see --window-id <id> --no-elements --path out.png
+```
+
+Window lists also show an untitled, invisible 500x500 window owned by Snapoleon at the bottom-left of the main screen.
+It is not ours: it is `TUINSWindow`, the text input system's cursor accessory (input source and Caps Lock indicator),
+which macOS creates for every app whose window has a text field. Leave it alone (suppressing the text input context
+would break IME in text fields); `snapoleon list windows` and the MCP `list_windows` filter it out.
 
 ## Renderer
 
@@ -317,6 +350,28 @@ the element-query worker is one thread for the process: an OpenGL driver keeps a
 created, so a thread per capture showed up as memory creeping up by about 1.3 MB per overlay session. Do not spawn
 threads per session on the overlay path.
 
+## Accessibility
+
+Every window carries an AccessKit adapter (`snap-shell`), so screen readers and UI agents (VoiceOver, peekaboo, Windows
+UI Automation, AT-SPI) see the egui widgets as buttons, switches, sliders and fields. egui builds the tree only while
+such a client is attached; without one it costs nothing.
+
+A widget is found by its accessible name, so every control needs one:
+
+- `snap_ui` widgets name themselves from their label or tooltip. Controls that show no text of their own (switches,
+  sliders, dropdowns, text and number fields, shortcut recorders, color wells) take the name of the row or field that
+  hosts them: `setting_row`, the settings `form_row` and `stacked`, and the views' `field` / `row` helpers wrap their
+  control in `snap_ui::widgets::util::with_control_name`. Do the same for a new label-plus-control layout.
+- A hand-drawn clickable (`allocate_exact_size(.., Sense::click())`) calls
+  `resp.widget_info(|| WidgetInfo::labeled(Role::Button, ui.is_enabled(), label))`, or `WidgetInfo::selected(..)` when
+  it shows an on/off or chosen state. Passing it through `snap_ui::widgets::tooltip` names an icon-only one after its
+  tooltip.
+- A surface that only moves the window takes `Sense::DRAG` (or `CLICK | DRAG`): not focusable, so it is neither a Tab
+  stop nor a nameless element.
+
+Window titles (`WindowSpec::title`) are what window lists and agents show, also for windows whose title bar the app
+draws: keep them meaningful.
+
 ## Startup, for reference
 
 `main`: `dev::prepare` (dev data dir) -> `dpi::init` -> `console::attach` -> settings (they decide the language
@@ -324,9 +379,18 @@ of the help) -> `cli::parse` (localised help; a bare `snapoleon://` URL or an ex
 means `url` / `edit`, which is how desktop entries and file associations call the app) -> logging (headless
 commands: warnings on stderr only, never stdout, so `snapoleon mcp` stays clean; the app: stderr plus the log file)
 -> headless subcommands run in-process; GUI ones forward to a running instance
-(`ipc::instance_running`) or start the shell. In `App::init` (first callback, after the event
+(`ipc::instance_running`) or start the shell. On macOS a GUI start that LaunchServices did not make (the parent is not
+launchd: a terminal, the PATH script) from inside an app bundle is handed to a copy started with `open`
+(`launch.rs`), so the app is its own responsible process for the privacy permissions. In `App::init` (first callback, after the event
 loop started): serve IPC (a lost race forwards and exits), register hotkeys (conflicts become
 notices), create the tray, sync autostart, set the toast icon, purge history by retention on a
 thread, make sure the URL scheme points at this executable, and on first run open onboarding; a plain non-background launch
 opens the Library; `--background` (autostart) stays in the tray. Portable installs never register
 autostart or the URL scheme.
+
+On macOS a second launch (Finder, Spotlight, the Dock icon), a `snapoleon://` link and a document opened with
+the app never start a second process: they reach the running app as Apple Events, which `snap-shell` turns into
+`OsRequest`s (`App::handle_os_request` in `ipc.rs` gives them the IPC paths above). The app menu's About,
+Settings and Quit (Cmd+Q, and logout or restart, which wait for `App::quit`) arrive the same way; its Edit
+menu feeds the focused window the input of the matching shortcut. The app is an accessory (the menu bar extra
+only) until an app window opens, and has a Dock icon and the app menu until the last one closes.

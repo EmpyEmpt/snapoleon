@@ -328,9 +328,7 @@ fn spawn_cpal(kind: Kind, device_name: Option<String>, stop: Arc<AtomicBool>) ->
 
 fn map_cpal(e: cpal::Error, what: &'static str) -> Error {
     match e.kind() {
-        cpal::ErrorKind::PermissionDenied => {
-            Error::permission(t(if what == "microphone" { "record.error.microphone_permission" } else { "record.error.input_permission" }))
-        }
+        cpal::ErrorKind::PermissionDenied if what == "microphone" => Error::permission(t("record.error.microphone_permission")),
         cpal::ErrorKind::DeviceNotAvailable => Error::NotFound(format!("{what}: {e}")),
         _ => Error::Other(anyhow::anyhow!("{what}: {e}")),
     }

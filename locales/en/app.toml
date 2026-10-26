@@ -10,8 +10,8 @@ recent = "Recent captures"
 no_recent = "No captures yet"
 tools = "More tools"
 colors = "Colors and measurements"
-combine = "Combine images"
-compare = "Compare images"
+combine = "Combine images…"
+compare = "Compare images…"
 close_pins = "Close all pins"
 unlock_pins = "Unlock pins"
 quit = "Quit Snapoleon"
@@ -44,8 +44,8 @@ someone = "Someone"
 
 [app.hotkey]
 conflict_title = "A hotkey could not be registered"
-conflict_body = "{accel}: {reason}"
 unavailable = "Global hotkeys are not available"
+system_title = "A hotkey is also a system shortcut"
 
 [app.recording]
 disabled = "Recording is turned off by your administrator"
@@ -61,3 +61,41 @@ none = "No text found"
 [app.ipc]
 no_answer = "Snapoleon did not answer in time"
 link_refused = "A link cannot start this action. Start it from Snapoleon or the command line."
+
+[app.menu]
+settings = "Settings…"
+about = "About Snapoleon"
+open_last = "Open last capture"
+copy_last = "Copy last capture"
+copy_last_link = "Copy last link"
+no_file = "This capture has no file"
+
+[app.notify]
+open = "Open"
+show_in_finder = "Show in Finder"
+open_link = "Open link"
+
+[app.crash]
+title = "Snapoleon quit unexpectedly"
+body = "A report was saved. Open it to see what went wrong, or attach it to a bug report."
+
+[macos.app.notice]
+show_in_folder = "Show in Finder"
+
+[app.countdown_hint]
+cancel = "Esc to cancel"
+
+[app.permission]
+open_settings = "Open System Settings"
+allow_screen_recording = "Allow Screen Recording…"
+elements = "UI elements cannot be selected"
+
+[app.ready]
+title = "Snapoleon is now in the tray"
+body = "Press {accel} to capture. Click its tray icon for everything else."
+body_no_key = "Click its tray icon to capture, record or change settings."
+
+[macos.app.ready]
+title = "Snapoleon is now in the menu bar"
+body = "Press {accel} to capture. Click its menu bar icon for everything else."
+body_no_key = "Click its menu bar icon to capture, record or change settings."

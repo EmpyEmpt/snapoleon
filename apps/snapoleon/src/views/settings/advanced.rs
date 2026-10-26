@@ -1,17 +1,48 @@
 //! Advanced: policy status, portable mode, paths, command line and MCP snippets, backup and reset.
 
-use std::path::{Path, PathBuf};
+use std::{
+    path::{Path, PathBuf},
+    time::{Duration, Instant},
+};
 
 use egui::Ui;
 use snap_core::{Settings, paths, policy::Policy, tf};
 use snap_ui::{Palette, ToastKind, Tone, icon, radius, space, text, widgets};
 
 use super::kit::{Msg, Rows, managed_badge, s};
-use crate::{commands::Command, views::ViewCx};
+use snap_engine::{Notice, NoticeKind};
+
+use crate::{commands::Command, events::AppEvent, views::ViewCx};
+
+/// How long a lookup of the `snapoleon` command stays good: the Install button, or a terminal, may add it meanwhile.
+const PROGRAM_TTL: Duration = Duration::from_secs(3);
 
 #[derive(Default)]
 pub struct State {
-    exe: Option<String>,
+    program: Option<(Program, Instant)>,
+}
+
+/// What the snippets call.
+#[derive(Clone)]
+struct Program {
+    /// This executable's full path, for configuration files read by programs that do not search the shell's PATH.
+    exe: String,
+    /// What to type in a shell: `snapoleon` when the command is installed, the full path otherwise.
+    command: String,
+}
+
+impl Program {
+    fn find() -> Self {
+        let exe = std::env::current_exe().map(|p| p.display().to_string()).unwrap_or_else(|_| "snapoleon".into());
+        let command = if snap_engine::cli::installed_cli().is_some() {
+            "snapoleon".to_string()
+        } else if exe.contains(' ') {
+            format!("\"{exe}\"")
+        } else {
+            exe.clone()
+        };
+        Self { exe, command }
+    }
 }
 
 impl State {
@@ -37,14 +68,18 @@ impl State {
 }
 
 pub fn show(ui: &mut Ui, rc: &mut Rows, st: &mut State, cx: &mut ViewCx, set: &mut Settings) {
-    let exe = st
-        .exe
-        .get_or_insert_with(|| std::env::current_exe().map(|p| p.display().to_string()).unwrap_or_else(|_| "snapoleon".into()))
-        .clone();
+    let program = match &st.program {
+        Some((program, at)) if at.elapsed() <= PROGRAM_TTL => program.clone(),
+        _ => {
+            let program = Program::find();
+            st.program = Some((program.clone(), Instant::now()));
+            program
+        }
+    };
 
     policy(ui, rc);
     installation(ui, rc, cx);
-    command_line(ui, rc, cx, &exe);
+    command_line(ui, rc, cx, &program);
     backup(ui, rc, cx, set);
 }
 
@@ -138,47 +173,86 @@ fn path_row(ui: &mut Ui, rc: &mut Rows, cx: &mut ViewCx, key: &str, path: &Path,
     });
 }
 
-fn command_line(ui: &mut Ui, rc: &mut Rows, cx: &mut ViewCx, exe: &str) {
-    let quoted = if exe.contains(' ') { format!("\"{exe}\"") } else { exe.to_owned() };
+fn command_line(ui: &mut Ui, rc: &mut Rows, cx: &mut ViewCx, program: &Program) {
+    let command = &program.command;
+    // A window every copy of the OS has open, so the example works as written.
+    let window = if cfg!(target_os = "macos") {
+        "Finder"
+    } else if cfg!(windows) {
+        "Notepad"
+    } else {
+        "Terminal"
+    };
     let cli = [
         "capture --monitor 0 --out screenshot.png",
-        "capture --window \"Notepad\" --pipeline share",
+        &format!("capture --window \"{window}\" --pipeline share"),
         "ocr screenshot.png",
         "upload screenshot.png",
         "edit screenshot.png",
         "pin screenshot.png",
         "history search invoice",
     ]
-    .map(|args| format!("{quoted} {args}"))
+    .map(|args| format!("{command} {args}"))
     .join("\n");
-    let mcp_json = serde_json::json!({ "mcpServers": { "snapoleon": { "command": exe, "args": ["mcp"] } } });
+    // Desktop apps start MCP servers without the shell's PATH, so their configuration names the executable itself.
+    let mcp_json = serde_json::json!({ "mcpServers": { "snapoleon": { "command": program.exe, "args": ["mcp"] } } });
     let mcp = serde_json::to_string_pretty(&mcp_json).unwrap_or_default();
-    let claude_code = format!("claude mcp add snapoleon -- {quoted} mcp");
+    let claude_code = format!("claude mcp add snapoleon -- {command} mcp");
 
     rc.section(ui, &s("advanced.section.cli"), |ui, rc| {
+        if cfg!(not(windows)) {
+            rc.row(ui, "advanced.install_cli", |ui| {
+                if widgets::secondary_button(ui, &s("advanced.install_cli.button")).clicked() {
+                    install_cli(cx);
+                }
+            });
+        }
         rc.stacked(ui, false, "advanced.cli", |ui| snippet(ui, cx, &cli));
         rc.stacked(ui, false, "advanced.mcp_desktop", |ui| snippet(ui, cx, &mcp));
         rc.stacked(ui, false, "advanced.mcp_code", |ui| snippet(ui, cx, &claude_code));
     });
 }
 
-/// Code in a framed block with a Copy button.
+/// `snapoleon install-cli` on a worker (it may wait for the macOS administrator prompt); the result is a notice.
+fn install_cli(cx: &ViewCx) {
+    let proxy = cx.proxy.clone();
+    std::thread::spawn(move || {
+        let notice = match snap_engine::cli::install_cli(None) {
+            Ok(path) => Notice {
+                kind: NoticeKind::Success,
+                title: s("advanced.install_cli.done"),
+                body: path.display().to_string(),
+                ..Notice::default()
+            },
+            Err(snap_core::Error::Cancelled) => return,
+            Err(e) => Notice {
+                kind: NoticeKind::Error,
+                title: s("advanced.install_cli.failed"),
+                body: crate::notices::error_text(&e),
+                ..Notice::default()
+            },
+        };
+        proxy.send(AppEvent::Notice(notice));
+    });
+}
+
+/// Code in a framed block with a Copy button. Long lines scroll inside the block instead of widening the page.
 fn snippet(ui: &mut Ui, cx: &mut ViewCx, code: &str) {
     let p = Palette::of(ui);
     egui::Frame::new().fill(p.surface_2).stroke(egui::Stroke::new(1.0, p.border)).corner_radius(radius::CARD).inner_margin(12).show(
         ui,
         |ui| {
             ui.set_width(ui.available_width());
-            ui.horizontal_top(|ui| {
-                ui.scope(|ui| {
-                    ui.set_max_width(ui.available_width() - 40.0);
-                    ui.add(egui::Label::new(text::mono_text(code)).selectable(true));
-                });
-                ui.with_layout(egui::Layout::right_to_left(egui::Align::Min), |ui| {
-                    if widgets::icon_button(ui, icon::COPY, &s("copy_snippet"), None).clicked() {
-                        cx.push(Command::CopyText(code.to_owned()));
-                        cx.toast(ToastKind::Success, snap_core::t("common.copied"));
-                    }
+            // The button goes first, at the right edge, so the code gets exactly the room that is left.
+            ui.with_layout(egui::Layout::right_to_left(egui::Align::Min), |ui| {
+                if widgets::icon_button(ui, icon::COPY, &s("copy_snippet"), None).clicked() {
+                    cx.push(Command::CopyText(code.to_owned()));
+                    cx.toast(ToastKind::Success, snap_core::t("common.copied"));
+                }
+                ui.with_layout(egui::Layout::left_to_right(egui::Align::Min), |ui| {
+                    egui::ScrollArea::horizontal().id_salt(code).auto_shrink([false, true]).show(ui, |ui| {
+                        ui.add(egui::Label::new(text::mono_text(code)).wrap_mode(egui::TextWrapMode::Extend).selectable(true));
+                    });
                 });
             });
         },

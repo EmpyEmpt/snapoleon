@@ -111,19 +111,6 @@ pub fn month_start(ms: i64) -> i64 {
     day_start(day_start(ms) - back * DAY + HOUR * 12)
 }
 
-/// "238 KB", "1.4 MB".
-pub fn bytes(n: u64) -> String {
-    const UNITS: [&str; 4] = ["b", "kb", "mb", "gb"];
-    let mut value = n as f64;
-    let mut unit = 0;
-    while value >= 1024.0 && unit < UNITS.len() - 1 {
-        value /= 1024.0;
-        unit += 1;
-    }
-    let number = if unit == 0 || value >= 100.0 { format!("{value:.0}") } else { format!("{value:.1}") };
-    tf(&format!("library.size.{}", UNITS[unit]), &[("n", &number)])
-}
-
 /// "0:07", "12:34", "1:02:03".
 pub fn duration(ms: u64) -> String {
     let total = ms / 1000;

@@ -1,5 +1,6 @@
 [editor]
 title = "Редактор"
+title_named = "Редактор — {name}"
 undo = "Отменить"
 redo = "Повторить"
 copy_tip = "Копировать изображение"
@@ -64,6 +65,7 @@ fill = "Заливка"
 rounded = "Скругление"
 shadow = "Тень"
 size = "Размер"
+outline = "Обводка"
 
 [editor.arrow]
 solid = "Полная"
@@ -200,3 +202,11 @@ project = "Проект Snapoleon"
 png = "Изображение PNG"
 jpg = "Изображение JPEG"
 webp = "Изображение WebP"
+
+[editor.canvas]
+outside = "Всё, что за краем картинки, не сохранится"
+
+[editor.a11y]
+canvas = "Холст"
+tools_up = "Показать инструменты выше"
+tools_down = "Показать инструменты ниже"

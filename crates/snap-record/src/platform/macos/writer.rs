@@ -10,12 +10,15 @@ use std::{
 
 use anyhow::anyhow;
 use block2::RcBlock;
+use crossbeam_channel::RecvTimeoutError;
 use objc2::{AllocAnyThread, rc::Retained, runtime::AnyObject};
 use objc2_av_foundation::{
     AVAssetWriter, AVAssetWriterInput, AVAssetWriterInputPixelBufferAdaptor, AVAssetWriterStatus, AVFileTypeMPEG4, AVMediaTypeAudio,
     AVMediaTypeVideo, AVVideoAllowFrameReorderingKey, AVVideoAverageBitRateKey, AVVideoCodecKey, AVVideoCodecTypeH264,
-    AVVideoCompressionPropertiesKey, AVVideoEncoderSpecificationKey, AVVideoExpectedSourceFrameRateKey, AVVideoHeightKey,
-    AVVideoMaxKeyFrameIntervalKey, AVVideoProfileLevelH264HighAutoLevel, AVVideoProfileLevelKey, AVVideoWidthKey,
+    AVVideoColorPrimaries_ITU_R_709_2, AVVideoColorPrimariesKey, AVVideoColorPropertiesKey, AVVideoCompressionPropertiesKey,
+    AVVideoEncoderSpecificationKey, AVVideoExpectedSourceFrameRateKey, AVVideoHeightKey, AVVideoMaxKeyFrameIntervalKey,
+    AVVideoProfileLevelH264HighAutoLevel, AVVideoProfileLevelKey, AVVideoTransferFunction_ITU_R_709_2, AVVideoTransferFunctionKey,
+    AVVideoWidthKey, AVVideoYCbCrMatrix_ITU_R_709_2, AVVideoYCbCrMatrixKey,
 };
 use objc2_avf_audio::{AVEncoderBitRateKey, AVFormatIDKey, AVNumberOfChannelsKey, AVSampleRateKey};
 use objc2_core_audio_types::{AudioStreamBasicDescription, kAudioFormatMPEG4AAC};
@@ -26,7 +29,7 @@ use objc2_core_media::{
 };
 use objc2_core_video::{
     CVPixelBuffer, CVPixelBufferCreate, CVPixelBufferGetBaseAddress, CVPixelBufferGetBytesPerRow, CVPixelBufferLockBaseAddress,
-    CVPixelBufferLockFlags, CVPixelBufferUnlockBaseAddress, kCVPixelFormatType_32BGRA,
+    CVPixelBufferLockFlags, CVPixelBufferPool, CVPixelBufferUnlockBaseAddress, kCVPixelFormatType_32BGRA,
 };
 use objc2_foundation::{NSDictionary, NSNumber, NSString, NSURL};
 use snap_core::{Error, Result, settings::EncoderPref};
@@ -116,8 +119,22 @@ pub(crate) fn native_mp4_sink(spec: &SinkSpec) -> Result<Box<dyn Sink>> {
         let width = number_u32(spec.w);
         let height = number_u32(spec.h);
         let codec = AVVideoCodecTypeH264.ok_or_else(missing)?;
-        let mut keys = vec![k_codec, k_w, k_h, k_props];
-        let mut values: Vec<&AnyObject> = vec![any(codec), any(&*width), any(&*height), any(&*compression)];
+        // Tag the stream BT.709 (the sRGB primaries): the capture is converted to sRGB (see capture.rs) and edits
+        // re-encode decoded RGB. Untagged H.264 is guessed as BT.601 or 709 depending on the player, shifting colours.
+        let colour = dict(
+            &[
+                AVVideoColorPrimariesKey.ok_or_else(missing)?,
+                AVVideoTransferFunctionKey.ok_or_else(missing)?,
+                AVVideoYCbCrMatrixKey.ok_or_else(missing)?,
+            ],
+            &[
+                any(AVVideoColorPrimaries_ITU_R_709_2.ok_or_else(missing)?),
+                any(AVVideoTransferFunction_ITU_R_709_2.ok_or_else(missing)?),
+                any(AVVideoYCbCrMatrix_ITU_R_709_2.ok_or_else(missing)?),
+            ],
+        );
+        let mut keys = vec![k_codec, k_w, k_h, k_props, AVVideoColorPropertiesKey.ok_or_else(missing)?];
+        let mut values: Vec<&AnyObject> = vec![any(codec), any(&*width), any(&*height), any(&*compression), any(&*colour)];
         // VideoToolbox picks hardware by default; ask for software explicitly when requested.
         let software_spec;
         let enable_hw;
@@ -139,7 +156,11 @@ pub(crate) fn native_mp4_sink(spec: &SinkSpec) -> Result<Box<dyn Sink>> {
         }
         writer.addInput(&video);
 
-        let attrs = dict(&[&*NSString::from_str("PixelFormatType")], &[any(&*NSNumber::new_u32(kCVPixelFormatType_32BGRA))]);
+        // With the size included, the adaptor's pool hands out frame-sized buffers (see `pixel_buffer`).
+        let attrs = dict(
+            &[&*NSString::from_str("PixelFormatType"), &*NSString::from_str("Width"), &*NSString::from_str("Height")],
+            &[any(&*NSNumber::new_u32(kCVPixelFormatType_32BGRA)), any(&*width), any(&*height)],
+        );
         let adaptor =
             AVAssetWriterInputPixelBufferAdaptor::assetWriterInputPixelBufferAdaptorWithAssetWriterInput_sourcePixelBufferAttributes(
                 &video,
@@ -175,6 +196,8 @@ pub(crate) fn native_mp4_sink(spec: &SinkSpec) -> Result<Box<dyn Sink>> {
             None
         };
 
+        // moov ahead of mdat ("fast start"): browsers and chat apps can play the file while it downloads.
+        writer.setShouldOptimizeForNetworkUse(true);
         if !writer.startWriting() {
             return Err(av("start writing", writer.error().map(|e| e.localizedDescription().to_string()).unwrap_or_default()));
         }
@@ -220,15 +243,20 @@ impl AvSink {
         // SAFETY: the buffer is created, locked, filled row by row within its stride and unlocked.
         unsafe {
             let mut raw: *mut CVPixelBuffer = ptr::null_mut();
-            let status = CVPixelBufferCreate(
-                None,
-                self.size.0 as usize,
-                self.size.1 as usize,
-                kCVPixelFormatType_32BGRA,
-                None,
-                NonNull::from(&mut raw),
-            );
-            let raw = NonNull::new(raw).filter(|_| status == 0).ok_or_else(|| av("CVPixelBufferCreate", status))?;
+            // The adaptor's pool recycles buffers the encoder is done with, rather than allocating a full frame
+            // (24 MB at 3024x1964) for every picture. It exists once writing has started.
+            let status = match self.adaptor.pixelBufferPool() {
+                Some(pool) => CVPixelBufferPool::create_pixel_buffer(None, &pool, NonNull::from(&mut raw)),
+                None => CVPixelBufferCreate(
+                    None,
+                    self.size.0 as usize,
+                    self.size.1 as usize,
+                    kCVPixelFormatType_32BGRA,
+                    None,
+                    NonNull::from(&mut raw),
+                ),
+            };
+            let raw = NonNull::new(raw).filter(|_| status == 0).ok_or_else(|| av("CVPixelBuffer", status))?;
             let buffer = CFRetained::from_raw(raw);
             CVPixelBufferLockBaseAddress(&buffer, CVPixelBufferLockFlags(0));
             let base = CVPixelBufferGetBaseAddress(&buffer) as *mut u8;
@@ -352,7 +380,20 @@ impl Sink for AvSink {
                 let _ = tx.send(());
             });
             self.writer.finishWritingWithCompletionHandler(&done);
-            rx.recv_timeout(Duration::from_secs(60)).map_err(|_| av("finish writing", "timed out"))?;
+            // Fast start copies the whole movie behind a new moov here, so finishing takes time in proportion to the
+            // file (seconds per GB, far more on slow volumes): wait as long as the writer is still at it.
+            loop {
+                match rx.recv_timeout(Duration::from_secs(1)) {
+                    Ok(()) => break,
+                    Err(RecvTimeoutError::Timeout) if self.writer.status() == AVAssetWriterStatus::Writing => {}
+                    // The writer left Writing: its handler is about to run, or it failed (reported below).
+                    Err(RecvTimeoutError::Timeout) => {
+                        let _ = rx.recv_timeout(Duration::from_secs(5));
+                        break;
+                    }
+                    Err(RecvTimeoutError::Disconnected) => return Err(av("finish writing", "completion handler dropped")),
+                }
+            }
         }
         match self.failed() {
             Some(e) => Err(e),

@@ -241,9 +241,14 @@ fn main() {
     step("notify app icon", notify::set_app_icon(&img).map(|_| "registered".into()).map_err(|e| e.to_string()));
     step(
         "notify toast",
-        notify::show("Snapoleon smoke test", "Screenshot saved \u{2714}", Some(&icon_png))
-            .map(|_| "toast handed to the OS".into())
-            .map_err(|e| e.to_string()),
+        notify::show(&notify::OsNotice {
+            title: "Snapoleon smoke test".into(),
+            body: "Screenshot saved \u{2714}".into(),
+            image: Some(icon_png.clone()),
+            ..notify::OsNotice::default()
+        })
+        .map(|_| "toast handed to the OS".into())
+        .map_err(|e| e.to_string()),
     );
 
     // ipc: serve, ping ourselves, single-instance check

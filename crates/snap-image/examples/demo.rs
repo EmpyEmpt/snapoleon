@@ -22,7 +22,7 @@ fn out_dir() -> PathBuf {
 }
 
 fn save(dir: &Path, name: &str, img: &RgbaImage) {
-    let bytes = encode::encode(img, ImageFormat::Png, 100, false).unwrap();
+    let bytes = encode::encode(img, ImageFormat::Png, 100, false, None).unwrap();
     std::fs::write(dir.join(name), bytes).unwrap();
 }
 
@@ -453,9 +453,9 @@ fn effects_stage(dir: &Path, ui: &RgbaImage) {
 
 fn encode_stage(dir: &Path, ui: &RgbaImage) {
     for fmt in [ImageFormat::Png, ImageFormat::Jpeg, ImageFormat::Webp] {
-        let plain = encode::encode(ui, fmt, 85, false).unwrap().len();
+        let plain = encode::encode(ui, fmt, 85, false, None).unwrap().len();
         let t = Instant::now();
-        let opt = encode::encode(ui, fmt, 85, true).unwrap().len();
+        let opt = encode::encode(ui, fmt, 85, true, None).unwrap().len();
         println!("encode {fmt:?}: plain {plain} B, optimized {opt} B ({:?})", t.elapsed());
         let target = plain / 3;
         let t = Instant::now();
@@ -476,7 +476,7 @@ fn encode_stage(dir: &Path, ui: &RgbaImage) {
         }
     }
     // JPEG tagged with EXIF orientation 6 (rotate 90 CW) must come back rotated.
-    let jpeg = encode::encode(&image::imageops::crop_imm(ui, 0, 0, 400, 100).to_image(), ImageFormat::Jpeg, 90, false).unwrap();
+    let jpeg = encode::encode(&image::imageops::crop_imm(ui, 0, 0, 400, 100).to_image(), ImageFormat::Jpeg, 90, false, None).unwrap();
     let exif: [u8; 36] = [
         0xFF, 0xE1, 0x00, 0x22, b'E', b'x', b'i', b'f', 0, 0, b'M', b'M', 0, 42, 0, 0, 0, 8, 0, 1, 0x01, 0x12, 0, 3, 0, 0, 0, 1, 0, 6, 0,
         0, 0, 0, 0, 0,
@@ -486,7 +486,7 @@ fn encode_stage(dir: &Path, ui: &RgbaImage) {
     println!("exif orientation 6: 400x100 jpeg decodes as {}x{} (expect 100x400)", upright.width(), upright.height());
 
     let path = dir.join("saved.webp");
-    let n = encode::save(ui, &path, ImageFormat::Webp, 80, false).unwrap();
+    let n = encode::save(ui, &path, ImageFormat::Webp, 80, false, None).unwrap();
     let loaded = encode::load(&path).unwrap();
     println!("save/load {} -> {n} B, {}x{}, format {:?}", path.display(), loaded.width(), loaded.height(), encode::format_from_path(&path));
 

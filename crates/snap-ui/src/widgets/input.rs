@@ -4,10 +4,16 @@ use std::ops::RangeInclusive;
 
 use egui::{
     Align, Align2, DragValue, Frame, Key, Layout, Margin, Modifiers, Popup, PopupCloseBehavior, Pos2, Rect, Response, RichText, Role,
-    ScrollArea, Sense, Shape, Stroke, StrokeKind, TextEdit, Ui, UiBuilder, Vec2, Widget, WidgetInfo, emath::Numeric,
+    ScrollArea, Sense, Shape, Stroke, StrokeKind, TextEdit, Ui, UiBuilder, Vec2, Widget, WidgetInfo,
+    accesskit::{Action, ActionData},
+    emath::Numeric,
+    epaint::text::{LayoutJob, TextWrapping},
 };
 
-use super::util::{self, Motion, anim, control_height, focus_ring, hover_anim, lerp_color};
+use super::{
+    popup,
+    util::{self, Motion, anim, control_height, focus_ring, hover_anim, lerp_color},
+};
 use snap_core::t;
 
 use crate::{
@@ -81,7 +87,9 @@ impl Widget for TextField<'_> {
         let height = if multiline { (ui.text_style_height(&style) * self.rows as f32 + 20.0).max(row_h) } else { row_h };
         let width = self.width.unwrap_or(ui.spacing().text_edit_width);
 
-        let (rect, outer) = ui.allocate_exact_size(Vec2::new(width, height), Sense::click());
+        // Not focusable: the text edit inside takes the keyboard, and the frame is no stop of its own for Tab or for
+        // assistive tools.
+        let (rect, outer) = ui.allocate_exact_size(Vec2::new(width, height), Sense::CLICK);
         let edit_id = outer.id.with("edit");
         if outer.clicked() {
             ui.memory_mut(|m| m.request_focus(edit_id));
@@ -124,6 +132,7 @@ impl Widget for TextField<'_> {
         } else {
             child.add(edit)
         };
+        util::name_control(ui, &resp);
 
         let focused = ui.memory(|m| m.has_focus(edit_id));
         let hover = hover_anim(ui, &outer);
@@ -150,6 +159,7 @@ impl Widget for TextField<'_> {
         if show_clear {
             let r = Rect::from_center_size(Pos2::new(rect.right() - 12.0 - 8.0, rect.center().y), Vec2::splat(20.0));
             let clear = ui.interact(r, outer.id.with("clear"), Sense::click());
+            clear.widget_info(|| WidgetInfo::labeled(Role::Button, ui.is_enabled(), t("ui.search.clear")));
             let h = hover_anim(ui, &clear);
             ui.painter().circle_filled(r.center(), 9.0, p.hover().gamma_multiply(h));
             util::paint_icon(ui, r.center(), icon::X, 12.0, lerp_color(p.text_faint, p.text, h));
@@ -160,9 +170,12 @@ impl Widget for TextField<'_> {
             }
             clear.on_hover_text(t("ui.search.clear"));
         }
-        if self.clearable && focused && has_text && ui.input_mut(|i| i.consume_key(Modifiers::NONE, Key::Escape)) {
+        // egui drops keyboard focus on Escape before any widget runs, so ask whether the field was focused last frame.
+        let was_focused = focused || ui.memory(|m| m.had_focus_last_frame(edit_id));
+        if self.clearable && was_focused && has_text && ui.input_mut(|i| i.consume_key(Modifiers::NONE, Key::Escape)) {
             self.text.clear();
             resp.mark_changed();
+            ui.memory_mut(|m| m.request_focus(edit_id));
         }
         resp
     }
@@ -193,7 +206,14 @@ pub fn number_field_with<N: Numeric>(ui: &mut Ui, value: &mut N, range: RangeInc
             v.corner_radius = round;
         }
         ui.spacing_mut().interact_size.x = 72.0;
-        ui.add(DragValue::new(value).range(range).suffix(suffix).speed(speed))
+        // "24 px", not "24.0 px": whole values read as whole numbers next to the integer fields.
+        let format = |v: f64, _| {
+            let text = format!("{v:.2}");
+            text.trim_end_matches('0').trim_end_matches('.').to_owned()
+        };
+        let resp = ui.add(DragValue::new(value).range(range).suffix(suffix).speed(speed).custom_formatter(format));
+        util::name_control(ui, &resp);
+        resp
     })
     .inner
 }
@@ -289,7 +309,41 @@ impl Widget for Slider<'_> {
                 resp.mark_changed();
             }
         }
+        // Assistive tools step the slider or set its value directly.
+        let (ax_steps, ax_value) = ui.input(|i| {
+            let steps = i.num_accesskit_action_requests(resp.id, Action::Increment) as f32
+                - i.num_accesskit_action_requests(resp.id, Action::Decrement) as f32;
+            let value = i
+                .accesskit_action_requests(resp.id, Action::SetValue)
+                .filter_map(|request| match request.data {
+                    Some(ActionData::NumericValue(v)) => Some(v as f32),
+                    _ => None,
+                })
+                .last();
+            (steps, value)
+        });
+        let ax_target = ax_value.unwrap_or(*self.value) + ax_steps * self.step.unwrap_or((hi - lo) / 100.0);
+        if (ax_value.is_some() || ax_steps != 0.0) && snap(ax_target) != *self.value {
+            *self.value = snap(ax_target);
+            resp.mark_changed();
+        }
         resp.widget_info(|| WidgetInfo::slider(ui.is_enabled(), *self.value as f64, ""));
+        util::name_control(ui, &resp);
+        let (value, step) = (*self.value, self.step);
+        ui.ctx().accesskit_node_builder(resp.id, |node| {
+            node.set_min_numeric_value(lo.into());
+            node.set_max_numeric_value(hi.into());
+            if let Some(step) = step {
+                node.set_numeric_value_step(step.into());
+            }
+            node.add_action(Action::SetValue);
+            if value < hi {
+                node.add_action(Action::Increment);
+            }
+            if value > lo {
+                node.add_action(Action::Decrement);
+            }
+        });
 
         if ui.is_rect_visible(outer) {
             let t = if hi > lo { ((*self.value - lo) / (hi - lo)).clamp(0.0, 1.0) } else { 0.0 };
@@ -328,7 +382,13 @@ pub fn slider(ui: &mut Ui, value: &mut f32, range: RangeInclusive<f32>) -> Respo
     ui.add(Slider::new(value, range))
 }
 
-/// Select-style dropdown. `changed()` is set on the returned response when another option is chosen.
+/// The widest a closed dropdown grows to fit its longest option (unless `combo_width` asks for more).
+const MAX_CLOSED_WIDTH: f32 = 260.0;
+/// Height of one option in an open dropdown.
+const MENU_ROW_H: f32 = 30.0;
+
+/// Select-style dropdown. The list opens below the control, or above it near the window bottom, and scrolls when it
+/// is longer than the room there. `changed()` is set on the returned response when another option is chosen.
 pub fn dropdown<T: PartialEq + Clone>(
     ui: &mut Ui,
     id_salt: impl std::hash::Hash + std::fmt::Debug,
@@ -343,11 +403,17 @@ fn dropdown_inner<T: PartialEq + Clone>(ui: &mut Ui, value: &mut T, options: &[(
     let style = text::body_style();
     let height = control_height(ui);
     let widest = options.iter().map(|(_, l)| util::layout(ui, l, &style, p.text).size().x).fold(0.0_f32, f32::max);
-    let width = (widest + 12.0 + 34.0).max(ui.spacing().combo_width);
+    // One long option must not make the control push its neighbours out; the open list widens to it, up to the
+    // window's width.
+    let combo = ui.spacing().combo_width;
+    let width = (widest + 12.0 + 34.0).max(combo).min(MAX_CLOSED_WIDTH.max(combo));
 
     let (rect, resp) = ui.allocate_exact_size(Vec2::new(width, height), Sense::click());
+    // An egui popup moves left to stay inside the window, so a list wider than the control still fits.
+    let list_w = (widest + 12.0 + 34.0).max(rect.width()).min(popup::popup_bounds(ui.ctx(), rect).width().max(rect.width()));
     let selected = options.iter().position(|(v, _)| v == value);
-    resp.widget_info(|| WidgetInfo::labeled(Role::ComboBox, ui.is_enabled(), selected.map_or("", |i| options[i].1)));
+    let name = util::control_name(ui);
+    resp.widget_info(|| util::valued_info(name.as_deref(), Role::ComboBox, ui.is_enabled(), selected.map_or("", |i| options[i].1)));
 
     let popup_id = Popup::default_response_id(&resp);
     let open = Popup::is_id_open(ui.ctx(), popup_id);
@@ -362,13 +428,12 @@ fn dropdown_inner<T: PartialEq + Clone>(ui: &mut Ui, value: &mut T, options: &[(
         painter.rect_stroke(rect, round, Stroke::new(1.0, border), StrokeKind::Inside);
 
         let label = selected.map_or("", |i| options[i].1);
-        let galley = util::layout(ui, label, &style, p.text);
+        let mut job = LayoutJob::simple_singleline(label.to_owned(), util::font_id(ui, &style), p.text);
+        job.wrap =
+            TextWrapping { max_width: rect.width() - 12.0 - 28.0, max_rows: 1, break_anywhere: true, overflow_character: Some('…') };
+        let galley = ui.painter().layout_job(job);
         let pos = Pos2::new(rect.left() + 12.0, rect.center().y - galley.size().y / 2.0);
-        ui.painter().with_clip_rect(Rect::from_min_max(rect.min, Pos2::new(rect.right() - 26.0, rect.max.y))).galley(
-            util::snap(ui, pos),
-            galley,
-            p.text,
-        );
+        ui.painter().galley(util::snap(ui, pos), galley, p.text);
         let chevron = if open { icon::CARET_UP } else { icon::CARET_DOWN };
         util::paint_icon(
             ui,
@@ -388,23 +453,44 @@ fn dropdown_inner<T: PartialEq + Clone>(ui: &mut Ui, value: &mut T, options: &[(
         .corner_radius(radius::CARD)
         .inner_margin(Margin::same(4))
         .shadow(p.shadow());
-    Popup::menu(&resp)
-        .close_behavior(PopupCloseBehavior::CloseOnClick)
+    // Frame margin and stroke around the rows.
+    let chrome = 2.0 * 4.0 + 2.0;
+    let want = options.len() as f32 * (MENU_ROW_H + 2.0) - 2.0 + chrome;
+    let (popup, max_h) = popup::fitted(Popup::menu(&resp), 4.0, want);
+    // The chosen row is scrolled into view once per opening, on the first frame that is actually drawn.
+    let revealed_id = popup_id.with("revealed");
+    if !open {
+        ui.data_mut(|d| d.remove::<bool>(revealed_id));
+    }
+    popup
+        .close_behavior(PopupCloseBehavior::CloseOnClickOutside)
         .frame(frame)
-        .gap(4.0)
-        .width(rect.width())
+        .width(list_w)
         .style(move |s: &mut egui::Style| {
             *s = (*popup_style).clone();
             s.spacing.item_spacing.y = 2.0;
         })
         .show(|ui| {
-            ui.set_min_width(rect.width() - 8.0);
-            for (i, (opt, label)) in options.iter().enumerate() {
-                let chosen = selected == Some(i);
-                if menu_row(ui, label, chosen).clicked() && !chosen {
-                    *value = opt.clone();
-                    changed = true;
+            ui.set_min_width(list_w - 8.0);
+            let reveal = !ui.is_sizing_pass() && !ui.data(|d| d.get_temp::<bool>(revealed_id).unwrap_or(false));
+            popup::scroll_body(ui, max_h - chrome, |ui| {
+                for (i, (opt, label)) in options.iter().enumerate() {
+                    let chosen = selected == Some(i);
+                    let row = menu_row(ui, label, chosen);
+                    if chosen && reveal {
+                        row.scroll_to_me(Some(Align::Center));
+                    }
+                    if row.clicked() {
+                        if !chosen {
+                            *value = opt.clone();
+                            changed = true;
+                        }
+                        ui.close();
+                    }
                 }
+            });
+            if reveal {
+                ui.data_mut(|d| d.insert_temp(revealed_id, true));
             }
         });
     let mut resp = resp;
@@ -417,7 +503,7 @@ fn dropdown_inner<T: PartialEq + Clone>(ui: &mut Ui, value: &mut T, options: &[(
 /// One row inside a dropdown popup.
 fn menu_row(ui: &mut Ui, label: &str, selected: bool) -> Response {
     let p = Palette::of(ui);
-    let (rect, resp) = ui.allocate_exact_size(Vec2::new(ui.available_width(), 30.0), Sense::click());
+    let (rect, resp) = ui.allocate_exact_size(Vec2::new(ui.available_width(), MENU_ROW_H), Sense::click());
     resp.widget_info(|| WidgetInfo::selected(Role::MenuItem, ui.is_enabled(), selected, label));
     if ui.is_rect_visible(rect) {
         let hover = hover_anim(ui, &resp);
@@ -425,7 +511,11 @@ fn menu_row(ui: &mut Ui, label: &str, selected: bool) -> Response {
         let painter = ui.painter();
         painter.rect_filled(rect, 6.0, p.hover().gamma_multiply(hover.max(highlight)));
         let fg = if selected { p.accent } else { p.text };
-        let galley = util::layout(ui, label, &text::body_style(), fg);
+        // Ellipsized to stay inside the list (only an option wider than the window gets cut) and clear of the check.
+        let mut job = LayoutJob::simple_singleline(label.to_owned(), util::font_id(ui, &text::body_style()), fg);
+        job.wrap =
+            TextWrapping { max_width: rect.width() - 10.0 - 28.0, max_rows: 1, break_anywhere: true, overflow_character: Some('…') };
+        let galley = ui.painter().layout_job(job);
         let pos = Pos2::new(rect.left() + 10.0, rect.center().y - galley.size().y / 2.0);
         ui.painter().galley(util::snap(ui, pos), galley, fg);
         if selected {

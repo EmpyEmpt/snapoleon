@@ -9,7 +9,7 @@
 name = "snapoleon"
 product-name = "Snapoleon"
 identifier = "app.snapoleon"
-version = "0.1.0" # the release workflow overwrites this from the git tag
+version = "0.2.0" # the release workflow writes the Cargo.toml version here, after checking it matches the tag
 description = "Screenshots, screen recording, OCR and sharing in one small Rust app"
 long-description = """
 Snapoleon is a screenshot, screen recording, OCR and sharing tool written entirely in Rust.
@@ -74,11 +74,12 @@ languages = ["en-US"]
 # ---------------------------------------------------------------- macOS
 
 [macos]
-minimum-system-version = "12.3" # ScreenCaptureKit
+minimum-system-version = "14.0" # ScreenCaptureKit screenshots (SCScreenshotManager)
 info-plist-path = "macos/Info.plist"
 entitlements = "macos/entitlements.plist"
 background-app = true # LSUIElement
-# The signing identity comes from the release workflow (APPLE_SIGNING_IDENTITY).
+# The release workflow adds signing-identity here: the Developer ID from APPLE_SIGNING_IDENTITY, or "-" (ad-hoc)
+# without one, so the bundle is always signed as app.snapoleon with its Info.plist bound, which TCC needs.
 
 [dmg]
 window-size = { width = 640, height = 400 }

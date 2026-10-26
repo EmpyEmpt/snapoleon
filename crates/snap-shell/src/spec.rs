@@ -20,6 +20,11 @@ pub struct WindowSpec {
     /// the window (mixed-DPI multi-monitor setups).
     pub cover: Option<Rect>,
     pub decorations: bool,
+    /// The app draws the title bar itself, this many egui points tall (scaled by the window's zoom). On macOS the window still gets the
+    /// system's window controls, rounded corners, shadow, full screen and tiling: it is titled, with a transparent
+    /// title bar over full-size content, and the traffic lights are centred in this height (see
+    /// [`Shell::title_bar_inset`](crate::Shell::title_bar_inset)). Elsewhere `decorations` decides, as without it.
+    pub title_bar: Option<f32>,
     pub resizable: bool,
     pub always_on_top: bool,
     pub skip_taskbar: bool,
@@ -36,7 +41,7 @@ pub struct WindowSpec {
     pub activate: bool,
     /// Hide the window from screenshots and screen recordings (Windows and macOS).
     pub exclude_from_capture: bool,
-    /// Rounded corners (Windows 11 DWM); no-op elsewhere.
+    /// Rounded corners (Windows 11 DWM). macOS rounds windows with a `title_bar` itself; no-op elsewhere.
     pub rounded: bool,
     /// Clip the window to a pill (fully round ends). Windows only; elsewhere the window stays a rectangle.
     /// Changeable later with [`Shell::set_pill`](crate::Shell::set_pill).
@@ -55,6 +60,7 @@ impl Default for WindowSpec {
             position: None,
             cover: None,
             decorations: true,
+            title_bar: None,
             resizable: true,
             always_on_top: false,
             skip_taskbar: false,
@@ -88,13 +94,20 @@ impl WindowSpec {
     pub(crate) fn is_tool(&self) -> bool {
         self.tool_window || self.skip_taskbar || self.cover.is_some()
     }
+
+    /// An ordinary app window, not an overlay, a tool window or one floating above the others: while one is shown
+    /// the macOS app has a Dock icon and a menu bar, and a new one is fitted to the screen.
+    pub(crate) fn is_app_window(&self) -> bool {
+        !self.is_tool() && !self.always_on_top
+    }
 }
 
 /// Process-wide shell settings.
 pub struct ShellConfig {
     /// Reverse-DNS application id (X11 `WM_CLASS`, Wayland `app_id`).
     pub app_id: String,
-    /// macOS: run as an accessory app (no Dock icon, no menu bar).
+    /// macOS: an accessory app (no Dock icon, no app switcher entry, no menu bar) while no app window is shown. The
+    /// first ordinary window brings the Dock icon and the app menu, and they go with the last one.
     pub accessory: bool,
     /// Applied to every new `egui::Context` before its first frame
     /// (fonts, visuals, style).

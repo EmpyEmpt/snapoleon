@@ -110,11 +110,19 @@ pub(crate) fn set_exclude_from_capture(window: &Window, on: bool) -> Result<()> 
 }
 
 /// Exact physical placement, bypassing winit's DPI conversions.
-pub(crate) fn place_cover(window: &Window, r: Rect, _monitors: &[(Rect, f32)]) {
+pub(crate) fn place_cover(window: &Window, r: Rect) {
     if let Some(h) = hwnd(window) {
         // SAFETY: plain Win32 call on a window owned by this process.
         unsafe { SetWindowPos(h, HWND_TOPMOST, r.x, r.y, r.w as i32, r.h as i32, SWP_NOACTIVATE) };
     }
+}
+
+pub(crate) fn monitors(el: &ActiveEventLoop) -> Vec<(Rect, f32)> {
+    super::winit_monitors(el)
+}
+
+pub(crate) fn outer_rect(window: &Window) -> Option<Rect> {
+    super::winit_outer_rect(window)
 }
 
 pub(crate) fn set_outer_rect(window: &Window, r: Rect) {
@@ -148,4 +156,27 @@ pub(crate) fn activate(window: &Window) {
         SetForegroundWindow(h);
         AttachThreadInput(ours, theirs, 0);
     }
+}
+
+pub(crate) fn show(window: &Window, _key: bool) {
+    window.set_visible(true);
+}
+
+pub(crate) fn app_active(windows: &mut dyn Iterator<Item = &Window>) -> bool {
+    // `Iterator::any` needs a sized receiver; a loop works on the trait object.
+    for w in windows {
+        if w.has_focus() {
+            return true;
+        }
+    }
+    false
+}
+
+/// The OS gives the focus back to the window below when ours goes away.
+pub(crate) fn remember_frontmost() {}
+
+pub(crate) fn restore_frontmost() {}
+
+pub(crate) fn safe_area_top(_window: &Window) -> f32 {
+    0.0
 }

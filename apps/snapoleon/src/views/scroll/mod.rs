@@ -157,7 +157,7 @@ impl ScrollView {
             ui.label(text::body_strong(t("scroll.title")));
         });
         // The panel has no title bar: the header moves it.
-        if ui.interact(row.response.rect, ui.scope_id().with("drag"), Sense::drag()).drag_started() {
+        if ui.interact(row.response.rect, ui.scope_id().with("drag"), Sense::DRAG).drag_started() {
             cx.shell.drag_window(cx.win);
         }
         let area = &self.input.rect;
@@ -267,10 +267,17 @@ impl View for ScrollView {
                         Err(snap_core::Error::Cancelled) => {}
                         Err(e) => {
                             tracing::warn!("scrolling capture failed: {e}");
+                            // Scrolling needs Accessibility, its frames Screen Recording. The first time, the system
+                            // prompt (which also lists the app in System Settings); every time, a notice that leads there.
+                            let permission = crate::notices::missing_permission(&e);
+                            if let Some(perm) = permission {
+                                snap_platform::permissions::request(perm);
+                            }
                             cx.notify(Notice {
                                 kind: NoticeKind::Error,
                                 title: t("scroll.error").into_owned(),
                                 body: crate::notices::error_text(&e),
+                                permission,
                                 ..Notice::default()
                             });
                         }

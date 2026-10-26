@@ -10,7 +10,7 @@ use crate::effects::{pixel_rect, preview_patch};
 use crate::font::{self, Face};
 use crate::geometry::{
     ArrowGeom, TextBox, arrow_geom, bubble_path, build, callout_box, magnifier_geom, measure_geom, norm_rect, polygon_path, polyline_path,
-    rounded_rect_path, smooth_path, text_box,
+    rounded_rect_path, smooth_path, text_box, text_outline_width,
 };
 use crate::math::{Scale, V, badge_ink, contrasting};
 use crate::model::{Shape, ShapeKind, Style, TextBg};
@@ -64,11 +64,12 @@ pub(crate) fn draw_kind(cv: &mut Canvas, shape: &Shape, cx: &Ctx) {
         }
         ShapeKind::Text { pos, text, size, bold, bg, max_width } => {
             let tb = text_box(*pos, text, *size, *bold, *bg, *max_width, sc);
-            let (back, ink) = match bg {
-                TextBg::None => (None, st.stroke),
+            // Plain text uses the fill as an outline around the glyphs, which keeps it readable on a busy picture.
+            let (back, ink, halo) = match bg {
+                TextBg::None => (None, st.stroke, st.fill),
                 _ => {
                     let f = st.fill.unwrap_or(st.stroke);
-                    (Some(f), contrasting(f))
+                    (Some(f), contrasting(f), None)
                 }
             };
             if let Some(f) = back
@@ -76,7 +77,7 @@ pub(crate) fn draw_kind(cv: &mut Canvas, shape: &Shape, cx: &Ctx) {
             {
                 cv.fill(&p, f);
             }
-            draw_text(cv, &tb, ink);
+            draw_text(cv, &tb, ink, halo);
         }
         ShapeKind::Callout { rect, tail, text, size } => {
             let tb = callout_box(norm_rect(*rect), *tail, text, *size, sc);
@@ -84,7 +85,7 @@ pub(crate) fn draw_kind(cv: &mut Canvas, shape: &Shape, cx: &Ctx) {
             if let Some(p) = bubble_path(tb.outer, tb.radius, tb.tip, tb.base_w) {
                 cv.fill(&p, f);
             }
-            draw_text(cv, &tb, contrasting(f));
+            draw_text(cv, &tb, contrasting(f), None);
         }
         ShapeKind::Step { center, number, radius } => step(cv, st, (*center).into(), *number, sc.badge(*radius)),
         ShapeKind::Stamp { center, size, glyph } => {
@@ -139,7 +140,8 @@ fn arrow(cv: &mut Canvas, g: &ArrowGeom, st: &Style, w: f32) {
     }
 }
 
-fn draw_text(cv: &mut Canvas, tb: &TextBox, ink: [u8; 4]) {
+/// The text of `tb` in `ink`, with an outline in `halo` drawn under the glyphs when given.
+fn draw_text(cv: &mut Canvas, tb: &TextBox, ink: [u8; 4], halo: Option<[u8; 4]>) {
     let path = build(|pb| {
         for (i, line) in tb.layout.lines.iter().enumerate() {
             if line.text.is_empty() {
@@ -150,6 +152,9 @@ fn draw_text(cv: &mut Canvas, tb: &TextBox, ink: [u8; 4]) {
         }
     });
     if let Some(p) = path {
+        if let Some(halo) = halo {
+            cv.stroke(&p, halo, &StrokeSpec::round(text_outline_width(tb.layout.size)));
+        }
         cv.fill(&p, ink);
     }
 }

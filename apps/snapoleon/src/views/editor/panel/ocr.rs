@@ -109,10 +109,14 @@ pub fn ui(ui: &mut Ui, st: &mut State, cx: &mut PanelCx) -> Option<RectF> {
     let mut reveal = None;
     match (&st.job, &st.result) {
         (Job::Running, _) => {
+            let warming = snap_ocr::warming_up(&cx.vcx.settings.ocr);
             ui.add_space(space::XL);
             ui.vertical_centered(|ui| {
                 spinner(ui);
-                ui.label(text::dim(t("editor.ocr.running")));
+                ui.label(text::dim(t(if warming { "ocr.warmup.label" } else { "editor.ocr.running" })));
+                if warming {
+                    ui.label(text::caption(t("ocr.warmup.hint")));
+                }
             });
         }
         (_, None) => {
@@ -259,6 +263,7 @@ fn line_row(ui: &mut Ui, line: &str, selected: bool, p: &snap_ui::Palette) -> eg
     );
     let size = Vec2::new(width, galley.size().y + 10.0);
     let (rect, resp) = ui.allocate_exact_size(size, Sense::click());
+    resp.widget_info(|| egui::WidgetInfo::selected(egui::Role::Button, ui.is_enabled(), selected, line));
     let hover = hover_anim(ui, &resp);
     let painter = ui.painter();
     painter.rect_filled(rect, radius::CONTROL, p.hover().gamma_multiply(hover * if selected { 0.0 } else { 1.0 }));

@@ -57,8 +57,13 @@ fn dirs() -> &'static Dirs {
 }
 
 fn portable_root() -> Option<PathBuf> {
-    let exe = std::env::current_exe().ok()?;
+    // Resolved, so a symlink to the executable (a PATH entry) does not make the folder it sits in look portable.
+    let exe = std::env::current_exe().and_then(std::fs::canonicalize).ok()?;
     let dir = exe.parent()?;
+    // A macOS app bundle is never portable: its data belongs in Application Support, not inside the signed bundle.
+    if dir.ends_with("Contents/MacOS") {
+        return None;
+    }
     (dir.join("portable").exists() || dir.join("data").is_dir()).then(|| dir.to_path_buf())
 }
 
@@ -104,6 +109,17 @@ pub fn logs_dir() -> PathBuf {
 /// Resolve the configured save dir (empty = default).
 pub fn save_dir(configured: &str) -> PathBuf {
     if configured.trim().is_empty() { default_save_dir() } else { PathBuf::from(shellexpand_home(configured)) }
+}
+
+/// `path` for people to read: under the home folder it starts with `~` on macOS and Linux, as those systems write it.
+pub fn display(path: &Path) -> String {
+    if !cfg!(windows)
+        && let Some(base) = directories::BaseDirs::new()
+        && let Ok(rest) = path.strip_prefix(base.home_dir())
+    {
+        return if rest.as_os_str().is_empty() { "~".to_string() } else { format!("~/{}", rest.display()) };
+    }
+    path.display().to_string()
 }
 
 fn shellexpand_home(p: &str) -> String {

@@ -28,6 +28,7 @@ fn options(target: RecordTarget, format: VideoFormat, fps: u32, output: PathBuf)
         output,
         ffmpeg: None,
         exclude_windows: Vec::new(),
+        hide_desktop_icons: false,
     }
 }
 
@@ -48,13 +49,25 @@ fn wiggle(for_ms: u64) {
     std::thread::sleep(Duration::from_millis(for_ms));
 }
 
-fn report(label: &str, path: &std::path::Path) -> snap_core::Result<()> {
+fn report(label: &str, path: &std::path::Path) -> snap_core::Result<edit::VideoInfo> {
     let info = edit::probe(path)?;
     let bytes = std::fs::metadata(path)?.len();
     println!(
         "{label}: {} bytes, {} ms, {}x{} @ {:.1} fps, audio={}",
         bytes, info.duration_ms, info.width, info.height, info.fps, info.has_audio
     );
+    Ok(info)
+}
+
+/// An edit must keep the source's audio track.
+fn check_audio(label: &str, source: &edit::VideoInfo, edited: &edit::VideoInfo) -> snap_core::Result<()> {
+    if source.has_audio != edited.has_audio {
+        return Err(snap_core::Error::Other(anyhow::anyhow!(
+            "{label}: audio={} but the source has audio={}",
+            edited.has_audio,
+            source.has_audio
+        )));
+    }
     Ok(())
 }
 
@@ -113,7 +126,7 @@ fn main() -> snap_core::Result<()> {
     let r = rec.stop()?;
     drop(tone);
     println!("mp4 recorded: {} ms, {}x{}, {} bytes", r.duration_ms, r.width, r.height, r.bytes);
-    report("mp4", &mp4)?;
+    let mp4_info = report("mp4", &mp4)?;
 
     // GIF of a 1280x720 region, 2 s.
     let gif = out.join("region.gif");
@@ -133,12 +146,12 @@ fn main() -> snap_core::Result<()> {
     // Edit operations.
     let trimmed = out.join("trimmed.mp4");
     edit::trim(&mp4, &trimmed, 500, 1500)?;
-    report("trimmed", &trimmed)?;
+    check_audio("trimmed", &mp4_info, &report("trimmed", &trimmed)?)?;
 
     let small = out.join("small.mp4");
     let size = edit::export(&mp4, &small, &edit::ExportOptions { max_bytes: Some(500 * 1024), ..Default::default() })?;
     println!("export <= 500 KB: {size} bytes");
-    report("small", &small)?;
+    check_audio("small", &mp4_info, &report("small", &small)?)?;
 
     let thumb = edit::frame_at(&mp4, 1000, 640)?;
     thumb.save(out.join("frame.png")).map_err(snap_core::Error::Image)?;

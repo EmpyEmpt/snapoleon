@@ -32,9 +32,6 @@ pub enum Command {
     },
     /// Open the selection overlay. Normally reached through `StartCapture`.
     OpenOverlay(OverlayRequest),
-    /// macOS: the desktop icons have been hidden on a worker; open the overlay without hiding them again.
-    #[cfg(target_os = "macos")]
-    OpenOverlayIconsHidden(OverlayRequest),
     /// Capture without UI on a worker thread, then run `work` over the result.
     CaptureAndRun {
         request: CaptureRequest,
@@ -78,6 +75,8 @@ pub enum Command {
         page: Option<SettingsPage>,
     },
     OpenOnboarding,
+    /// The first run just ended and its window is closing: say where the app went (the menu bar or the tray).
+    FirstRunDone,
     OpenAbout,
     /// Recognised or translated text.
     ShowText {
@@ -109,9 +108,9 @@ pub enum Command {
         pipeline: Option<String>,
     },
     StartStepCapture,
-    /// Empty `images` opens the tool with its own "add images" state.
+    /// Empty `images` opens the tool with its own "add images" state. Each image comes with its pixels per point.
     OpenCombine {
-        images: Vec<RgbaImage>,
+        images: Vec<(RgbaImage, f32)>,
     },
     /// `None` for an image leaves that side for the tool's own picker (tray: "Compare images"; a view that has the
     /// two images, like a two-card selection in the Library, passes them).
@@ -127,10 +126,14 @@ pub enum Command {
     Shutter,
     /// Show a link as a QR code to scan with a phone.
     ShowQr(String),
+    /// A notice's "Open System Settings": the system prompt while the permission is undecided, else its settings page.
+    FixPermission(snap_platform::permissions::Perm),
     CopyText(String),
     Reveal(PathBuf),
     OpenPath(PathBuf),
     OpenUrl(String),
+    /// One of the app's own links into the OS settings app (`snap_platform::open::system_settings`).
+    OpenSystemSettings(&'static str),
     /// Escape hatch for a view that needs another window of its own: the closure runs on the UI
     /// thread with an `OpenCx`. Build the new view *inside* the closure (views are not `Send`).
     Open(Box<dyn FnOnce(&mut OpenCx) + Send>),

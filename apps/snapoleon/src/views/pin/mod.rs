@@ -255,8 +255,8 @@ impl PinView {
     fn apply(&mut self, cx: &mut ViewCx, action: PinAction) {
         match action {
             PinAction::Copy => {
-                let image = self.image.clone();
-                cx.spawn(move || PinMsg::Copied(snap_platform::clipboard::set_image(&image)));
+                let (image, scale) = (self.image.clone(), self.scale);
+                cx.spawn(move || PinMsg::Copied(snap_platform::clipboard::set_image_scaled(&image, scale)));
             }
             PinAction::SaveAs => self.save_as(cx),
             PinAction::Edit => {
@@ -277,7 +277,7 @@ impl PinView {
     }
 
     fn save_as(&self, cx: &mut ViewCx) {
-        let image = self.image.clone();
+        let (image, scale) = (self.image.clone(), self.scale);
         let capture = &cx.settings.capture;
         let (dir, template, default_format) = (paths::save_dir(&capture.save_dir), capture.filename_template.clone(), capture.format);
         let (jpeg_quality, webp_quality, optimize_png) = (capture.jpeg_quality, capture.webp_quality, capture.optimize_png);
@@ -300,7 +300,7 @@ impl PinView {
                 default_format
             });
             let quality = if format == ImageFormat::Webp { webp_quality } else { jpeg_quality };
-            PinMsg::Saved(snap_image::encode::save(&image, &path, format, quality, optimize_png).map(|_| Some(path)))
+            PinMsg::Saved(snap_image::encode::save(&image, &path, format, quality, optimize_png, Some(scale)).map(|_| Some(path)))
         });
     }
 
@@ -374,7 +374,8 @@ impl View for PinView {
                 let rect = ui.max_rect();
                 surface_rect = rect;
                 hovered = ui.ctx().pointer_hover_pos().is_some_and(|p| rect.contains(p));
-                let surface = ui.interact(rect, Id::unique("pin-surface"), Sense::click_and_drag());
+                // Pointer only (move, double-click, menu); the pin's keys are read from the window's input.
+                let surface = ui.interact(rect, Id::unique("pin-surface"), Sense::CLICK | Sense::DRAG);
                 drag = surface.drag_started_by(PointerButton::Primary);
                 if surface.double_clicked() {
                     action = Some(PinAction::Edit);
@@ -504,13 +505,13 @@ fn paint_bar(ctx: &Context, rect: egui::Rect, pin: &PinView, fade: f32) -> Optio
                 if full {
                     if native::SUPPORTED {
                         let label = format!("{}%", (pin.opacity * 100.0).round());
-                        if readout(ui, icon::DROP_HALF, &label, &t("pin.tip.opacity"), Some("Ctrl+Scroll")).clicked() {
+                        if readout(ui, icon::DROP_HALF, &label, &t("pin.tip.opacity"), Some("CmdOrCtrl+Scroll")).clicked() {
                             let next = OPACITY_STEPS.iter().copied().find(|s| *s < pin.opacity - 0.01).unwrap_or(1.0);
                             action = Some(PinAction::SetOpacity(next));
                         }
                     }
                     let label = format!("{}%", (pin.zoom * 100.0).round());
-                    if readout(ui, icon::MAGNIFYING_GLASS, &label, &t("pin.tip.zoom"), Some("Ctrl+0")).clicked() {
+                    if readout(ui, icon::MAGNIFYING_GLASS, &label, &t("pin.tip.zoom"), Some("CmdOrCtrl+0")).clicked() {
                         action = Some(PinAction::ResetZoom);
                     }
                 }

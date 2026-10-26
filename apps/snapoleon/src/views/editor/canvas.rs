@@ -8,8 +8,8 @@
 use std::time::Instant;
 
 use egui::{
-    Color32, ColorImage, Context, CornerRadius, CursorIcon, Event, Key, Mesh, Painter, PointerButton, Pos2, Rect, Response, Sense,
-    Shape as Paint, Stroke, StrokeKind, TextureHandle, TextureOptions, Ui, Vec2, epaint::TextureId,
+    Color32, ColorImage, Context, CornerRadius, CursorIcon, Event, Key, Mesh, Painter, PointerButton, Pos2, Rect, Response, Role, Sense,
+    Shape as Paint, Stroke, StrokeKind, TextureHandle, TextureOptions, Ui, Vec2, WidgetInfo, epaint::TextureId,
 };
 use snap_annotate::{Document, Handle, Shape, ShapeKind, View, bounds, drag, handles, hit_test, render_view};
 use snap_core::{PointF, RectF};
@@ -179,6 +179,7 @@ impl Canvas {
         let p = palette(&ctx);
         let avail = ui.available_rect_before_wrap();
         let (_, response) = ui.allocate_exact_size(avail.size(), Sense::click_and_drag());
+        response.widget_info(|| WidgetInfo::labeled(Role::Canvas, true, snap_core::t("editor.a11y.canvas")));
 
         // Align the canvas to physical pixels so that the textures map 1:1 onto the screen.
         let min = Pos2::new((avail.min.x * ppp).round() / ppp, (avail.min.y * ppp).round() / ppp);
@@ -405,7 +406,9 @@ impl Canvas {
                 }
             }
         } else {
-            self.gesture = Gesture::Create { tool: cx.tool, start: doc, id: None, moved: false, grab: tol };
+            // A new shape starts inside the exported picture: one placed in the empty margin would be cut from the output.
+            let start = clamp_to(export_area(&cx.s.doc), doc);
+            self.gesture = Gesture::Create { tool: cx.tool, start, id: None, moved: false, grab: tol };
         }
     }
 
@@ -468,6 +471,7 @@ impl Canvas {
                 *moved = true;
                 let build = Build { tools: cx.tools, scale: ui_scale, image, shift };
                 let previous = id.and_then(|i| cx.s.doc.get(i)).map(|s| s.kind.clone());
+                let doc = clamp_to(export_area(&cx.s.doc), doc);
                 let Some(kind) = create::dragged(*tool, *start, doc, &build, previous.as_ref()) else { return };
                 match id {
                     Some(existing) => {
@@ -705,6 +709,7 @@ impl Canvas {
         }
 
         self.paint_caret(painter, rect, ppp, cx, p);
+        paint_outside_note(painter, rect, cx, p);
     }
 
     fn paint_crop(&self, painter: &Painter, rect: Rect, ppp: f32, view: &Viewport, p: &Palette) {
@@ -844,6 +849,36 @@ fn text_of(shape: &Shape) -> &str {
         ShapeKind::Text { text, .. } | ShapeKind::Callout { text, .. } => text,
         _ => "",
     }
+}
+
+/// The part of the picture that is exported (the crop, else the whole image), in document pixels.
+fn export_area(doc: &Document) -> RectF {
+    let r = doc.crop_rect();
+    RectF::new(r.x as f32, r.y as f32, r.w as f32, r.h as f32)
+}
+
+fn clamp_to(area: RectF, p: PointF) -> PointF {
+    PointF::new(p.x.clamp(area.x, area.right().max(area.x)), p.y.clamp(area.y, area.bottom().max(area.y)))
+}
+
+/// A note at the bottom of the canvas while an annotation reaches past the exported picture: that part is not saved.
+fn paint_outside_note(painter: &Painter, rect: Rect, cx: &CanvasCx, p: &Palette) {
+    let area = export_area(&cx.s.doc);
+    // A stroke's width of slack: an outline drawn along the edge is not worth a warning.
+    let outside = cx.s.doc.shapes.iter().filter(|s| !s.hidden).any(|s| {
+        let (b, slack) = (bounds(s), s.style.width.max(1.0));
+        b.x < area.x - slack || b.y < area.y - slack || b.right() > area.right() + slack || b.bottom() > area.bottom() + slack
+    });
+    if !outside {
+        return;
+    }
+    let style = snap_ui::text::caption_style().resolve(&painter.ctx().global_style());
+    let galley = painter.layout_no_wrap(snap_core::t("editor.canvas.outside").into_owned(), style, p.text);
+    let size = galley.size() + Vec2::new(20.0, 10.0);
+    let pill = Rect::from_center_size(Pos2::new(rect.center().x, rect.bottom() - 12.0 - size.y / 2.0), size);
+    painter.rect_filled(pill, size.y / 2.0, p.elevated);
+    painter.rect_stroke(pill, size.y / 2.0, Stroke::new(1.0, p.border), StrokeKind::Inside);
+    painter.galley(pill.center() - galley.size() / 2.0, galley, p.text);
 }
 
 fn intersects(a: RectF, b: RectF) -> bool {

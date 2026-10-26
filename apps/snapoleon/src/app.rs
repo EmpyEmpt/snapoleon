@@ -7,13 +7,14 @@ use std::{
     any::Any,
     collections::{HashMap, HashSet},
     panic::AssertUnwindSafe,
+    time::Instant,
 };
 
 use egui::Context;
 use snap_core::{Settings, paths, policy::Policy, t, tf};
 use snap_engine::{Engine, Notice, NoticeKind};
 use snap_platform::tray::Tray;
-use snap_shell::{Shell, ShellApp, WindowKey};
+use snap_shell::{OsRequest, Proxy, Shell, ShellApp, WindowKey};
 use snap_ui::Toasts;
 
 use crate::{
@@ -21,8 +22,8 @@ use crate::{
     dev::Dev,
     events::{AppEvent, HistoryChanged},
     hotkeys::Hotkeys,
-    ipc,
-    notices::Progress,
+    ipc, logging,
+    notices::{self, Progress},
     theme,
     views::{self, OpenCx, View, ViewCx},
 };
@@ -35,11 +36,13 @@ pub struct Slot {
     /// Whether app-level notices and the progress pill may appear in this window.
     toast_host: bool,
     theme_gen: u64,
+    /// The zoom factor last given to this window's context.
+    zoom: f32,
 }
 
 impl Slot {
     pub fn new(view: Box<dyn View>, toast_host: bool) -> Self {
-        Self { view: Some(view), toasts: Toasts::new(), toast_host, theme_gen: theme::generation() }
+        Self { view: Some(view), toasts: Toasts::new(), toast_host, theme_gen: theme::generation(), zoom: 1.0 }
     }
 }
 
@@ -94,8 +97,15 @@ pub struct App {
     crashed: Vec<WindowKey>,
     pub(crate) hotkeys: Option<Hotkeys>,
     pub(crate) tray: Option<Tray>,
+    /// For the timer that rebuilds the tray menu when the latest capture's quick actions run out.
+    pub(crate) tray_proxy: Option<Proxy<AppEvent>>,
+    /// When that timer fires (Unix ms); `None` while none is waiting.
+    pub(crate) tray_expiry: Option<i64>,
     pub(crate) ipc: Option<snap_platform::ipc::Server>,
     pub(crate) recording: bool,
+    /// When the user last clicked an OS notification; a reopen close to it came with the click (see
+    /// `ipc::defer_reopen`).
+    pub(crate) notified: Option<Instant>,
     pub(crate) quit_pending: bool,
     /// No tray to live in (dev harness, tray failed): the app ends with its last window.
     pub(crate) quit_when_empty: bool,
@@ -120,8 +130,11 @@ impl App {
             crashed: Vec::new(),
             hotkeys: None,
             tray: None,
+            tray_proxy: None,
+            tray_expiry: None,
             ipc: None,
             recording: false,
+            notified: None,
             quit_pending: false,
             quit_when_empty: false,
             dev: startup.dev.clone(),
@@ -172,6 +185,8 @@ impl App {
             Ok(out) => Some(out),
             Err(_) => {
                 tracing::error!("a view panicked; closing its window");
+                // The app lives on, so this was no crash.
+                logging::clear_crash_report();
                 self.crashed.push(win);
                 sh.close(win);
                 None
@@ -181,9 +196,11 @@ impl App {
 
     /// Process queued commands until none are left.
     pub(crate) fn flush(&mut self, sh: &mut Shell<AppEvent>) {
+        logging::settle();
         for _ in 0..16 {
             let cmds = std::mem::take(&mut self.cmds);
             if cmds.is_empty() {
+                self.sync_escape(sh);
                 return;
             }
             for cmd in cmds {
@@ -205,6 +222,8 @@ impl App {
         let general = &self.settings.general;
         if general.language != old.general.language {
             snap_core::i18n::set_language(&general.language);
+            snap_platform::notify::set_action_labels(&notices::action_labels());
+            sh.refresh_app_menu();
         }
         theme::apply(general, self.dev.as_ref().and_then(|d| d.dark));
         sh.proxy().repaint_all();
@@ -212,7 +231,7 @@ impl App {
             self.apply_hotkeys(sh);
         }
         if old.general.launch_at_login != self.settings.general.launch_at_login {
-            self.sync_autostart();
+            self.apply_autostart(sh);
         }
         if old.general.instant_overlay != self.settings.general.instant_overlay && self.dev.is_none() && self.tray.is_some() {
             let on = self.settings.general.instant_overlay;
@@ -221,15 +240,40 @@ impl App {
         self.refresh_tray();
     }
 
-    pub(crate) fn sync_autostart(&self) {
+    /// At startup: line the OS registration up with the preference, or the preference up with the OS when the OS
+    /// owns the answer (macOS, where the user can switch the login item off in System Settings).
+    fn reconcile_autostart(&mut self) {
         if paths::is_portable() || self.dev.is_some() {
             return;
         }
         let want = self.settings.general.launch_at_login;
-        if snap_platform::autostart::get() != want
-            && let Err(e) = snap_platform::autostart::set(want)
-        {
-            tracing::warn!("autostart: {e}");
+        match snap_platform::autostart::reconcile(want) {
+            Ok(have) if have != want => self.store_launch_at_login(have),
+            Ok(_) => {}
+            Err(e) => tracing::warn!("autostart: {e}"),
+        }
+    }
+
+    /// The user switched launch at login in Settings. When the OS refuses, the switch goes back to what is true.
+    fn apply_autostart(&mut self, sh: &mut Shell<AppEvent>) {
+        if paths::is_portable() || self.dev.is_some() {
+            return;
+        }
+        let want = self.settings.general.launch_at_login;
+        if let Err(e) = snap_platform::autostart::set(want) {
+            self.report_error(sh, &e);
+            let have = snap_platform::autostart::status() != snap_platform::autostart::Status::Off;
+            if have != want {
+                self.store_launch_at_login(have);
+                sh.proxy().repaint_all();
+            }
+        }
+    }
+
+    fn store_launch_at_login(&mut self, on: bool) {
+        match self.engine.update_settings(|s| s.general.launch_at_login = on) {
+            Ok(()) => self.settings.general.launch_at_login = on,
+            Err(e) => tracing::warn!("settings: {e}"),
         }
     }
 
@@ -252,9 +296,7 @@ impl App {
         self.tray = None;
         self.hotkeys = None;
         self.ipc = None;
-        // A postponed restore of the desktop icons would not get to run.
-        #[cfg(target_os = "macos")]
-        snap_capture::restore_desktop_icons();
+        logging::clear_crash_report();
         sh.quit();
     }
 
@@ -262,6 +304,15 @@ impl App {
         let Some(startup) = self.startup.take() else { return };
         let proxy = sh.proxy();
         let dev = startup.dev.is_some();
+        // A login item gets no `--background` on macOS; the launch event says it instead, and only now.
+        let background = startup.background || snap_platform::autostart::launched_at_login();
+        // Before anything can post a notification, and while the app is still finishing its launch, so a click on a
+        // notification that launched the app is delivered.
+        snap_platform::notify::init({
+            let proxy = proxy.clone();
+            move |action| proxy.send(AppEvent::Notified(action))
+        });
+        snap_platform::notify::set_action_labels(&notices::action_labels());
         self.quit_when_empty = dev;
         self.engine.set_history_listener({
             let proxy = proxy.clone();
@@ -282,12 +333,13 @@ impl App {
             }
             self.start_hotkeys(sh);
             self.start_tray(sh);
-            self.sync_autostart();
+            self.reconcile_autostart();
             let icon = snap_ui::app_icon_rgba(256);
             if let Err(e) = snap_platform::notify::set_app_icon(&icon) {
                 tracing::debug!("notification icon: {e}");
             }
             self.purge_history();
+            snap_ocr::prewarm(&self.settings.ocr);
             crate::server_events::start(self.engine.clone(), proxy.clone());
             if !paths::is_portable() {
                 // Every start, not just the first: the executable may have moved since (an update, a new install
@@ -311,11 +363,23 @@ impl App {
             self.notice(sh, notice);
         }
 
+        if !dev && let Some(report) = logging::take_crash_report() {
+            let notice = Notice {
+                kind: NoticeKind::Error,
+                title: t("app.crash.title").into_owned(),
+                body: t("app.crash.body").into_owned(),
+                file: Some(report),
+                ..Notice::default()
+            };
+            self.notice(sh, notice);
+        }
+
         if dev {
             self.dev_start(sh);
         } else if !self.settings.general.first_run_done {
             self.cmds.push(Command::OpenOnboarding);
-        } else if startup.request.is_none() && !startup.background {
+        } else if startup.request.is_none() && !background && !sh.launched_to_open() {
+            // A launch to open a document or a link (macOS) is not a plain launch: that request follows instead.
             self.cmds.push(Command::OpenLibrary);
         }
         if let Some(request) = startup.request {
@@ -355,8 +419,14 @@ impl ShellApp<AppEvent> for App {
         match event {
             AppEvent::Hotkey(index) => self.on_hotkey(sh, index),
             AppEvent::Tray(event) => self.on_tray(sh, event),
+            AppEvent::RefreshTray => self.refresh_tray(),
             AppEvent::Ipc(request, reply) => self.handle_request(sh, request, Some(reply)),
             AppEvent::Command(command) => self.cmds.push(command),
+            AppEvent::Notified(action) => {
+                self.notified = Some(Instant::now());
+                self.cmds.push(notices::notify_command(action));
+            }
+            AppEvent::Reopen(at) => self.reopen(at),
             AppEvent::JobProgress { label, frac } => {
                 self.on_job_progress(label, frac);
                 if let Some(host) = self.host {
@@ -387,7 +457,15 @@ impl ShellApp<AppEvent> for App {
             }
         }
         theme::sync(ctx, &mut slot.theme_gen);
+        if let Some(scale) = sync_zoom(slot, ctx, self.settings.general.interface_scale()) {
+            // Cmd+= / Cmd+- in an app window: make it the setting, so every window follows and it outlives a restart.
+            match self.engine.update_settings(|s| s.general.ui_scale = scale) {
+                Ok(()) => sh.proxy().send(AppEvent::SettingsChanged),
+                Err(e) => tracing::warn!("saving the interface scale failed: {e}"),
+            }
+        }
 
+        escape_closes_popup(ctx);
         self.with_view(sh, win, |view, cx| view.ui(cx, ctx));
 
         if self.host == Some(win) {
@@ -407,6 +485,11 @@ impl ShellApp<AppEvent> for App {
         let allowed = self.with_view(sh, win, |view, cx| view.close_requested(cx)).unwrap_or(true);
         self.flush(sh);
         allowed
+    }
+
+    fn os_request(&mut self, sh: &mut Shell<AppEvent>, request: OsRequest) {
+        self.handle_os_request(sh, request);
+        self.flush(sh);
     }
 
     fn closed(&mut self, sh: &mut Shell<AppEvent>, win: WindowKey) {
@@ -462,4 +545,42 @@ impl App {
             self.deliver(sh, win, Box::new(HistoryChanged));
         }
     }
+}
+
+/// Escape over an open popup (a dropdown, a menu) closes that popup and nothing else. egui closes it while drawing
+/// it, halfway through the view, after which nothing tells the view what the key was for: it is spent here, before the
+/// view runs, so no window closes, steps back or drops its selection along with the list.
+fn escape_closes_popup(ctx: &Context) {
+    if egui::Popup::is_any_open(ctx) && ctx.input_mut(|i| i.consume_key(egui::Modifiers::NONE, egui::Key::Escape)) {
+        egui::Popup::close_all(ctx);
+    }
+}
+
+/// Apply the interface scale (Settings, General) to an app window. Covers, pins and HUDs stay at 1:1 so they line
+/// up with the screen, and the keyboard zoom is off there. Returns a scale the user just picked with the keyboard.
+fn sync_zoom(slot: &mut Slot, ctx: &Context, scale: f32) -> Option<f32> {
+    if !slot.toast_host {
+        ctx.options_mut(|o| o.zoom_with_keyboard = false);
+        if slot.zoom != 1.0 {
+            ctx.set_zoom_factor(1.0);
+            slot.zoom = 1.0;
+        }
+        return None;
+    }
+    let now = ctx.zoom_factor();
+    if (now - slot.zoom).abs() > 0.001 {
+        let range = snap_core::settings::General::UI_SCALE_RANGE;
+        let picked = now.clamp(*range.start(), *range.end());
+        slot.zoom = now;
+        if picked != now {
+            ctx.set_zoom_factor(picked);
+            slot.zoom = picked;
+        }
+        return Some(picked);
+    }
+    if (scale - slot.zoom).abs() > 0.001 {
+        ctx.set_zoom_factor(scale);
+        slot.zoom = scale;
+    }
+    None
 }

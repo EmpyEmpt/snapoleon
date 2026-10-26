@@ -25,6 +25,7 @@ telegram = "Telegram, 2 ГБ"
 email = "Почта, 25 МБ"
 discord = "Discord, 10 МБ"
 custom = "Свой размер"
+custom_unit = " МБ"
 width = "Ширина"
 fps = "Частота кадров"
 original = "Как в исходнике"
@@ -46,3 +47,9 @@ uploading = "Загрузка"
 copy_link = "Копировать ссылку"
 copy_link_tip = "Скопировать ссылку ещё раз"
 link_copied = "Ссылка скопирована"
+
+[macos.video.result]
+show = "Показать в Finder"
+
+[video.a11y]
+playhead = "Позиция воспроизведения"

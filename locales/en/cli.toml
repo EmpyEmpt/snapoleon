@@ -37,6 +37,11 @@ history = "Search the capture history"
 pipeline = "List or run pipelines"
 "pipeline.list" = "List the configured pipelines"
 "pipeline.run" = "Run a pipeline over an image file"
+list = "List monitors or windows, with the indexes, ids and rectangles the capture options take"
+"list.monitors" = "The connected displays: index, name, rectangle in physical pixels, scale factor"
+"list.windows" = "The top-level windows, front to back: id, app, title, rectangle in physical pixels"
+doctor = "Check the installation: version, paths, the running app and the privacy permissions"
+install-cli = "Put a snapoleon command on PATH that runs this installation (macOS and Linux)"
 
 [cli.arg]
 background = "Start in the tray without showing a window"
@@ -62,6 +67,7 @@ format = "Image format (default: from --out, else from settings)"
 copy = "Also put the image on the clipboard"
 delay = "Wait this many seconds before capturing"
 cursor = "Include the mouse cursor"
+json = "Print the outcome as JSON"
 
 [cli.arg.record]
 region = "Record a rectangle of the desktop, in physical pixels"
@@ -104,3 +110,78 @@ json = "Print pipelines as JSON"
 id = "Pipeline id"
 image = "Image file to process"
 json = "Print the outcome as JSON"
+
+[cli.help]
+after = """
+Examples:
+  snapoleon capture --monitor 0 --out shot.png
+  snapoleon capture --window Calculator --json
+  snapoleon ocr shot.png --json
+  snapoleon list windows
+  snapoleon doctor
+
+Exit codes: 0 success, 1 failure, 2 bad arguments.
+Full reference: https://github.com/EmpyEmpt/snapoleon/blob/main/docs/CLI.md"""
+
+[cli.arg."list.monitors"]
+json = "Print monitors as JSON"
+
+[cli.arg."list.windows"]
+json = "Print windows as JSON"
+
+[cli.arg.doctor]
+json = "Print the report as JSON"
+
+[cli.arg."install-cli"]
+dir = "Folder to put it in (default: /usr/local/bin on macOS, ~/.local/bin on Linux)"
+
+[cli.list]
+primary = "primary"
+no_titles = "Window titles are empty because the app that started this command ({host}) does not have Screen Recording. capture --window still works: captures go through the Snapoleon app."
+
+[cli.doctor]
+version = "Version"
+exe = "Executable"
+bundle = "App bundle"
+signature = "Signature"
+host_app = "Started from"
+on_path = "On PATH"
+portable = "Portable"
+app = "Snapoleon app"
+app_running = "running, pid {pid}, version {version}"
+app_unknown = "running, but it does not answer status requests (an older version?)"
+app_stopped = "not running"
+permission = "Permission"
+this_process = "This process"
+app_column = "Snapoleon app"
+yes = "yes"
+no = "no"
+no_permissions = "Privacy permissions: none are needed on this system."
+
+[cli.doctor.path]
+settings = "Settings"
+data = "Data"
+history = "History"
+log = "Log"
+
+[cli.doctor.perm]
+screen_recording = "Screen Recording"
+accessibility = "Accessibility"
+input_monitoring = "Input Monitoring"
+microphone = "Microphone"
+
+[cli.doctor.hint]
+start_app = "Snapoleon is not running. Open it once to grant its permissions; after that, captures from the command line start it in the background and go through it."
+app_screen = "Snapoleon cannot capture yet: turn it on in System Settings > Privacy & Security > Screen & System Audio Recording, then quit and reopen Snapoleon."
+app_relaunch = "Snapoleon still cannot capture. If you have just turned it on in System Settings > Privacy & Security > Screen & System Audio Recording, macOS applies that only after a restart: run snapoleon quit, then open Snapoleon again."
+bare_binary = "This is a bare binary, not Snapoleon.app, so macOS gives it the permissions of the app it was started from. Build the app with packaging/macos/bundle.sh."
+install_cli = "No snapoleon command is on PATH. Run snapoleon install-cli, or install it from Settings > Advanced > Command line tool."
+
+[cli.install]
+windows = "The Windows installer already puts Snapoleon on PATH."
+exists = "{path} already exists and was not installed by Snapoleon. Remove it, or choose another folder with --dir."
+not_on_path = "{dir} is not on your PATH. Add it to your shell profile to run snapoleon from anywhere."
+temporary = "Snapoleon is running from a disk image or a temporary copy. Move Snapoleon.app to the Applications folder, open it from there, and install the command again."
+
+[macos.cli.arg]
+background = "Start in the menu bar without showing a window"

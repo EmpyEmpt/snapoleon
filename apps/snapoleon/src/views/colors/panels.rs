@@ -2,7 +2,7 @@
 
 use std::time::{Duration, Instant};
 
-use egui::{Align, Color32, Layout, Margin, Pos2, Rect, Response, Sense, Stroke, StrokeKind, Ui, Vec2};
+use egui::{Align, Color32, Layout, Margin, Pos2, Rect, Response, Role, Sense, Stroke, StrokeKind, Ui, Vec2, WidgetInfo};
 use snap_core::{Rect as PxRect, t, tf};
 use snap_image::color::{self, WcagLevel};
 use snap_ui::{
@@ -114,6 +114,7 @@ fn copy_tooltip(ui: &Ui, row: &Response, rect: Rect, copied: bool) {
 fn copy_row(ui: &mut Ui, divider: bool, label: &str, value: &str, copied: bool) -> Response {
     let p = Palette::of(ui);
     let (rect, resp) = ui.allocate_exact_size(Vec2::new(ui.available_width(), 36.0), Sense::click());
+    resp.widget_info(|| util::valued_info(Some(label), Role::Button, ui.is_enabled(), value));
     let hover = util::hover_anim(ui, &resp);
     if ui.is_rect_visible(rect) {
         let painter = ui.painter();
@@ -144,6 +145,7 @@ pub fn recent(ui: &mut Ui, shown: &Shown, out: &mut Out) {
         ui.spacing_mut().item_spacing = Vec2::splat(space::SM);
         for (i, sample) in shown.colors.iter().enumerate() {
             let (rect, resp) = ui.allocate_exact_size(Vec2::splat(32.0), Sense::click());
+            resp.widget_info(|| WidgetInfo::selected(Role::Button, ui.is_enabled(), i == shown.selected, color::hex(sample.rgba)));
             let hover = util::hover_anim(ui, &resp);
             paint_chip(ui, rect, sample.rgba, 6.0);
             if i == shown.selected {
@@ -195,6 +197,8 @@ pub fn contrast(ui: &mut Ui, shown: &mut Shown, out: &mut Out) {
 fn slot(ui: &mut Ui, width: f32, label: &str, value: &mut [u8; 4], choices: &[[u8; 4]]) {
     let p = Palette::of(ui);
     let (rect, resp) = ui.allocate_exact_size(Vec2::new(width, 48.0), Sense::click());
+    let hex = color::hex(*value);
+    resp.widget_info(|| util::valued_info(Some(label), Role::Button, ui.is_enabled(), &hex));
     let hover = util::hover_anim(ui, &resp);
     let popup_open = egui::Popup::is_id_open(ui.ctx(), egui::Popup::default_response_id(&resp));
     if ui.is_rect_visible(rect) {
@@ -218,27 +222,30 @@ fn slot(ui: &mut Ui, width: f32, label: &str, value: &mut [u8; 4], choices: &[[u
         .inner_margin(Margin::same(12))
         .shadow(p.shadow());
     let style = ui.style().clone();
-    egui::Popup::menu(&resp)
-        .close_behavior(egui::PopupCloseBehavior::CloseOnClick)
-        .frame(frame)
-        .gap(4.0)
-        .style(move |s: &mut egui::Style| *s = (*style).clone())
-        .show(|ui| {
+    // Eight 32 px chips a row, 6 px apart, in a 12 px frame.
+    let rows = choices.len().div_ceil(8).max(1) as f32;
+    let (popup, max_h) = snap_ui::widgets::popup::fitted(egui::Popup::menu(&resp), 4.0, rows * 38.0 - 6.0 + 26.0);
+    popup.close_behavior(egui::PopupCloseBehavior::CloseOnClick).frame(frame).style(move |s: &mut egui::Style| *s = (*style).clone()).show(
+        |ui| {
             ui.set_max_width(8.0 * 32.0 + 7.0 * 6.0);
-            ui.horizontal_wrapped(|ui| {
-                ui.spacing_mut().item_spacing = Vec2::splat(6.0);
-                for &c in choices {
-                    let (rect, resp) = ui.allocate_exact_size(Vec2::splat(32.0), Sense::click());
-                    paint_chip(ui, rect, c, 6.0);
-                    if c == *value {
-                        ui.painter().rect_stroke(rect.expand(2.0), 8.0, Stroke::new(2.0, p.accent), StrokeKind::Outside);
+            snap_ui::widgets::popup::scroll_body(ui, max_h - 26.0, |ui| {
+                ui.horizontal_wrapped(|ui| {
+                    ui.spacing_mut().item_spacing = Vec2::splat(6.0);
+                    for &c in choices {
+                        let (rect, resp) = ui.allocate_exact_size(Vec2::splat(32.0), Sense::click());
+                        resp.widget_info(|| WidgetInfo::selected(Role::Button, ui.is_enabled(), c == *value, color::hex(c)));
+                        paint_chip(ui, rect, c, 6.0);
+                        if c == *value {
+                            ui.painter().rect_stroke(rect.expand(2.0), 8.0, Stroke::new(2.0, p.accent), StrokeKind::Outside);
+                        }
+                        if tooltip(resp, &color::hex(c), None).clicked() {
+                            *value = c;
+                        }
                     }
-                    if tooltip(resp, &color::hex(c), None).clicked() {
-                        *value = c;
-                    }
-                }
+                })
             });
-        });
+        },
+    );
 }
 
 /// "Aa" and a sentence in the chosen text color on the chosen background.
@@ -318,6 +325,7 @@ fn gap(a: PxRect, b: PxRect) -> (u32, u32) {
 fn measurement_row(ui: &mut Ui, divider: bool, glyph: &str, value: &str, note: &str, copied: bool) -> Response {
     let p = Palette::of(ui);
     let (rect, resp) = ui.allocate_exact_size(Vec2::new(ui.available_width(), 52.0), Sense::click());
+    resp.widget_info(|| util::valued_info(Some(note), Role::Button, ui.is_enabled(), value));
     let hover = util::hover_anim(ui, &resp);
     if ui.is_rect_visible(rect) {
         let painter = ui.painter();

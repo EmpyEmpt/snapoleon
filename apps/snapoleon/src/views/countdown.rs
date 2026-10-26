@@ -1,16 +1,18 @@
 //! The count-down tile: a small ring with the seconds left, shown while the app waits (the delay of a delayed
 //! capture, the 3-2-1 before a recording). It is click-through, hidden from captures and does not take the
-//! keyboard focus, so whatever the user prepared on screen (an open menu) stays as it is.
+//! keyboard focus, so whatever the user prepared on screen (an open menu) stays as it is. A delayed capture is cancelled
+//! by running it again (its hotkey or the tray item), and with Escape where the OS lets the app grab it globally while
+//! the tile is up (see `App::sync_escape`; not on the Wayland portal, nor without global hotkeys).
 
 use std::{
     f32::consts::TAU,
     time::{Duration, Instant},
 };
 
-use egui::{Context, FontFamily, FontId, Frame, Pos2, Shape, Stroke, StrokeKind};
+use egui::{Align2, Context, FontFamily, FontId, Frame, Order, Pos2, Shape, Stroke, StrokeKind};
 use snap_core::{Point, t};
 use snap_shell::WindowSpec;
-use snap_ui::palette;
+use snap_ui::{palette, text};
 
 use super::{OpenCx, View, ViewCx, app_icon};
 use crate::commands::Command;
@@ -70,11 +72,11 @@ pub fn paint(ctx: &Context, number: u32, into_second: f32) {
     outline.rect_stroke(ctx.content_rect(), 0.0, Stroke::new(1.0, p.border), StrokeKind::Inside);
 }
 
-/// Count `secs` seconds down on the monitor under the cursor, then run `then`. Ignored while a count-down is
-/// already running.
+/// Count `secs` seconds down on the monitor under the cursor, then run `then`. While a count-down is already running
+/// this cancels it instead: pressing the hotkey again is a way out.
 pub fn open(cx: &mut OpenCx, secs: u32, then: Command) {
     if !cx.shell.windows_with_tag(TAG).is_empty() {
-        return;
+        return cancel(cx);
     }
     let cursor = snap_capture::cursor_position();
     let monitors = cx.shell.monitors();
@@ -83,6 +85,13 @@ pub fn open(cx: &mut OpenCx, secs: u32, then: Command) {
     let spec = tile_spec(t("app.job.capturing").into_owned(), TAG, center, scale);
     let win = cx.open(spec, DelayView { began: Instant::now(), secs, then: Some(then) });
     cx.shell.set_passthrough(win, true);
+}
+
+/// Drop a running count-down and what it would have run.
+pub fn cancel(cx: &mut OpenCx) {
+    for win in cx.shell.windows_with_tag(TAG) {
+        cx.shell.close(win);
+    }
 }
 
 struct DelayView {
@@ -103,6 +112,20 @@ impl View for DelayView {
             return;
         }
         paint(ctx, (self.secs as f32 - elapsed).ceil() as u32, elapsed.fract());
+        // In the band under the ring; only while Escape really reaches the app, since the tile never has the focus.
+        if crate::hotkeys::escape_held() {
+            let p = palette(ctx);
+            let tile = ctx.content_rect();
+            let caption = ctx.layer_painter(egui::LayerId::new(Order::Foreground, egui::Id::unique("countdown-caption")));
+            let font = text::caption_style().resolve(&ctx.global_style());
+            caption.text(
+                Pos2::new(tile.center().x, tile.bottom() - 9.0),
+                Align2::CENTER_CENTER,
+                t("app.countdown_hint.cancel"),
+                font,
+                p.text_dim,
+            );
+        }
         ctx.request_repaint_after(Duration::from_millis(16));
     }
 }

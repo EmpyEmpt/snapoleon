@@ -1,194 +1,225 @@
 <p align="center">
-  <img src="assets/brand/snapoleon-128.png" width="96" alt="Snapoleon logo">
+  <img src="assets/brand/snapoleon-128.png" width="112" alt="">
 </p>
 
-# Snapoleon
+<h1 align="center">Snapoleon</h1>
 
-Screenshots, screen recording, OCR and sharing in one small app, written entirely in Rust.
+<p align="center">
+  <b>One key. Drag. Done.</b><br>
+  A fast, private screenshot and screen recording app for macOS, Windows and Linux.
+</p>
 
-Snapoleon aims for the simplicity of the Windows Snipping Tool on the default path and the depth of ShareX
-behind it. Press one hotkey, drag a region, and an instant toolbar appears. Pipelines, upload destinations,
-a command line interface and an MCP server are there when you want them and out of the way when you do not.
+<p align="center">
+  <a href="https://github.com/EmpyEmpt/snapoleon/releases/latest"><img alt="Latest release" src="https://img.shields.io/github/v/release/EmpyEmpt/snapoleon?label=download&color=5b6cff"></a>
+  <img alt="Platforms" src="https://img.shields.io/badge/macOS%20%C2%B7%20Windows%20%C2%B7%20Linux-1d2130">
+  <a href="#license"><img alt="License" src="https://img.shields.io/badge/license-MIT%20%2F%20Apache--2.0-1d2130"></a>
+  <img alt="Written in Rust" src="https://img.shields.io/badge/100%25-Rust-b7410e">
+</p>
 
-- 100% Rust. The interface is egui on our own winit shell (OpenGL, wgpu on macOS). No webview, no Electron, no JavaScript runtime.
-- Small and quiet. No async runtime in the client, blocking I/O on worker threads, and heavy features are
-  optional or downloaded on demand.
-- Private by default. Nothing leaves your machine unless you configure a destination. AI features default to
-  local endpoints (Ollama, LM Studio) and can be switched off entirely by policy.
-- Self-hostable links. Run `snapoleon-server` (a single binary, or build the included Dockerfile) for short links with
-  expiry, passwords, view counts and link previews that look right in chat apps.
+<p align="center">
+  <a href="#download">Download</a> ·
+  <a href="#what-it-does">Features</a> ·
+  <a href="#getting-started">Getting started</a> ·
+  <a href="#for-power-users-and-ai-agents">CLI and MCP</a> ·
+  <a href="docs/INSTALL.md">Install guide</a>
+</p>
 
-Status: version 0.1, pre-release. Nothing has been released yet: there are no published binaries and no
-package-manager listings. Build from source for now. See the platform table below for what has actually been tested.
+<p align="center">
+  <img src="docs/images/editor.png" width="860" alt="The Snapoleon editor with arrows, a highlight, numbered steps, a callout and a blurred API key on a dashboard screenshot">
+</p>
 
-## Features
+Snapoleon is a screenshot tool that stays out of your way. Press a shortcut, drag over what you want, and a small
+toolbar appears right under your selection: copy it, save it, mark it up, pin it on top of your other windows, read
+the text in it or record that area as a video. Everything happens on your computer. Nothing is uploaded unless you
+add a place to upload to.
 
-**Capture**
-- Region, window, full screen, multi-monitor, and UI element capture with snapping.
-- Frozen-screen overlay with crosshair, pixel loupe and HEX/RGB readout, aspect lock, arrow-key nudging.
-- Scrolling capture, step-by-step capture sessions, delayed capture, color picker and pixel measure.
-- HDR tone mapping and readable downscaling for high-DPI screens.
+It is a single small native app, written entirely in Rust. No Electron, no browser engine, no background services.
 
-**Annotate**
-- Non-destructive editor: arrow, line, shapes, pen, highlighter, text, callouts, step badges, spotlight,
-  magnifier, stamps, measure, image paste, crop, undo and redo.
-- Redaction: pixelate, blur, solid, plus automatic detection of sensitive data.
-- Beautify presets (backgrounds, padding, shadows), export to a target size, `.snap` project files you can re-edit.
-- Combine, diff and pinned always-on-top images.
+## Download
 
-**Recording**
-- MP4, GIF and WebP. Optional microphone. Cursor highlight, click ripples and keystroke overlay.
-- Video trimming and export to a size target (for example a chat app upload limit).
+| | |
+|---|---|
+| **macOS** 14 Sonoma or newer, Apple Silicon and Intel | [`Snapoleon-…-macos-universal.dmg`](https://github.com/EmpyEmpt/snapoleon/releases/latest) |
+| **Windows** 10 1809 or newer, x64 and Arm | [`setup.exe`](https://github.com/EmpyEmpt/snapoleon/releases/latest) (no admin rights needed), `.msi` for IT, or a portable `.zip` |
+| **Linux** x86_64 and aarch64 | [`AppImage`](https://github.com/EmpyEmpt/snapoleon/releases/latest), `.deb` or `.tar.gz` |
 
-**Text and codes**
-- OCR using the OS engine where available (Windows.Media.Ocr, Apple Vision), tesseract, or a built-in fallback.
-- Copy as text or table, translate, search.
-- QR and barcode decoding and QR generation.
+All files are on the [latest release](https://github.com/EmpyEmpt/snapoleon/releases/latest) page, with a
+`SHA256SUMS` file to check them against.
 
-**Privacy**
-- Detection of emails, card numbers (with checksums), keys, tokens and local ID formats, mapped to word boxes.
-- Metadata stripping and optional forced redaction before upload.
-- Secrets live in the OS keyring, never in settings files.
+> [!NOTE]
+> The builds are not signed by Apple or Microsoft yet. On a Mac, the first time you open Snapoleon go to
+> **System Settings > Privacy & Security** and click **Open Anyway**. On Windows, click **More info > Run anyway**
+> in the SmartScreen prompt. The [install guide](docs/INSTALL.md) has the details.
 
-**Library**
-- Searchable history (SQLite with full-text search over OCR text, titles, app and URL), filters, favorites,
-  retention rules, re-edit from the library.
+## What it does
 
-**Share**
-- S3-compatible stores (AWS, Cloudflare R2, MinIO, Backblaze B2, Yandex Cloud and others), FTP and FTPS
-  servers, WebDAV, local or synced folders, Imgur, Telegram, Yandex Disk, Dropbox, Google Drive, OneDrive, Box.
-- ShareX `.sxcu` custom uploader import, URL shorteners, link formatting (Markdown, HTML, BBCode).
+### Capture anything in two seconds
 
-**Automation**
-- Pipelines: ordered steps run after a capture (annotate, redact, OCR, upload, copy, and so on), bound to hotkeys.
-- Command line: `snapoleon capture`, `record`, `ocr`, `qr`, `upload`, `pin`, `edit`, `history`, `pipeline`.
-  See [docs/CLI.md](docs/CLI.md).
-- MCP server over stdio (`snapoleon mcp`) so AI assistants can list monitors and windows, capture, run OCR,
-  decode codes and search history.
-- `snapoleon://` URL scheme.
+- **Region, window, whole screen, or one button.** The screen freezes the moment you press the shortcut, so menus
+  and tooltips stay put while you aim. Hover a window to grab it whole, press **F** for the full monitor.
+- **An instant toolbar** under the selection: Copy, Save, Edit, Pin, Upload, Recognize text, Scan QR, Redact, Record.
+- **Pixel-precise** with a magnifier, crosshair and live color readout. Arrow keys nudge the selection.
+- **Scrolling capture** for long pages, **delayed capture** with a countdown, a color picker and an on-screen ruler.
+- **Retina-correct.** Copies and saved files keep their real size, so a capture pastes into a chat or a document at
+  the size you saw it.
 
-**Team server**
-- `snapoleon-server`: uploads, short links with expiry and passwords, view counts, link previews, workspaces and
-  tokens, OIDC single sign-on, retention, webhooks. Dockerfile, systemd unit and docker-compose included
-  under `server/snapoleon-server/deploy/`.
+### Mark it up
 
-**Enterprise**
-- Managed policy: disable uploads, recording, AI or history; force a destination list; force redaction before
-  upload; set retention and language. Windows Group Policy (ADMX/ADML), macOS configuration profiles,
-  `policy.toml` on every platform. See [docs/POLICY.md](docs/POLICY.md).
-- Per-machine MSI, per-user no-admin installer, and a portable zip.
+The editor has what you reach for every day: arrows, boxes, highlighter, text, numbered steps, callouts, spotlight,
+magnifier, stamps, crop, and a blur or pixelate brush for things nobody should see. Edits stay editable: save a
+`.snap` project and change it later. **Beautify** adds a background, padding and shadow in one click for screenshots
+that go into docs, slides or social posts.
+
+### Find it again
+
+<p align="center">
+  <picture>
+    <source media="(prefers-color-scheme: light)" srcset="docs/images/library-light.png">
+    <img src="docs/images/library.png" width="760" alt="The Snapoleon library with screenshots grouped by app and filters for screenshots, recordings and favorites">
+  </picture>
+</p>
+
+Every capture lands in the **Library**. Search it by the text inside the pictures, by the app or window it came
+from, by the web address, or by tag. Filter by date, mark favorites, drag a capture straight into another app, and
+let old captures clean themselves up after a while if you like.
+
+### Read the text in a picture
+
+<p align="center">
+  <img src="docs/images/text.png" width="520" alt="Recognized text from a screenshot in English and Russian, with the links it contains">
+</p>
+
+Select an area and get its text: copy it, translate it, open the links in it. Tables come out as tables. On a Mac
+and on Windows this uses the text recognition built into the system, so it works offline and supports many
+languages. QR codes and barcodes are read the same way.
+
+### Record your screen
+
+Record an area or a whole screen to **MP4, GIF or WebP**, with your microphone if you want it, plus highlighted
+clicks and the keys you press. Trim the result and export it to fit a size limit, like the one in your chat app.
+
+### Private by default
+
+- Nothing leaves your computer until you set up a destination, and you choose which.
+- Automatic redaction finds email addresses, card numbers, API keys and tokens and blurs them for you, and can be
+  forced on before anything is uploaded.
+- Passwords and tokens are kept in the system keychain, never in a settings file.
+- AI features (alt text, smart names, translation) are off by default and point at local models such as Ollama or
+  LM Studio when you turn them on.
+
+### Share when you want to
+
+Upload to your own S3-compatible storage (AWS, Cloudflare R2, MinIO, Backblaze B2, Yandex Cloud, Cloud.ru and
+others), FTP and FTPS servers, WebDAV, a synced folder, Imgur, Telegram, Dropbox, Google Drive, OneDrive, Box or Yandex
+Disk. ShareX custom uploaders (`.sxcu`) import as they are. Links can be shortened and copied as Markdown, HTML or
+BBCode.
+
+Teams can run **[snapoleon-server](server/snapoleon-server)**, a single self-hosted binary, for short links with
+expiry dates, passwords, view counts and link previews that look right in chat apps.
+
+## Getting started
+
+1. Install Snapoleon and open it. A short setup asks for your shortcut, where to save, and the permissions it needs.
+2. Press the capture shortcut and drag over part of the screen.
+3. Pick an action in the toolbar, or press **Enter** to run your default (for example: edit, copy and save).
+
+Snapoleon lives in the menu bar on a Mac and in the system tray on Windows and Linux. Click its icon for every
+action, your recent captures, the Library and Settings.
+
+| Action | macOS | Windows / Linux |
+|---|---|---|
+| Capture a region | <kbd>⇧</kbd><kbd>⌘</kbd><kbd>2</kbd> | <kbd>PrtSc</kbd> |
+| Capture a window | <kbd>⌥</kbd><kbd>⇧</kbd><kbd>⌘</kbd><kbd>2</kbd> | <kbd>Alt</kbd>+<kbd>PrtSc</kbd> |
+| Capture all screens | <kbd>⇧</kbd><kbd>⌘</kbd><kbd>1</kbd> | <kbd>Ctrl</kbd>+<kbd>PrtSc</kbd> |
+| Copy text from the screen | <kbd>⌥</kbd><kbd>⇧</kbd><kbd>⌘</kbd><kbd>T</kbd> | <kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>T</kbd> |
+| Pin an area on top | <kbd>⌥</kbd><kbd>⇧</kbd><kbd>⌘</kbd><kbd>P</kbd> | <kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>P</kbd> |
+| Record an area | <kbd>⌥</kbd><kbd>⇧</kbd><kbd>⌘</kbd><kbd>R</kbd> | <kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>PrtSc</kbd> |
+
+Every shortcut can be changed in **Settings > Hotkeys**. The Mac defaults do not collide with the system's own
+screenshot keys, and Snapoleon warns you if a shortcut you pick is already taken.
+
+<p align="center">
+  <img src="docs/images/settings.png" width="640" alt="Snapoleon settings showing the hotkeys page">
+</p>
+
+On a Mac, Snapoleon needs **Screen Recording** permission to see other apps' windows; macOS asks the first time and
+then wants the app reopened once. Accessibility (for snapping to buttons) and Microphone (for narration) are
+optional. **Settings > Privacy** shows what is granted and fixes what is not.
+
+## For power users and AI agents
+
+Snapoleon is fully scriptable. Everything the app can do is also a command, and an
+[MCP](https://modelcontextprotocol.io) server lets AI assistants such as Claude take and read screenshots.
+
+```sh
+snapoleon capture --region 0,0,1280,720 -o shot.png   # no UI, straight to a file
+snapoleon capture --window "Safari" --copy --json     # machine-readable result
+snapoleon ocr shot.png                                # print the text in an image
+snapoleon qr decode shot.png --json                   # read QR codes and barcodes
+snapoleon history search "invoice" --json             # search the library
+snapoleon doctor                                      # versions, paths and permissions at a glance
+```
+
+Connect an assistant to the MCP server:
+
+```sh
+claude mcp add snapoleon -- snapoleon mcp
+```
+
+Its tools list monitors and windows, capture them, recognize text, decode codes and search the history. On a Mac,
+captures made from a terminal or an agent go through the running Snapoleon app, so its Screen Recording permission
+applies and your terminal needs none. To get the `snapoleon` command, use **Settings > Advanced > Command line
+tool** on a Mac; the Linux packages put it on your PATH, and on Windows it is `snapoleon.exe` in the install folder.
+The windows are accessible too: VoiceOver, Narrator and UI agents find buttons and settings by name.
+
+Also for automation:
+
+- **Pipelines**: chains of steps that run after a capture (annotate, redact, recognize text, upload, copy a link),
+  each bound to its own shortcut.
+- **`snapoleon://` links** to start any capture from a launcher, a Shortcut or a Stream Deck button.
+- **Managed settings** for organizations: turn off uploads, recording or AI, force redaction, fix retention, by
+  configuration profile, Group Policy or a `policy.toml` file. See [POLICY.md](docs/POLICY.md).
+
+Full reference: [docs/CLI.md](docs/CLI.md).
 
 ## Platform support
 
-| Platform | Status |
+| | Status |
 |---|---|
-| Windows 10 1809+ and Windows 11 (x64, arm64) | Primary target. Developed and tested on Windows 11 x64 (single monitor). The arm64 build compiles and packages in CI but has not been run. |
-| macOS 12.3+ (Apple Silicon and Intel, universal build) | Implemented. Builds and packages in CI; not yet run on a real Mac. Expect rough edges. |
-| Linux (X11 and Wayland; x86_64, aarch64) | Implemented. Run under Xvfb and WSL only; not yet tested on a real desktop session. Expect rough edges. |
+| macOS 14+ | Primary platform. Tested on macOS 27 on Apple Silicon. Capture uses ScreenCaptureKit, OCR uses Apple Vision. |
+| Windows 10 1809+ / 11 | Tested on Windows 11 x64. The Arm build is compiled and packaged but not tested on hardware yet. |
+| Linux | X11 and Wayland (through the desktop portals). Built and checked continuously; real-desktop testing is limited. Recording needs `ffmpeg`. |
 
-Linux notes: Wayland capture and global shortcuts depend on the XDG desktop portals and on your compositor.
-Recording needs `ffmpeg` on Linux. OCR uses `tesseract` when it is installed and otherwise the built-in engine,
-whose model is downloaded on first use. Details are in [docs/INSTALL.md](docs/INSTALL.md).
-
-## Install
-
-No release has been published yet. When one is, its files will be on the
-[GitHub releases page](https://github.com/EmpyEmpt/snapoleon/releases) with a `SHA256SUMS` file, and the
-release workflow (`.github/workflows/release.yml`) builds these packages:
-
-| Platform | Package |
-|---|---|
-| Windows | NSIS installer (per-user, no admin), MSI (per-machine, x64 only), portable zip |
-| macOS | `.dmg` with a universal app |
-| Linux | AppImage, `.deb`, tarball |
-
-Snapoleon is not listed in any package manager yet: not winget, Scoop, Chocolatey, Homebrew, the AUR or Flathub.
-Manifest templates for those channels are in `packaging/` and are rendered for each release, but they have not
-been submitted. Builds are not code-signed yet, so Windows SmartScreen and macOS Gatekeeper will warn.
-Full instructions are in [docs/INSTALL.md](docs/INSTALL.md).
+Something not working on your setup? Please [open an issue](https://github.com/EmpyEmpt/snapoleon/issues) with
+the output of `snapoleon doctor`.
 
 ## Build from source
 
-Requirements: Rust 1.90 or newer (edition 2024) and a C toolchain.
+You need Rust 1.95 or newer and `nasm`. Linux also needs a few development packages, listed in the
+[install guide](docs/INSTALL.md#building-on-linux).
 
 ```sh
 git clone https://github.com/EmpyEmpt/snapoleon
 cd snapoleon
-cargo run --release -p snapoleon
+cargo run --release
 ```
 
-Linux build dependencies (Ubuntu 24.04 package names; PipeWire 1.0 or newer is required for screen capture):
-
-```sh
-sudo apt install libxcb1-dev libxcb-randr0-dev libxcb-shm0-dev libxkbcommon-dev \
-  libpipewire-0.3-dev libspa-0.2-dev libdbus-1-dev libegl1-mesa-dev libwayland-dev \
-  libasound2-dev libx11-dev libxi-dev libxtst-dev libgbm-dev clang pkg-config nasm
-```
-
-Windows needs the MSVC build tools and `nasm` on PATH. macOS needs the Xcode command line tools and `nasm`
-(`brew install nasm`).
-
-The team server builds with `cargo build --release -p snapoleon-server`, or run the container:
-`docker build -f server/snapoleon-server/deploy/Dockerfile -t snapoleon-server .`
-
-To build installers, install `cargo-packager` and run it with the config in `packaging/`:
-
-```sh
-cargo install cargo-packager --locked
-cargo build --release -p snapoleon
-cargo packager --config packaging/Packager.toml --release --formats nsis   # or wix, app, dmg, deb, appimage
-```
-
-## Project layout
-
-| Path | Role |
-|---|---|
-| `crates/snap-core` | Shared types: geometry, settings, pipelines, hotkeys, i18n, IPC messages, naming, policy |
-| `crates/snap-capture` | Monitors, windows, elements, screen/window/region capture |
-| `crates/snap-image` | Pure image operations: downscale, blur, beautify, stitch, diff, encode, size targeting |
-| `crates/snap-annotate` | Non-destructive annotation document, rasterizer, undo, `.snap` files |
-| `crates/snap-ocr` | OCR backends, tables, QR and barcode decode/encode |
-| `crates/snap-redact` | Sensitive-data detection mapped to word boxes |
-| `crates/snap-upload` | Destinations, OAuth, `.sxcu` import, shorteners, team-server client |
-| `crates/snap-history` | SQLite + FTS5 library, thumbnails, retention |
-| `crates/snap-platform` | Hotkeys, tray, clipboard, notifications, single-instance IPC, autostart, keyring, URL scheme, policy |
-| `crates/snap-record` | Screen recording, audio, overlays, trim, export-to-size |
-| `crates/snap-ai` | OpenAI-compatible client (local by default): alt text, titles, translation, smart redaction |
-| `crates/snap-ui` | egui design system: tokens, fonts, icons, widgets |
-| `crates/snap-shell` | Multi-window winit + egui runtime (OpenGL via glutin, or wgpu) that keeps running with no windows open |
-| `crates/snap-engine` | Headless orchestration shared by the GUI, CLI and MCP server |
-| `apps/snapoleon` | The binary: GUI, CLI subcommands, MCP server |
-| `server/snapoleon-server` | Self-hosted team server |
-| `locales/` | Translations, one folder per language |
-| `packaging/` | Installers, package-manager manifests, policy templates |
-| `docs/` | Spec, design system, install, policy and CLI documentation |
-
-See [docs/SPEC.md](docs/SPEC.md) for the architecture and [docs/DESIGN.md](docs/DESIGN.md) for the design system.
+On a Mac, `packaging/macos/bundle.sh --install` builds a proper signed `Snapoleon.app` so permissions and
+notifications behave like the released app; see [docs/MACOS.md](docs/MACOS.md).
 
 ## Contributing
 
-Bug reports, platform testing on macOS and Linux, and translations are especially welcome. Start with
-[CONTRIBUTING.md](CONTRIBUTING.md).
+Bug reports, testing on Linux desktops, and translations are the most helpful right now. The app speaks English and
+Russian, and adding a language needs no code: copy `locales/en`, translate, and send a pull request. Start with
+[CONTRIBUTING.md](CONTRIBUTING.md); the architecture is described in [docs/SPEC.md](docs/SPEC.md) and
+[docs/APP.md](docs/APP.md).
 
 ## License
 
-Dual-licensed under either of
+Dual-licensed under [MIT](LICENSE-MIT) or [Apache 2.0](LICENSE-APACHE), at your option.
 
-- MIT license ([LICENSE-MIT](LICENSE-MIT))
-- Apache License, Version 2.0 ([LICENSE-APACHE](LICENSE-APACHE))
-
-at your option. Unless you explicitly state otherwise, any contribution intentionally submitted for inclusion
-in Snapoleon by you, as defined in the Apache-2.0 license, shall be dual licensed as above, without any
-additional terms or conditions.
-
-## Credits
-
-- [Inter](https://github.com/rsms/inter) by Rasmus Andersson and the Inter Project Authors, SIL Open Font License 1.1
-  (`assets/fonts/Inter-LICENSE.txt`).
-- [JetBrains Mono](https://github.com/JetBrains/JetBrainsMono) by the JetBrains Mono Project Authors, SIL Open
-  Font License 1.1 (`assets/fonts/JetBrainsMono-OFL.txt`).
-- [Phosphor Icons](https://phosphoricons.com), MIT License (`crates/snap-ui/assets/Phosphor-LICENSE.txt`).
-- Built on [egui](https://github.com/emilk/egui), [winit](https://github.com/rust-windowing/winit),
-  [glutin](https://github.com/rust-windowing/glutin), [wgpu](https://github.com/gfx-rs/wgpu) and many other open-source crates.
-- Snapoleon is an independent, clean-room implementation. ShareX, Snipping Tool, CleanShot X, Snagit, Shottr,
-  Flameshot and others are the work of their respective authors and are mentioned only as comparisons.
+Snapoleon uses the [Inter](https://github.com/rsms/inter) and [JetBrains Mono](https://github.com/JetBrains/JetBrainsMono)
+fonts (SIL Open Font License) and [Phosphor Icons](https://phosphoricons.com) (MIT), and is built on
+[egui](https://github.com/emilk/egui), [winit](https://github.com/rust-windowing/winit), [wgpu](https://github.com/gfx-rs/wgpu)
+and many other open-source crates. It is an independent project and is not affiliated with the makers of any other
+screenshot tool.

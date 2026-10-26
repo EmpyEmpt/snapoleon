@@ -11,7 +11,7 @@ use snap_ui::{Toast, ToastKind};
 
 use super::{
     EditorView,
-    output::{ExportParams, Msg, Saved, render_export},
+    output::{ExportParams, Msg, Saved, export_scale, render_export},
 };
 use crate::{
     commands::Command,
@@ -54,6 +54,8 @@ fn run(
 ) -> Result<snap_engine::Outcome> {
     let mut capture = meta.clone();
     capture.id = CaptureId::new();
+    // The picture is the export, perhaps shrunk to the maximum width: copies and files record its own density.
+    capture.scale_factor = export_scale(doc, &image);
     // The project remembers which library entry it belongs to, so that opening it again finds the entry.
     let mut document = doc.clone();
     document.meta.capture_id = Some(capture.id.clone());
@@ -81,7 +83,10 @@ impl EditorView {
         self.working.copy = true;
         self.export_rev = self.s.rev;
         let (doc, params, engine) = (self.s.doc.clone(), Self::params(cx), cx.engine.clone());
-        cx.spawn(move || Msg::Copied(engine.copy_image(&render_export(&doc, &params))));
+        cx.spawn(move || {
+            let image = render_export(&doc, &params);
+            Msg::Copied(engine.copy_image(&image, export_scale(&doc, &image)))
+        });
     }
 
     /// Save: the first time as a new library entry (picture plus editable project) through the engine's naming and
@@ -388,7 +393,7 @@ fn save_in_place(
     let file = known_file.filter(|f| f.exists());
     if let Some(file) = &file {
         let format = encode::format_from_path(file).unwrap_or(params.format);
-        encode::save(&image, file, format, quality(&engine.settings(), format), params.optimize_png)?;
+        encode::save(&image, file, format, quality(&engine.settings(), format), params.optimize_png, Some(export_scale(doc, &image)))?;
         if let Err(e) = snap_history::write_thumbnail(&image, &meta.id) {
             tracing::warn!("could not refresh the library thumbnail: {e}");
         }

@@ -12,13 +12,13 @@ use crossbeam_channel::Sender;
 use egui::{Context, Event, Frame, Key, Margin, Modifiers, Panel as SidePanel, Stroke, Ui, UiBuilder, Vec2};
 use image::RgbaImage;
 use snap_annotate::{DocMeta, Document};
-use snap_core::{Capture, CaptureKind, PointF, Rect, Result, Settings, t, tf};
+use snap_core::{Capture, CaptureKind, PointF, Rect, Result, Settings, capture::tidy_title, t, tf};
 use snap_engine::Annotated;
 use snap_ui::{
     icon, palette, space, text,
     widgets::{
-        Button, ButtonKind, icon_button, tool_button, tooltip,
-        util::{Motion, anim},
+        Button, ButtonKind, accel_text, icon_button, tool_button, tooltip,
+        util::{self as ui_util, Motion, anim},
     },
 };
 
@@ -196,6 +196,10 @@ pub struct EditorView {
     /// Tool, width and font size at open, to store only what the user changed.
     opened_with: (Tool, f32, f32),
     started: bool,
+    /// The tool the rail last showed, to scroll a newly chosen one into view.
+    rail_tool: Option<Tool>,
+    /// Where a click on one of the rail's scroll arrows asked it to scroll to.
+    rail_scroll: Option<f32>,
 }
 
 impl EditorView {
@@ -239,6 +243,8 @@ impl EditorView {
             shape_clip_text: String::new(),
             opened_with,
             started: false,
+            rail_tool: None,
+            rail_scroll: None,
         };
         demo::apply(&mut view);
         view
@@ -248,9 +254,17 @@ impl EditorView {
         self.s.rev != self.saved_rev
     }
 
+    /// "Editor – name": the file saved to or opened, else what was captured (its window, the file it came from).
     fn title(&self) -> String {
-        match self.output_file.as_deref().or(self.project.as_deref()).and_then(|p| p.file_stem()) {
-            Some(name) => name.to_string_lossy().into_owned(),
+        let name = self
+            .output_file
+            .as_deref()
+            .or(self.project.as_deref())
+            .and_then(|p| p.file_stem())
+            .map(|n| n.to_string_lossy().into_owned())
+            .or_else(|| self.meta.context.window_title.as_deref().and_then(tidy_title));
+        match name {
+            Some(name) => tf("editor.title_named", &[("name", &name)]),
             None => t("editor.title").into_owned(),
         }
     }
@@ -448,12 +462,12 @@ impl EditorView {
         ui.spacing_mut().item_spacing.x = 4.0;
         let [copy, save, upload, done] = bar.working;
         ui.add_enabled_ui(bar.can_undo, |ui| {
-            if icon_button(ui, icon::ARROW_U_UP_LEFT, &t("editor.undo"), Some("Ctrl+Z")).clicked() {
+            if icon_button(ui, icon::ARROW_U_UP_LEFT, &t("editor.undo"), Some("CmdOrCtrl+Z")).clicked() {
                 acts.push(Act::Undo);
             }
         });
         ui.add_enabled_ui(bar.can_redo, |ui| {
-            if icon_button(ui, icon::ARROW_U_UP_RIGHT, &t("editor.redo"), Some("Ctrl+Shift+Z")).clicked() {
+            if icon_button(ui, icon::ARROW_U_UP_RIGHT, &t("editor.redo"), Some("CmdOrCtrl+Shift+Z")).clicked() {
                 acts.push(Act::Redo);
             }
         });
@@ -466,7 +480,7 @@ impl EditorView {
                 }
                 tooltip(resp, &t("editor.done_tip"), Some("Enter"));
                 ui.add_enabled_ui(!copy, |ui| {
-                    if icon_button(ui, icon::COPY, &t("editor.copy_tip"), Some("Ctrl+C")).clicked() {
+                    if icon_button(ui, icon::COPY, &t("editor.copy_tip"), Some("CmdOrCtrl+C")).clicked() {
                         acts.push(Act::Copy);
                     }
                 });
@@ -476,14 +490,14 @@ impl EditorView {
                 if resp.clicked() {
                     acts.push(Act::Copy);
                 }
-                tooltip(resp, &t("editor.copy_tip"), Some("Ctrl+C"));
+                tooltip(resp, &t("editor.copy_tip"), Some("CmdOrCtrl+C"));
             }
             ui.add_space(space::XS);
             ui.add_enabled_ui(!save, |ui| {
-                if icon_button(ui, icon::FLOPPY_DISK, &t("editor.save_tip"), Some("Ctrl+S")).clicked() {
+                if icon_button(ui, icon::FLOPPY_DISK, &t("editor.save_tip"), Some("CmdOrCtrl+S")).clicked() {
                     acts.push(Act::Save);
                 }
-                if icon_button(ui, icon::FILE_ARROW_DOWN, &t("editor.save_as_tip"), Some("Ctrl+Shift+S")).clicked() {
+                if icon_button(ui, icon::FILE_ARROW_DOWN, &t("editor.save_as_tip"), Some("CmdOrCtrl+Shift+S")).clicked() {
                     acts.push(Act::SaveAs);
                 }
             });
@@ -498,10 +512,19 @@ impl EditorView {
         });
     }
 
+    /// The tool rail. In a window too short for every tool it scrolls; fades and arrows at the cut edges say so, and a
+    /// tool chosen by its hotkey is scrolled into view.
     fn rail(&mut self, ui: &mut Ui, acts: &mut Vec<Act>) {
         let p = palette(ui.ctx());
         ui.spacing_mut().item_spacing = Vec2::new(0.0, 2.0);
-        egui::ScrollArea::vertical().scroll_bar_visibility(egui::scroll_area::ScrollBarVisibility::AlwaysHidden).show(ui, |ui| {
+        let reveal = self.rail_tool != Some(self.tool);
+        self.rail_tool = Some(self.tool);
+        let mut area =
+            egui::ScrollArea::vertical().id_salt("editor-rail").scroll_bar_visibility(egui::scroll_area::ScrollBarVisibility::AlwaysHidden);
+        if let Some(offset) = self.rail_scroll.take() {
+            area = area.vertical_scroll_offset(offset);
+        }
+        let out = area.show(ui, |ui| {
             for (i, group) in Tool::GROUPS.iter().enumerate() {
                 if i > 0 {
                     ui.add_space(4.0);
@@ -510,23 +533,47 @@ impl EditorView {
                     ui.add_space(4.0);
                 }
                 for tool in group.iter() {
-                    if tool_button(ui, tool.icon(), &tool.label(), Some(tool.hotkey()), self.tool == *tool).clicked() {
+                    let resp = tool_button(ui, tool.icon(), &tool.label(), Some(tool.hotkey()), self.tool == *tool);
+                    if reveal && self.tool == *tool {
+                        resp.scroll_to_me(None);
+                    }
+                    if resp.clicked() {
                         acts.push(Act::Tool(*tool));
                     }
                 }
             }
             ui.add_space(8.0);
-            if tool_button(ui, icon::IMAGE, &t("editor.tool.image"), Some("Ctrl+V"), false).clicked() {
+            if tool_button(ui, icon::IMAGE, &t("editor.tool.image"), Some("CmdOrCtrl+V"), false).clicked() {
                 acts.push(Act::PasteImage);
             }
         });
+
+        let (rect, offset) = (out.inner_rect, out.state.clamped_offset().y);
+        let hidden_below = out.content_size.y - offset - rect.height();
+        let step = (rect.height() * 0.6).max(36.0);
+        for (more, bottom) in [(offset > 1.0, false), (hidden_below > 1.0, true)] {
+            if !more {
+                continue;
+            }
+            ui_util::scroll_fade(ui.painter(), rect, p.surface_2, bottom);
+            let y = if bottom { rect.bottom() - 9.0 } else { rect.top() + 9.0 };
+            let hit = egui::Rect::from_center_size(egui::pos2(rect.center().x, y), Vec2::new(rect.width(), 18.0));
+            let arrow = ui.interact(hit, ui.make_persistent_id(("rail-more", bottom)), egui::Sense::click());
+            let name = t(if bottom { "editor.a11y.tools_down" } else { "editor.a11y.tools_up" });
+            arrow.widget_info(|| egui::WidgetInfo::labeled(egui::Role::Button, true, &name));
+            let color = if arrow.hovered() { p.text } else { p.text_dim };
+            ui_util::paint_icon(ui, hit.center(), if bottom { icon::CARET_DOWN } else { icon::CARET_UP }, 12.0, color);
+            if arrow.on_hover_cursor(egui::CursorIcon::PointingHand).clicked() {
+                self.rail_scroll = Some(if bottom { offset + step.min(hidden_below) } else { (offset - step).max(0.0) });
+            }
+        }
     }
 
     fn status_bar(&mut self, ui: &mut Ui, acts: &mut Vec<Act>, params: ExportParams) {
         ui.spacing_mut().interact_size.y = 24.0;
         ui.horizontal_centered(|ui| {
             ui.spacing_mut().item_spacing.x = 2.0;
-            if icon_button(ui, icon::MINUS, &t("editor.zoom_out"), Some("Ctrl+-")).clicked() {
+            if icon_button(ui, icon::MINUS, &t("editor.zoom_out"), Some("CmdOrCtrl+-")).clicked() {
                 acts.push(Act::Zoom(ZoomKind::Out));
             }
             let zoom = format!("{}%", self.view.percent());
@@ -534,11 +581,11 @@ impl EditorView {
             if resp.clicked() {
                 acts.push(Act::Zoom(ZoomKind::Actual));
             }
-            tooltip(resp, &t("editor.zoom_actual"), Some("Ctrl+1"));
-            if icon_button(ui, icon::PLUS, &t("editor.zoom_in"), Some("Ctrl++")).clicked() {
+            tooltip(resp, &t("editor.zoom_actual"), Some("CmdOrCtrl+1"));
+            if icon_button(ui, icon::PLUS, &t("editor.zoom_in"), Some("CmdOrCtrl++")).clicked() {
                 acts.push(Act::Zoom(ZoomKind::In));
             }
-            if icon_button(ui, icon::CORNERS_OUT, &t("editor.zoom_fit"), Some("Ctrl+0")).clicked() {
+            if icon_button(ui, icon::CORNERS_OUT, &t("editor.zoom_fit"), Some("CmdOrCtrl+0")).clicked() {
                 acts.push(Act::Zoom(ZoomKind::Fit));
             }
             ui.add_space(space::SM);
@@ -552,7 +599,7 @@ impl EditorView {
                 ui.spacing_mut().item_spacing.x = space::SM;
                 let open = self.panel.open;
                 let tip = t(if open { "editor.panel_hide" } else { "editor.panel_show" });
-                if icon_button(ui, icon::SIDEBAR_SIMPLE, &tip, Some("Ctrl+\\")).clicked() {
+                if icon_button(ui, icon::SIDEBAR_SIMPLE, &tip, Some("CmdOrCtrl+\\")).clicked() {
                     acts.push(Act::TogglePanel);
                 }
                 ui.add_space(space::SM);
@@ -563,7 +610,7 @@ impl EditorView {
                     Some(e) => {
                         let size = format!("{} × {}", e.size.0, e.size.1);
                         match e.bytes {
-                            Some(b) => format!("{size}  ·  ~{}", panel::bytes_label(b)),
+                            Some(b) => format!("{size}  ·  ~{}", super::file_size(b)),
                             None => size,
                         }
                     }
@@ -713,21 +760,21 @@ impl EditorView {
     fn canvas_menu(ui: &mut Ui, s: &Session, acts: &mut Vec<Act>) {
         let has_selection = !s.selection.is_empty();
         let mut item = |ui: &mut Ui, label: String, hotkey: &str, enabled: bool, act: Act| {
-            let resp = ui.add_enabled(enabled, egui::Button::new(label).shortcut_text(hotkey));
+            let resp = ui.add_enabled(enabled, egui::Button::new(label).shortcut_text(accel_text(hotkey)));
             if resp.clicked() {
                 acts.push(act);
                 ui.close();
             }
         };
-        item(ui, t("editor.menu.duplicate").into_owned(), "Ctrl+D", has_selection, Act::Duplicate);
-        item(ui, t("editor.menu.copy").into_owned(), "Ctrl+C", has_selection, Act::CopyShapes);
-        item(ui, t("editor.menu.cut").into_owned(), "Ctrl+X", has_selection, Act::CutShapes);
-        item(ui, t("editor.menu.paste").into_owned(), "Ctrl+V", true, Act::Paste);
+        item(ui, t("editor.menu.duplicate").into_owned(), "CmdOrCtrl+D", has_selection, Act::Duplicate);
+        item(ui, t("editor.menu.copy").into_owned(), "CmdOrCtrl+C", has_selection, Act::CopyShapes);
+        item(ui, t("editor.menu.cut").into_owned(), "CmdOrCtrl+X", has_selection, Act::CutShapes);
+        item(ui, t("editor.menu.paste").into_owned(), "CmdOrCtrl+V", true, Act::Paste);
         ui.separator();
-        item(ui, t("editor.menu.front").into_owned(), "Ctrl+Shift+]", has_selection, Act::Reorder(OrderKind::Front));
-        item(ui, t("editor.menu.forward").into_owned(), "Ctrl+]", has_selection, Act::Reorder(OrderKind::Forward));
-        item(ui, t("editor.menu.backward").into_owned(), "Ctrl+[", has_selection, Act::Reorder(OrderKind::Backward));
-        item(ui, t("editor.menu.back").into_owned(), "Ctrl+Shift+[", has_selection, Act::Reorder(OrderKind::Back));
+        item(ui, t("editor.menu.front").into_owned(), "CmdOrCtrl+Shift+]", has_selection, Act::Reorder(OrderKind::Front));
+        item(ui, t("editor.menu.forward").into_owned(), "CmdOrCtrl+]", has_selection, Act::Reorder(OrderKind::Forward));
+        item(ui, t("editor.menu.backward").into_owned(), "CmdOrCtrl+[", has_selection, Act::Reorder(OrderKind::Backward));
+        item(ui, t("editor.menu.back").into_owned(), "CmdOrCtrl+Shift+[", has_selection, Act::Reorder(OrderKind::Back));
         ui.separator();
         item(ui, t("editor.menu.delete").into_owned(), "Del", has_selection, Act::Delete);
     }
@@ -735,6 +782,9 @@ impl EditorView {
 
 impl View for EditorView {
     fn ui(&mut self, cx: &mut ViewCx, ctx: &Context) {
+        // Cmd+= / Cmd+- / Cmd+0 zoom the canvas here. egui's end-of-pass keyboard zoom would otherwise take them while
+        // typing (or with the close dialog up) and change the interface size of every window.
+        ctx.options_mut(|o| o.zoom_with_keyboard = false);
         if !std::mem::replace(&mut self.started, true) {
             demo::first_frame(self, cx);
         }

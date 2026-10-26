@@ -41,7 +41,7 @@ struct AboutView;
 impl View for AboutView {
     fn ui(&mut self, cx: &mut ViewCx, ctx: &Context) {
         let title = t("about.title");
-        Chrome::new(&title).no_maximize().show(cx, ctx, |ui, cx| {
+        Chrome::new(&title).no_maximize().close_on_escape().show(cx, ctx, |ui, cx| {
             ScrollArea::vertical().auto_shrink([false, false]).show(ui, |ui| {
                 let width = (ui.available_width() - 2.0 * space::XL).clamp(280.0, 440.0);
                 ui.vertical_centered(|ui| {
@@ -66,7 +66,7 @@ fn hero(ui: &mut Ui) {
     ui.add_space(space::XS);
     ui.label(text::headline("Snapoleon"));
     ui.label(text::mono_text(tf("about.version", &[("version", VERSION)])));
-    ui.label(text::caption(format!("{} · {}", os_name(), std::env::consts::ARCH)));
+    ui.label(text::caption(format!("{} · {}", os_name(), arch_name())));
     ui.add_space(space::XS);
     ui.add(egui::Label::new(text::dim(t("about.tagline"))).halign(Align::Center));
 }
@@ -105,6 +105,16 @@ fn body(ui: &mut Ui, cx: &mut ViewCx) {
         }
     });
     ui.label(text::caption(t("about.credits_note")));
+}
+
+/// The processor as people know it: Apple Silicon or Intel on a Mac, the architecture name elsewhere.
+/// "Copy info" keeps the raw name for bug reports.
+fn arch_name() -> &'static str {
+    match (std::env::consts::OS, std::env::consts::ARCH) {
+        ("macos", "aarch64") => "Apple Silicon",
+        ("macos", "x86_64") => "Intel",
+        (_, arch) => arch,
+    }
 }
 
 /// The platform as people write it: `Windows`, `macOS`, `Linux`.

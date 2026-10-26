@@ -11,7 +11,7 @@ use egui::{Align, Context, Frame, Key, Layout, Margin, Modifiers, ScrollArea, Ui
 use snap_core::{Settings, policy::Policy, settings::BeautifyPreset, t, tf};
 use snap_ui::{
     icon, palette, space, text,
-    widgets::{empty_state, nav_item, search_field},
+    widgets::{empty_state, nav_item, search_field, util},
 };
 
 use super::{Chrome, OpenCx, View, ViewCx, window_spec};
@@ -22,7 +22,7 @@ mod capture;
 mod destinations;
 mod general;
 mod history;
-mod hotkeys;
+pub(crate) mod hotkeys;
 mod kit;
 mod links;
 mod pins;
@@ -31,6 +31,7 @@ mod privacy;
 mod recording;
 mod text_ai;
 
+pub use kit::ensure_save_dir;
 use kit::{Env, Msg, Pick, Probe, Rows};
 
 pub const TAG: &str = "settings";
@@ -142,7 +143,8 @@ pub fn open(cx: &mut OpenCx, page: Option<SettingsPage>) {
         return;
     }
     let view = SettingsView::new(cx.settings, page.unwrap_or(SettingsPage::General));
-    cx.open(window_spec(t("settings.title"), TAG, (920.0, 680.0), (720.0, 520.0)), view);
+    // 600 tall keeps the whole sidebar in view.
+    cx.open(window_spec(t("settings.title"), TAG, (920.0, 680.0), (720.0, 600.0)), view);
 }
 
 /// Per-page state that must survive between frames.
@@ -156,6 +158,23 @@ struct Pages {
     text_ai: text_ai::State,
     history: history::State,
     advanced: advanced::State,
+}
+
+impl Pages {
+    /// Leave every drill-in view: a pipeline's steps, a destination's editor, the destination picker.
+    fn reset_drill(&mut self) {
+        self.pipelines.reset();
+        self.destinations.reset();
+    }
+
+    /// The drill-in view `page` shows, if any.
+    fn drill(&self, page: SettingsPage) -> Option<String> {
+        match page {
+            SettingsPage::Pipelines => self.pipelines.view_key(),
+            SettingsPage::Destinations => self.destinations.view_key(),
+            _ => None,
+        }
+    }
 }
 
 struct SettingsView {
@@ -174,6 +193,15 @@ struct SettingsView {
     env: Env,
     probed: bool,
     pages: Pages,
+    /// Start the content at its top on the next frame.
+    scroll_top: bool,
+    /// The drill-in view shown last frame, to notice when one opens or closes.
+    drill: Option<String>,
+    /// A text field had the keyboard last frame (egui has already taken it away when Escape arrives).
+    typing: bool,
+    /// A sidebar pick (`Some(page)`) or a step back (`None`), applied after the content pass: a secret field is stored
+    /// only when it loses the focus, which it can report only while it is still drawn.
+    leave: Option<Option<SettingsPage>>,
 }
 
 impl SettingsView {
@@ -190,6 +218,37 @@ impl SettingsView {
             env: Env { policy: Policy::load(), probe: None, portable: snap_core::paths::is_portable() },
             probed: false,
             pages: Pages::default(),
+            scroll_top: false,
+            drill: None,
+            typing: false,
+            leave: None,
+        }
+    }
+
+    /// Show `page` from its top. As in the macOS System Settings sidebar, choosing a page, also the one already on
+    /// screen, leaves whatever sub-page it was in.
+    fn go(&mut self, page: SettingsPage) {
+        self.pages.reset_drill();
+        self.page = page;
+        self.search.clear();
+        self.scroll_top = true;
+    }
+
+    /// Escape (outside a text field or an open list) and Cmd+[ step back out of a drill-in view.
+    fn keyboard_back(&mut self, ctx: &Context) {
+        if self.pages.drill(self.page).is_none() || !self.search.trim().is_empty() {
+            return;
+        }
+        let back = ctx.input_mut(|i| i.consume_key(Modifiers::COMMAND, Key::OpenBracket))
+            || (!self.typing && ctx.input_mut(|i| i.consume_key(Modifiers::NONE, Key::Escape)));
+        if back {
+            // Take the keyboard away, so a field still drawn this frame stores what was typed into it.
+            ctx.memory_mut(|m| {
+                if let Some(id) = m.focused() {
+                    m.surrender_focus(id);
+                }
+            });
+            self.leave = Some(None);
         }
     }
 
@@ -273,20 +332,48 @@ impl SettingsView {
         let resp = search_field(ui, &mut self.search, &t("settings.search"));
         self.search_edit = Some(resp.id.with("edit"));
         ui.add_space(space::SM);
-        ScrollArea::vertical().auto_shrink([false, false]).show(ui, |ui| {
-            let searching = !self.search.trim().is_empty();
+        let searching = !self.search.trim().is_empty();
+        let current = self.page;
+        let out = ScrollArea::vertical().id_salt("settings-nav").auto_shrink([false, false]).show(ui, |ui| {
+            let mut picked = None;
             for page in SettingsPage::ALL {
-                if nav_item(ui, page.icon(), &page.title(), !searching && self.page == page).clicked() {
-                    self.page = page;
-                    self.search.clear();
+                if nav_item(ui, page.icon(), &page.title(), !searching && current == page).clicked() {
+                    picked = Some(page);
                 }
             }
+            picked
         });
+        if let Some(page) = out.inner {
+            // The click takes the focus from a text field, which stores what was typed in the content pass.
+            self.leave = Some(Some(page));
+        }
+        // In a short window the list scrolls; fade the cut edges so it does not look like it simply ends.
+        let (rect, offset) = (out.inner_rect, out.state.clamped_offset().y);
+        let surface = palette(ui.ctx()).surface;
+        if offset > 1.0 {
+            util::scroll_fade(ui.painter(), rect, surface, false);
+        }
+        if out.content_size.y - offset - rect.height() > 1.0 {
+            util::scroll_fade(ui.painter(), rect, surface, true);
+        }
     }
 
     fn content(&mut self, ui: &mut Ui, cx: &mut ViewCx) {
+        let drill = self.pages.drill(self.page);
+        if drill != self.drill {
+            // A sub-page opened or closed: show it from its top, not at the offset the list had.
+            self.drill = drill.clone();
+            self.scroll_top = true;
+        }
+        let searching = !self.search.trim().is_empty();
+        // Each page and sub-page keeps its own scroll position.
+        let key = if searching { "search" } else { self.page.key() };
+        let mut area = ScrollArea::vertical().id_salt(("settings-content", key, drill)).auto_shrink([false, false]);
+        if std::mem::take(&mut self.scroll_top) {
+            area = area.vertical_scroll_offset(0.0);
+        }
         let Self { page, search, draft, env, pages, .. } = self;
-        ScrollArea::vertical().auto_shrink([false, false]).show(ui, |ui| {
+        area.show(ui, |ui| {
             let width = (ui.available_width() - 2.0 * space::XL).clamp(280.0, COLUMN_WIDTH);
             ui.vertical_centered(|ui| {
                 ui.add_space(space::XL);
@@ -317,7 +404,7 @@ fn show_page(ui: &mut Ui, rc: &mut Rows, page: SettingsPage, pages: &mut Pages, 
         SettingsPage::Links => links::show(ui, rc, &mut pages.links, cx, &mut draft.links),
         SettingsPage::Recording => recording::show(ui, rc, cx, &mut draft.recording),
         SettingsPage::TextAi => text_ai::show(ui, rc, &mut pages.text_ai, cx, draft),
-        SettingsPage::Privacy => privacy::show(ui, rc, &mut draft.privacy),
+        SettingsPage::Privacy => privacy::show(ui, rc, cx, draft),
         SettingsPage::History => history::show(ui, rc, &mut pages.history, cx, &mut draft.history),
         SettingsPage::Pins => pins::show(ui, rc, &mut draft.pins),
         SettingsPage::Advanced => advanced::show(ui, rc, &mut pages.advanced, cx, draft),
@@ -412,6 +499,7 @@ impl View for SettingsView {
         {
             ctx.memory_mut(|m| m.request_focus(edit));
         }
+        self.keyboard_back(ctx);
 
         let title = t("settings.title");
         Chrome::new(&title).show(cx, ctx, |ui, cx| {
@@ -420,8 +508,21 @@ impl View for SettingsView {
             egui::Panel::left("settings-nav").exact_size(200.0).resizable(false).frame(sidebar).show(ui, |ui| self.nav(ui));
             egui::CentralPanel::default().frame(Frame::new().fill(p.bg)).show(ui, |ui| self.content(ui, cx));
         });
+        match self.leave.take() {
+            Some(Some(page)) => {
+                self.go(page);
+                ctx.request_repaint();
+            }
+            Some(None) => {
+                self.pages.reset_drill();
+                self.scroll_top = true;
+                ctx.request_repaint();
+            }
+            None => {}
+        }
 
         self.commit(cx, ctx);
+        self.typing = ctx.text_edit_focused();
     }
 
     fn closed(&mut self, cx: &mut ViewCx) {
@@ -434,8 +535,7 @@ impl View for SettingsView {
     fn on_msg(&mut self, cx: &mut ViewCx, msg: Box<dyn Any + Send>) {
         let msg = match msg.downcast::<SettingsPage>() {
             Ok(page) => {
-                self.page = *page;
-                self.search.clear();
+                self.go(*page);
                 return;
             }
             Err(msg) => msg,

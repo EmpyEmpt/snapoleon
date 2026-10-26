@@ -17,3 +17,7 @@ ocrs_download = "Models (about 12 MB) are downloaded on first use"
 no_language = "No OCR language is installed. Open Settings > Time & language > Language & region, add a language and make sure its \"Optical character recognition\" feature is installed."
 no_engine = "No OCR engine could read the image. {details}"
 too_large = "The image is too large for the OCR engine (limit {max} px per side)."
+
+[ocr.warmup]
+label = "Preparing text recognition…"
+hint = "The first time after an install or update this takes up to half a minute."

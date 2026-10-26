@@ -74,6 +74,20 @@ pub struct CaptureContext {
     pub monitor_name: Option<String>,
 }
 
+/// A window title fit to name a capture: without surrounding whitespace and without the status glyphs some apps put
+/// in front of it (a terminal's activity spinner such as "◑" or "⠂", a dot for unsaved changes), which name nothing
+/// and are often missing from the UI font. `None` when nothing is left.
+pub fn tidy_title(title: &str) -> Option<String> {
+    let tidy = title.trim_start_matches(|c: char| c.is_whitespace() || is_status_glyph(c)).trim_end();
+    (!tidy.is_empty()).then(|| tidy.to_owned())
+}
+
+/// Zero-width characters, arrows, technical symbols, block elements, geometric shapes, miscellaneous symbols, dingbats
+/// and braille: the blocks such indicators are drawn from.
+fn is_status_glyph(c: char) -> bool {
+    matches!(c, '\u{200B}'..='\u{200D}' | '\u{FEFF}' | '\u{2190}'..='\u{21FF}' | '\u{2300}'..='\u{23FF}' | '\u{2580}'..='\u{27BF}' | '\u{2800}'..='\u{28FF}')
+}
+
 /// A captured still image plus everything known about where it came from.
 #[derive(Debug, Clone)]
 pub struct Capture {

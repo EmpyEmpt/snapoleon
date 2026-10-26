@@ -1,11 +1,10 @@
-//! Encoding, decoding and size-targeted export. Output never carries metadata.
+//! Encoding, decoding and size-targeted export. Output carries no metadata beyond the pixel density.
 
 use std::borrow::Cow;
 use std::io::Cursor;
 use std::path::Path;
 
-use image::codecs::jpeg::JpegEncoder;
-use image::codecs::png::{CompressionType, FilterType, PngEncoder};
+use image::codecs::jpeg::{JpegEncoder, PixelDensity};
 use image::{DynamicImage, ExtendedColorType, ImageDecoder, ImageEncoder, ImageReader, RgbaImage};
 use snap_core::settings::ImageFormat;
 use snap_core::{Error, Result, tf};
@@ -32,11 +31,17 @@ pub struct SizeFit {
 
 /// Encodes without metadata. `quality` is 1..=100 for JPEG and WebP (WebP at 100 is lossless);
 /// PNG ignores it. `optimize_png` recompresses with oxipng when the `oxipng` feature is on.
-pub fn encode(img: &RgbaImage, fmt: ImageFormat, quality: u8, optimize_png: bool) -> Result<Vec<u8>> {
+///
+/// `scale` is the image's pixels per point, a screen capture's display scale. It is recorded as 72 dpi per point (a
+/// PNG's pHYs chunk, a JPEG's JFIF density; WebP has no place for it), as macOS records its own screenshots and the
+/// clipboard copy does, so a Retina capture opens at its on-screen size; [`load_with_scale`] reads it back. `None`
+/// records nothing, for pictures whose density is unknown.
+pub fn encode(img: &RgbaImage, fmt: ImageFormat, quality: u8, optimize_png: bool, scale: Option<f32>) -> Result<Vec<u8>> {
     ensure_non_empty(img)?;
+    let dpi = scale.filter(|s| s.is_finite() && *s > 0.0).map(|s| 72.0 * f64::from(s));
     match fmt {
-        ImageFormat::Png => encode_png(img, optimize_png),
-        ImageFormat::Jpeg => encode_jpeg(img, quality),
+        ImageFormat::Png => encode_png(img, optimize_png, dpi),
+        ImageFormat::Jpeg => encode_jpeg(img, quality, dpi),
         ImageFormat::Webp => encode_webp(img, quality),
     }
 }
@@ -79,12 +84,12 @@ enum Fit {
 
 fn fit_quality(img: &RgbaImage, fmt: ImageFormat, max_bytes: usize) -> Result<Fit> {
     if fmt == ImageFormat::Png {
-        let plain = encode_png(img, false)?;
+        let plain = encode_png(img, false, None)?;
         if plain.len() <= max_bytes {
-            return Ok(Fit::Done(encode_png(img, true).ok().filter(|b| b.len() < plain.len()).unwrap_or(plain), 100));
+            return Ok(Fit::Done(encode_png(img, true, None).ok().filter(|b| b.len() < plain.len()).unwrap_or(plain), 100));
         }
         if plain.len() <= max_bytes + max_bytes / 3
-            && let Ok(opt) = encode_png(img, true)
+            && let Ok(opt) = encode_png(img, true, None)
             && opt.len() <= max_bytes
         {
             return Ok(Fit::Done(opt, 100));
@@ -92,7 +97,7 @@ fn fit_quality(img: &RgbaImage, fmt: ImageFormat, max_bytes: usize) -> Result<Fi
         return Ok(Fit::TooBig(plain.len()));
     }
 
-    let enc = |q: u8| encode(img, fmt, q, false);
+    let enc = |q: u8| encode(img, fmt, q, false, None);
     let top = enc(QUALITY_MAX)?;
     if top.len() <= max_bytes {
         return Ok(Fit::Done(top, QUALITY_MAX));
@@ -127,16 +132,46 @@ pub fn decode(bytes: &[u8]) -> Result<RgbaImage> {
 }
 
 pub fn load(path: &Path) -> Result<RgbaImage> {
-    let bytes = std::fs::read(path).map_err(|e| match e.kind() {
-        std::io::ErrorKind::NotFound => Error::NotFound(path.display().to_string()),
-        _ => Error::Io(e),
-    })?;
-    decode(&bytes)
+    decode(&read(path)?)
 }
 
-/// Writes atomically (temp file + rename) and returns the number of bytes written.
-pub fn save(img: &RgbaImage, path: &Path, fmt: ImageFormat, quality: u8, optimize_png: bool) -> Result<u64> {
-    let bytes = encode(img, fmt, quality, optimize_png)?;
+/// [`load`], plus the pixels per point the file records, if it does (a PNG's pHYs chunk, relative to 72 dpi: the
+/// system's own Retina screenshots say 144 dpi, that is 2).
+pub fn load_with_scale(path: &Path) -> Result<(RgbaImage, Option<f32>)> {
+    let bytes = read(path)?;
+    Ok((decode(&bytes)?, png_scale(&bytes)))
+}
+
+fn read(path: &Path) -> Result<Vec<u8>> {
+    std::fs::read(path).map_err(|e| match e.kind() {
+        std::io::ErrorKind::NotFound => Error::NotFound(tf("image.error.no_file", &[("path", &path.display().to_string())])),
+        _ => Error::Io(e),
+    })
+}
+
+/// The density in a PNG's pHYs chunk as pixels per 72-dpi point, never below 1. The chunk must come before the image
+/// data, so the walk stops there.
+fn png_scale(bytes: &[u8]) -> Option<f32> {
+    let mut rest = bytes.strip_prefix(b"\x89PNG\r\n\x1a\n")?;
+    while let [l0, l1, l2, l3, k0, k1, k2, k3, ..] = *rest {
+        let len = u32::from_be_bytes([l0, l1, l2, l3]) as usize;
+        match &[k0, k1, k2, k3] {
+            // Unit 1 is the metre; unit 0 only gives the aspect ratio.
+            b"pHYs" => {
+                let data = rest.get(8..8 + len).filter(|d| d.len() == 9 && d[8] == 1)?;
+                let per_metre = u32::from_be_bytes([data[0], data[1], data[2], data[3]]);
+                return (per_metre > 0).then(|| (per_metre as f32 * 0.0254 / 72.0).max(1.0));
+            }
+            b"IDAT" | b"IEND" => return None,
+            _ => rest = rest.get(len.checked_add(12)?..)?,
+        }
+    }
+    None
+}
+
+/// [`encode`], written atomically (temp file + rename); returns the number of bytes written.
+pub fn save(img: &RgbaImage, path: &Path, fmt: ImageFormat, quality: u8, optimize_png: bool, scale: Option<f32>) -> Result<u64> {
+    let bytes = encode(img, fmt, quality, optimize_png, scale)?;
     write_atomic(path, &bytes)?;
     Ok(bytes.len() as u64)
 }
@@ -164,16 +199,28 @@ fn write_atomic(path: &Path, bytes: &[u8]) -> Result<()> {
     Ok(())
 }
 
-fn encode_png(img: &RgbaImage, optimize: bool) -> Result<Vec<u8>> {
+/// Written with `png` directly: the `image` crate's encoder has no way to add the pHYs chunk.
+fn encode_png(img: &RgbaImage, optimize: bool, dpi: Option<f64>) -> Result<Vec<u8>> {
     let mut out = Vec::new();
-    let encoder = PngEncoder::new_with_quality(&mut out, CompressionType::Default, FilterType::Adaptive);
-    // Opaque captures are stored as RGB: a quarter smaller before any optimiser runs.
-    if is_opaque(img) {
-        let rgb: Vec<u8> = img.as_raw().as_chunks::<4>().0.iter().flat_map(|p| [p[0], p[1], p[2]]).collect();
-        encoder.write_image(&rgb, img.width(), img.height(), ExtendedColorType::Rgb8)?;
-    } else {
-        encoder.write_image(img.as_raw(), img.width(), img.height(), ExtendedColorType::Rgba8)?;
+    let mut encoder = png::Encoder::new(&mut out, img.width(), img.height());
+    encoder.set_depth(png::BitDepth::Eight);
+    encoder.set_compression(png::Compression::Balanced);
+    encoder.set_filter(png::Filter::Adaptive);
+    if let Some(dpi) = dpi {
+        let per_metre = (dpi / 0.0254).round() as u32;
+        encoder.set_pixel_dims(Some(png::PixelDimensions { xppu: per_metre, yppu: per_metre, unit: png::Unit::Meter }));
     }
+    // Opaque captures are stored as RGB: a quarter smaller before any optimiser runs.
+    let opaque = is_opaque(img);
+    encoder.set_color(if opaque { png::ColorType::Rgb } else { png::ColorType::Rgba });
+    let mut writer = encoder.write_header().map_err(std::io::Error::from)?;
+    if opaque {
+        let rgb: Vec<u8> = img.as_raw().as_chunks::<4>().0.iter().flat_map(|p| [p[0], p[1], p[2]]).collect();
+        writer.write_image_data(&rgb).map_err(std::io::Error::from)?;
+    } else {
+        writer.write_image_data(img.as_raw()).map_err(std::io::Error::from)?;
+    }
+    writer.finish().map_err(std::io::Error::from)?;
     #[cfg(feature = "oxipng")]
     if optimize {
         let mut opts = oxipng::Options::from_preset(2);
@@ -189,7 +236,7 @@ fn encode_png(img: &RgbaImage, optimize: bool) -> Result<Vec<u8>> {
     Ok(out)
 }
 
-fn encode_jpeg(img: &RgbaImage, quality: u8) -> Result<Vec<u8>> {
+fn encode_jpeg(img: &RgbaImage, quality: u8, dpi: Option<f64>) -> Result<Vec<u8>> {
     // JPEG has no alpha: flatten onto white.
     let mut rgb = Vec::with_capacity(img.width() as usize * img.height() as usize * 3);
     for p in img.as_raw().as_chunks::<4>().0 {
@@ -198,7 +245,11 @@ fn encode_jpeg(img: &RgbaImage, quality: u8) -> Result<Vec<u8>> {
         rgb.extend_from_slice(&px[..3]);
     }
     let mut out = Vec::new();
-    JpegEncoder::new_with_quality(&mut out, quality.clamp(1, 100)).write_image(&rgb, img.width(), img.height(), ExtendedColorType::Rgb8)?;
+    let mut encoder = JpegEncoder::new_with_quality(&mut out, quality.clamp(1, 100));
+    if let Some(dpi) = dpi {
+        encoder.set_pixel_density(PixelDensity::dpi(dpi.round().min(f64::from(u16::MAX)) as u16));
+    }
+    encoder.write_image(&rgb, img.width(), img.height(), ExtendedColorType::Rgb8)?;
     Ok(out)
 }
 

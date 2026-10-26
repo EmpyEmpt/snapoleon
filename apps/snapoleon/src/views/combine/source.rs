@@ -27,15 +27,23 @@ const IMAGE_EXTENSIONS: [&str; 7] = ["png", "jpg", "jpeg", "webp", "bmp", "gif",
 pub struct Item {
     pub name: String,
     pub image: RgbaImage,
+    /// Pixels per point, as far as is known (1 when nothing says).
+    pub scale: f32,
     /// Small version for strips and cards, made on the worker.
     pub thumb: RgbaImage,
 }
 
 impl Item {
-    pub fn new(name: String, image: RgbaImage) -> Self {
+    pub fn new(name: String, image: RgbaImage, scale: f32) -> Self {
         let thumb = snap_image::resize::thumbnail(&image, THUMB_SIDE);
-        Self { name, image, thumb }
+        Self { name, image, scale, thumb }
     }
+}
+
+/// Pixels per point of a picture made from images of these scales, laid out at their pixel size: the smallest, so
+/// none of them pastes smaller than it was.
+pub fn combined_scale(scales: impl IntoIterator<Item = f32>) -> f32 {
+    scales.into_iter().reduce(f32::min).unwrap_or(1.0)
 }
 
 /// Images that arrived for `slot` (what asked for them is the view's business), or why none did.
@@ -65,19 +73,24 @@ pub fn pick_files(cx: &ViewCx, slot: usize, multi: bool) {
     send_loaded(cx, slot, move || {
         let dialog = rfd::FileDialog::new().set_title(t("combine.source.dialog")).add_filter(t("combine.source.images"), &IMAGE_EXTENSIONS);
         let paths = if multi { dialog.pick_files().unwrap_or_default() } else { dialog.pick_file().into_iter().collect() };
-        if paths.is_empty() { Err(Error::Cancelled) } else { load_paths(paths) }
+        if paths.is_empty() { Err(Error::Cancelled) } else { load_paths(unknown_monitor(paths)) }
     });
 }
 
 pub fn paste(cx: &ViewCx, slot: usize) {
     send_loaded(cx, slot, || {
         let image = snap_platform::clipboard::get_image().ok_or_else(|| Error::invalid(t("app.clipboard.no_image")))?;
-        Ok(vec![Item::new(t("combine.source.clipboard_name").into_owned(), image)])
+        Ok(vec![Item::new(t("combine.source.clipboard_name").into_owned(), image, 1.0)])
     });
 }
 
 pub fn load_files(cx: &ViewCx, slot: usize, paths: Vec<PathBuf>) {
-    send_loaded(cx, slot, move || load_paths(paths));
+    send_loaded(cx, slot, move || load_paths(unknown_monitor(paths)));
+}
+
+/// Files that did not come from the library, so the monitor they were taken on is not known.
+fn unknown_monitor(paths: Vec<PathBuf>) -> Vec<(PathBuf, Option<String>)> {
+    paths.into_iter().map(|p| (p, None)).collect()
 }
 
 /// Load the `nth` newest still image of the library (0 = the latest capture) for each `(slot, nth)`.
@@ -85,27 +98,35 @@ pub fn load_recent(cx: &ViewCx, picks: &[(usize, usize)]) {
     for &(slot, nth) in picks {
         let history = cx.engine.history();
         send_loaded(cx, slot, move || {
-            let paths = history.map(|h| recent_files(&h, nth + 1)).unwrap_or_default();
-            let path = paths.into_iter().nth(nth).ok_or_else(|| Error::invalid(t("combine.library.empty_title")))?;
-            load_paths(vec![path])
+            let files = history.map(|h| recent_files(&h, nth + 1)).unwrap_or_default();
+            let file = files.into_iter().nth(nth).ok_or_else(|| Error::invalid(t("combine.library.empty_title")))?;
+            load_paths(vec![file])
         });
     }
 }
 
-/// Paths of the newest still images that still exist, newest first.
-fn recent_files(history: &snap_history::History, count: usize) -> Vec<PathBuf> {
+/// Paths of the newest still images that still exist, newest first, with the monitor each was taken on.
+fn recent_files(history: &snap_history::History, count: usize) -> Vec<(PathBuf, Option<String>)> {
     let query = Query { limit: (count * 2 + 8) as u32, ..Query::default() };
     let entries = history.search(&query).unwrap_or_default();
-    entries.into_iter().filter(|e| e.kind != CaptureKind::Recording).filter_map(|e| e.file.filter(|f| f.exists())).take(count).collect()
+    entries
+        .into_iter()
+        .filter(|e| e.kind != CaptureKind::Recording)
+        .filter_map(|e| Some((e.file.filter(|f| f.exists())?, e.context.monitor_name)))
+        .take(count)
+        .collect()
 }
 
-/// Decode every readable file; fails only when none could be read.
-fn load_paths(paths: Vec<PathBuf>) -> Result<Vec<Item>> {
+/// Decode every readable file (with the monitor it was taken on, when the library knows); fails only when none could
+/// be read.
+fn load_paths(files: Vec<(PathBuf, Option<String>)>) -> Result<Vec<Item>> {
     let mut items = Vec::new();
     let mut first_error = None;
-    for path in paths {
-        match snap_image::encode::load(&path) {
-            Ok(image) => items.push(Item::new(path.file_stem().map(|n| n.to_string_lossy().into_owned()).unwrap_or_default(), image)),
+    for (path, monitor) in files {
+        match snap_engine::load_saved_image(&path, monitor.as_deref()) {
+            Ok((image, scale)) => {
+                items.push(Item::new(path.file_stem().map(|n| n.to_string_lossy().into_owned()).unwrap_or_default(), image, scale))
+            }
             Err(e) => {
                 tracing::warn!("cannot load {}: {e}", path.display());
                 first_error.get_or_insert(e);
@@ -148,6 +169,8 @@ pub fn paint_drop_hint(ctx: &Context) {
 /// One thumbnail card of the library sheet.
 struct Card {
     path: PathBuf,
+    /// The monitor the capture was taken on, for its scale.
+    monitor: Option<String>,
     label: String,
     size: (u32, u32),
     thumb: Option<RgbaImage>,
@@ -262,8 +285,8 @@ impl LibraryPicker {
         }
         if confirm {
             if let State::Ready(cards) = std::mem::replace(&mut self.state, State::Closed) {
-                let paths: Vec<PathBuf> = cards.into_iter().filter(|c| c.selected).map(|c| c.path).collect();
-                load_files(cx, self.slot, paths);
+                let files: Vec<_> = cards.into_iter().filter(|c| c.selected).map(|c| (c.path, c.monitor)).collect();
+                send_loaded(cx, self.slot, move || load_paths(files));
             }
         } else if cancel {
             self.state = State::Closed;
@@ -280,7 +303,15 @@ fn recent_cards(history: &snap_history::History) -> Vec<Card> {
         .filter_map(|e| {
             let path = e.file.clone().filter(|f| f.exists())?;
             let thumb = e.thumb.as_deref().and_then(|t| snap_image::encode::load(t).ok());
-            Some(Card { label: card_label(&e, &path), size: (e.width, e.height), path, thumb, tex: None, selected: false })
+            Some(Card {
+                label: card_label(&e, &path),
+                size: (e.width, e.height),
+                path,
+                monitor: e.context.monitor_name.clone(),
+                thumb,
+                tex: None,
+                selected: false,
+            })
         })
         .collect()
 }
@@ -310,6 +341,7 @@ fn grid(ui: &mut egui::Ui, cards: &mut [Card], multi: bool) -> bool {
         egui::Grid::new("library-grid").num_columns(COLUMNS).spacing(Vec2::splat(CARD_GAP)).show(ui, |ui| {
             for (i, card) in cards.iter_mut().enumerate() {
                 let (rect, resp) = ui.allocate_exact_size(Vec2::new(cell_w, thumb_h + 22.0), Sense::click());
+                resp.widget_info(|| egui::WidgetInfo::selected(egui::Role::CheckBox, ui.is_enabled(), card.selected, &card.label));
                 let hover = util::hover_anim(ui, &resp);
                 let thumb = Rect::from_min_size(rect.min, Vec2::new(cell_w, thumb_h));
                 if ui.is_rect_visible(rect) {
@@ -390,10 +422,11 @@ pub fn source_menu(ui: &Ui, resp: &Response, latest: bool) -> Option<Pick> {
         .shadow(p.shadow());
     let style = ui.style().clone();
     let mut picked = None;
-    egui::Popup::menu(resp)
+    // Up to four 32 px rows, 2 px apart, in a 4 px frame: it fits anywhere, but must not open sideways.
+    let (popup, _) = snap_ui::widgets::popup::fitted(egui::Popup::menu(resp), 4.0, 4.0 * 34.0 - 2.0 + 10.0);
+    popup
         .close_behavior(egui::PopupCloseBehavior::CloseOnClick)
         .frame(frame)
-        .gap(4.0)
         .width(MENU_WIDTH)
         .style(move |s: &mut egui::Style| {
             *s = (*style).clone();
@@ -419,6 +452,7 @@ pub fn source_menu(ui: &Ui, resp: &Response, latest: bool) -> Option<Pick> {
 fn menu_item(ui: &mut Ui, glyph: &str, label: &str) -> Response {
     let p = Palette::of(ui);
     let (rect, resp) = ui.allocate_exact_size(Vec2::new(ui.available_width(), 32.0), Sense::click());
+    resp.widget_info(|| egui::WidgetInfo::labeled(egui::Role::MenuItem, ui.is_enabled(), label));
     if ui.is_rect_visible(rect) {
         let hover = util::hover_anim(ui, &resp);
         ui.painter().rect_filled(rect, 6.0, p.hover().gamma_multiply(hover));
@@ -436,13 +470,14 @@ pub enum Exported {
     Saved(Result<Option<PathBuf>>),
 }
 
-pub fn copy_image(cx: &ViewCx, image: Arc<RgbaImage>) {
-    cx.spawn(move || Exported::Copied(snap_platform::clipboard::set_image(&image)));
+/// `scale` is the image's pixels per point ([`combined_scale`] of its sources).
+pub fn copy_image(cx: &ViewCx, image: Arc<RgbaImage>, scale: f32) {
+    cx.spawn(move || Exported::Copied(snap_platform::clipboard::set_image_scaled(&image, scale)));
 }
 
 /// Ask where to save (starting in the configured folder with the configured name), then encode by
-/// the chosen file's extension.
-pub fn save_image(cx: &ViewCx, image: Arc<RgbaImage>) {
+/// the chosen file's extension. `scale` is as for [`copy_image`].
+pub fn save_image(cx: &ViewCx, image: Arc<RgbaImage>, scale: f32) {
     let capture = &cx.settings.capture;
     let dir = snap_core::paths::save_dir(&capture.save_dir);
     let name = snap_core::naming::expand(&capture.filename_template, &snap_core::naming::NameContext::now());
@@ -461,7 +496,7 @@ pub fn save_image(cx: &ViewCx, image: Arc<RgbaImage>) {
                 ImageFormat::Webp => webp,
                 ImageFormat::Png => 100,
             };
-            snap_image::encode::save(&image, &path, format, quality, optimize).map(|_| Some(path))
+            snap_image::encode::save(&image, &path, format, quality, optimize, Some(scale)).map(|_| Some(path))
         }))
     });
 }

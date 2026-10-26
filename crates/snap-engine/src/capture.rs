@@ -1,9 +1,9 @@
 //! Non-interactive capture: turns a [`CaptureRequest`] into a [`Capture`].
 
-use std::time::Duration;
+use std::{path::Path, time::Duration};
 
 use snap_capture::{CaptureOptions, WindowInfo};
-use snap_core::{Capture, CaptureContext, CaptureKind, Error, Result, Settings, t, tf};
+use snap_core::{Capture, CaptureContext, CaptureKind, Error, Result, RgbaImage, Settings, t, tf};
 
 use crate::{CaptureRequest, Engine};
 
@@ -49,23 +49,30 @@ pub(crate) fn capture(engine: &Engine, req: &CaptureRequest) -> Result<Capture> 
     }
 }
 
-/// Hide the desktop icons when the user asked for that, and wait for the shell to repaint. They come back when the
-/// guard is dropped. Every way of looking at the desktop takes this first. On macOS this restarts Finder, so it is
-/// slow the first time: call it off the UI thread (see `snap_capture::desktop_icons_hidden`).
+/// Hide the desktop icons on screen when the user asked for that (Windows), and wait for the shell to repaint. They
+/// come back when the guard is dropped. Every way of looking at the desktop takes this first. `None` on macOS, where
+/// the captures leave Finder's icons out themselves (`CaptureOptions::hide_desktop_icons`).
 pub fn icons_hidden(settings: &Settings) -> Option<snap_capture::DesktopIconsGuard> {
     if !settings.capture.hide_desktop_icons {
         return None;
     }
-    // Icons that are already hidden have had their time to repaint.
-    #[cfg(target_os = "macos")]
-    let settled = snap_capture::desktop_icons_hidden();
-    #[cfg(not(target_os = "macos"))]
-    let settled = false;
     let icons = snap_capture::hide_desktop_icons();
-    if icons.is_some() && !settled {
+    if icons.is_some() {
         std::thread::sleep(ICONS_SETTLE);
     }
     icons
+}
+
+/// A saved capture and its pixels per point, for the clipboard: the density the file records, else the scale of the
+/// monitor it was taken on (`monitor`, the history entry's `context.monitor_name`) while that monitor is connected,
+/// else 1. Saved files carry no density of their own, and history does not keep the scale.
+pub fn load_saved_image(file: &Path, monitor: Option<&str>) -> Result<(RgbaImage, f32)> {
+    let (image, density) = snap_image::encode::load_with_scale(file)?;
+    let scale = density.or_else(|| {
+        let name = monitor?;
+        snap_capture::monitors().ok()?.into_iter().find(|m| m.name == name).map(|m| m.scale_factor)
+    });
+    Ok((image, scale.unwrap_or(1.0)))
 }
 
 /// Grab pixels straight off the desktop, with the icons out of the way when the user asked for that.

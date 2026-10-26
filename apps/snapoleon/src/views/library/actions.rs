@@ -79,7 +79,8 @@ impl LibraryView {
                     if let [only] = targets.as_slice()
                         && only.kind != CaptureKind::Recording
                     {
-                        snap_platform::clipboard::set_image(&snap_image::encode::load(&saved_file(only)?)?)?;
+                        let (image, scale) = snap_engine::load_saved_image(&saved_file(only)?, only.context.monitor_name.as_deref())?;
+                        snap_platform::clipboard::set_image_scaled(&image, scale)?;
                     } else {
                         copy_files(&targets)?;
                     }
@@ -224,11 +225,16 @@ impl LibraryView {
 
     /// Open the combine tool with the selected images.
     pub(super) fn combine_selected(&mut self, cx: &mut ViewCx) {
-        let files: Vec<PathBuf> =
-            self.selected_entries().iter().filter(|e| e.kind != CaptureKind::Recording).filter_map(|e| e.file.clone()).collect();
+        let files: Vec<(PathBuf, Option<String>)> = self
+            .selected_entries()
+            .iter()
+            .filter(|e| e.kind != CaptureKind::Recording)
+            .filter_map(|e| Some((e.file.clone()?, e.context.monitor_name.clone())))
+            .collect();
         cx.toast(ToastKind::Info, t("library.combine.loading"));
         cx.spawn(move || {
-            let images: Vec<_> = files.iter().filter_map(|f| snap_image::encode::load(f).ok()).collect();
+            let images: Vec<_> =
+                files.iter().filter_map(|(f, monitor)| snap_engine::load_saved_image(f, monitor.as_deref()).ok()).collect();
             if images.len() < 2 {
                 return Msg::Done(Err(missing()));
             }

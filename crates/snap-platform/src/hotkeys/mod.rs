@@ -22,15 +22,16 @@ use std::thread::JoinHandle;
 use std::time::Duration;
 
 use crossbeam_channel::RecvTimeoutError;
-use global_hotkey::hotkey::HotKey;
+use global_hotkey::hotkey::{Code, HotKey};
 use global_hotkey::{GlobalHotKeyEvent, GlobalHotKeyManager, HotKeyState};
 use parking_lot::Mutex;
 use snap_core::hotkey::HotkeyBinding;
-use snap_core::{Error, Result, tf};
+use snap_core::{Error, Result, t, tf};
 
-mod accel;
+pub(crate) mod accel;
 #[cfg(all(target_os = "linux", feature = "wayland-portal"))]
 mod portal;
+mod system;
 
 use accel::Accel;
 
@@ -39,6 +40,8 @@ use accel::Accel;
 pub enum HotkeyEvent {
     Pressed(usize),
     Released(usize),
+    /// Escape was pressed while grabbed with [`HotkeyManager::grab_escape`].
+    Escape,
 }
 
 /// Check that an accelerator string can be parsed and bound.
@@ -50,6 +53,27 @@ pub fn validate(accel: &str) -> Result<()> {
 /// Unparseable input is returned unchanged.
 pub fn display(accel: &str) -> String {
     Accel::parse(accel).map(Accel::label).unwrap_or_else(|_| accel.trim().to_string())
+}
+
+/// A shortcut the operating system already uses for itself.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct SystemConflict {
+    /// What the OS does with the shortcut and where to turn that off, as a sentence for the user.
+    pub message: String,
+    /// The same in a few words, short enough for a notification banner.
+    pub brief: String,
+    /// Label for a button that opens [`settings_url`](Self::settings_url).
+    pub open_label: String,
+    /// The OS settings page where the system shortcut can be turned off.
+    pub settings_url: &'static str,
+}
+
+/// The OS feature already bound to `accel`, if any: on macOS an enabled system keyboard shortcut (Shift+Cmd+4 for
+/// screenshots, ...), on Windows a bare Print Screen while it opens Snipping Tool. The OS does not refuse such a
+/// registration, so [`HotkeyManager::register`] cannot report it; both the OS and Snapoleon react to the key. The OS
+/// state is re-read every few seconds, so a system shortcut turned off meanwhile stops counting soon after.
+pub fn system_conflict(accel: &str) -> Option<SystemConflict> {
+    system::conflict(Accel::parse(accel).ok()?)
 }
 
 /// Accelerator string for an egui key press, for the hotkey recorder widget.
@@ -132,6 +156,13 @@ struct Routes {
     /// OS hotkey id -> binding index.
     ids: Mutex<HashMap<u32, usize>>,
     paused: AtomicBool,
+    /// Escape is grabbed (see [`HotkeyManager::grab_escape`]).
+    escape: AtomicBool,
+}
+
+/// Plain Escape, the key [`HotkeyManager::grab_escape`] takes.
+fn escape_hotkey() -> HotKey {
+    HotKey::new(None, Code::Escape)
 }
 
 enum Backend {
@@ -162,7 +193,7 @@ impl HotkeyManager {
         if ACTIVE.swap(true, Ordering::SeqCst) {
             return Err(Error::invalid("a HotkeyManager already exists"));
         }
-        let routes = Arc::new(Routes { ids: Mutex::new(HashMap::new()), paused: AtomicBool::new(false) });
+        let routes = Arc::new(Routes { ids: Mutex::new(HashMap::new()), paused: AtomicBool::new(false), escape: AtomicBool::new(false) });
         match Self::backend(on_event, &routes) {
             Ok(backend) => Ok(Self { backend, routes, bound: Vec::new(), paused: false }),
             Err(e) => {
@@ -198,10 +229,11 @@ impl HotkeyManager {
             match Accel::parse(&b.accel) {
                 Err(e) => results.push((i, Err(e))),
                 Ok(a) => match seen.insert(a.hotkey().id(), i) {
-                    Some(first) => results.push((
-                        i,
-                        Err(Error::invalid(tf("platform.hotkey.duplicate", &[("accel", &a.label()), ("n", &(first + 1).to_string())]))),
-                    )),
+                    Some(first) => {
+                        let other = t(&format!("action.{}", bindings[first].action.key()));
+                        let message = tf("platform.hotkey.duplicate", &[("accel", &a.label()), ("action", &other)]);
+                        results.push((i, Err(Error::invalid(message))));
+                    }
                     None => parsed.push((i, a)),
                 },
             }
@@ -280,11 +312,43 @@ impl HotkeyManager {
         }
         refused
     }
+
+    /// Take plain Escape from every app while `on`, reported as [`HotkeyEvent::Escape`]: the way out of a full-screen
+    /// overlay or a count-down whatever window has the keyboard (on macOS a system alert can take it from the
+    /// overlay). Bindings cannot use Escape without a modifier, so it never collides with one. The Wayland portal binds
+    /// its shortcuts once per session and cannot add one on demand: there this does nothing.
+    pub fn grab_escape(&mut self, on: bool) -> Result<()> {
+        if self.routes.escape.load(Ordering::SeqCst) == on {
+            return Ok(());
+        }
+        match &self.backend {
+            Backend::Native(native) => {
+                let hotkey = escape_hotkey();
+                if on {
+                    native.manager.register(hotkey).map_err(|e| native_error(Accel { mods: hotkey.mods, key: hotkey.key }, e))?;
+                } else if let Err(e) = native.manager.unregister(hotkey) {
+                    tracing::debug!("unregister Escape: {e}");
+                }
+            }
+            #[cfg(all(target_os = "linux", feature = "wayland-portal"))]
+            Backend::Portal(_) => return Ok(()),
+        }
+        self.routes.escape.store(on, Ordering::SeqCst);
+        Ok(())
+    }
+
+    /// Whether the OS holds plain Escape for us right now: never on the Wayland portal, nor after a refused grab.
+    pub fn escape_grabbed(&self) -> bool {
+        self.routes.escape.load(Ordering::SeqCst)
+    }
 }
 
 impl Drop for HotkeyManager {
     fn drop(&mut self) {
         self.unregister_all();
+        if let Err(e) = self.grab_escape(false) {
+            tracing::debug!("release Escape: {e}");
+        }
         match &mut self.backend {
             Backend::Native(native) => {
                 native.stop.store(true, Ordering::SeqCst);
@@ -314,6 +378,12 @@ fn spawn_poller(on_event: impl Fn(HotkeyEvent) + Send + 'static, routes: Arc<Rou
             while !stop.load(Ordering::SeqCst) {
                 match rx.recv_timeout(Duration::from_millis(100)) {
                     Ok(ev) => {
+                        if ev.id == escape_hotkey().id() && routes.escape.load(Ordering::SeqCst) {
+                            if ev.state == HotKeyState::Pressed {
+                                on_event(HotkeyEvent::Escape);
+                            }
+                            continue;
+                        }
                         if routes.paused.load(Ordering::SeqCst) {
                             continue;
                         }

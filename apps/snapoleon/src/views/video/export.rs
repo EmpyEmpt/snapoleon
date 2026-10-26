@@ -17,12 +17,16 @@ use snap_record::{
 use snap_ui::{
     ToastKind, icon, palette, radius, text,
     widgets::{
-        Button, ButtonKind, card_frame, dropdown, number_field, progress_indeterminate, progress_sized, segmented, spinner, toggle, tooltip,
+        Button, ButtonKind, card_frame, dropdown, number_field, progress_indeterminate, progress_sized, segmented, spinner, toggle,
+        tooltip, util,
     },
 };
 
 use super::{Editor, Msg, timecode};
-use crate::{commands::Command, views::ViewCx};
+use crate::{
+    commands::Command,
+    views::{ViewCx, file_size},
+};
 
 /// Size limits are decimal megabytes, which is what the services quote.
 const MB: u64 = 1_000_000;
@@ -163,14 +167,6 @@ pub fn output_path(source: &Path, format: VideoFormat) -> PathBuf {
     path
 }
 
-pub fn format_bytes(bytes: u64) -> String {
-    match bytes {
-        b if b >= MB * 1000 => format!("{:.1} GB", b as f64 / (MB * 1000) as f64),
-        b if b >= MB => format!("{:.1} MB", b as f64 / MB as f64),
-        b => format!("{} KB", b.div_ceil(1000)),
-    }
-}
-
 impl Editor {
     pub(super) fn export_panel(&mut self, ui: &mut Ui, cx: &mut ViewCx) {
         ui.spacing_mut().item_spacing = Vec2::new(8.0, 8.0);
@@ -231,7 +227,7 @@ impl Editor {
             let options: Vec<(SizeTarget, &str)> = labels.iter().map(|(v, l)| (*v, l.as_str())).collect();
             dropdown(ui, "video-size-limit", &mut form.target, &options);
             if form.target == SizeTarget::Custom {
-                number_field(ui, &mut form.custom_mb, 0.5..=4000.0, " MB");
+                number_field(ui, &mut form.custom_mb, 0.5..=4000.0, &t("video.export.custom_unit"));
             }
         });
         field(ui, &t("video.export.width"), |ui| {
@@ -261,9 +257,10 @@ impl Editor {
         });
         if self.info.has_audio && form.format == VideoFormat::Mp4 {
             ui.horizontal(|ui| {
-                ui.label(t("video.export.mute"));
+                let mute = t("video.export.mute");
+                ui.label(mute.as_ref());
                 ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
-                    toggle(ui, &mut form.mute);
+                    util::with_control_name(ui, &mute, |ui| toggle(ui, &mut form.mute));
                 });
             });
         }
@@ -290,7 +287,7 @@ impl Editor {
         let name = path.file_name().map(|n| n.to_string_lossy().into_owned()).unwrap_or_default();
         let facts = format!(
             "{} · {} · {}",
-            format_bytes(done.recording.bytes),
+            file_size(done.recording.bytes),
             timecode(done.recording.duration_ms),
             format_label(done.recording.format)
         );
@@ -400,7 +397,7 @@ fn field(ui: &mut Ui, label: &str, add: impl FnOnce(&mut Ui)) {
     ui.vertical(|ui| {
         ui.spacing_mut().item_spacing.y = 6.0;
         ui.label(text::caption(label));
-        add(ui);
+        util::with_control_name(ui, label, add);
     });
 }
 

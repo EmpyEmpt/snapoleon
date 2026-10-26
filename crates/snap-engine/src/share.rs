@@ -120,7 +120,7 @@ pub(crate) fn save(engine: &Engine, img: &RgbaImage, cap: &Capture, opts: &SaveO
             (reserve_path(&dir, &file_stem(engine, template, cap, ai_title(engine, img, cap).as_deref()), fmt)?, fmt)
         }
     };
-    let saved = snap_image::encode::save(img, &path, fmt, quality(&s, fmt), s.capture.optimize_png);
+    let saved = snap_image::encode::save(img, &path, fmt, quality(&s, fmt), s.capture.optimize_png, Some(cap.scale_factor));
     if saved.is_err() && opts.path.is_none() {
         // Do not leave the empty file that reserved the name.
         let _ = std::fs::remove_file(&path);
@@ -261,9 +261,9 @@ pub(crate) fn upload_image(
     let bytes = if forced {
         let mut covered = img.clone();
         redact::auto_redact(engine, &mut covered, &[], Some(RedactStyle::Solid))?;
-        snap_image::encode::encode(&covered, fmt, quality(&s, fmt), s.capture.optimize_png)?
+        snap_image::encode::encode(&covered, fmt, quality(&s, fmt), s.capture.optimize_png, Some(cap.scale_factor))?
     } else {
-        snap_image::encode::encode(img, fmt, quality(&s, fmt), s.capture.optimize_png)?
+        snap_image::encode::encode(img, fmt, quality(&s, fmt), s.capture.optimize_png, Some(cap.scale_factor))?
     };
     let ai_title = ai_title(engine, img, cap);
     let name = if forced {
@@ -301,7 +301,7 @@ fn prepare_file(engine: &Engine, path: &Path) -> Result<Option<Vec<u8>>> {
     if let Some(format) = format.filter(|_| forced) {
         let mut img = snap_image::encode::decode(&bytes)?;
         redact::auto_redact(engine, &mut img, &[], Some(RedactStyle::Solid))?;
-        bytes = snap_image::encode::encode(&img, format, quality(&s, format), s.capture.optimize_png)?;
+        bytes = snap_image::encode::encode(&img, format, quality(&s, format), s.capture.optimize_png, None)?;
     }
     if s.privacy.strip_metadata { meta::strip(bytes).map(Some) } else { Ok(Some(bytes)) }
 }

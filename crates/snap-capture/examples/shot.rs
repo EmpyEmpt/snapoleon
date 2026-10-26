@@ -143,14 +143,15 @@ fn main() -> snap_core::Result<()> {
     }
 
     println!("== desktop icons");
-    if let Some(guard) = snap_capture::hide_desktop_icons() {
-        thread::sleep(Duration::from_millis(300));
-        let hidden = capture_monitor(0, &CaptureOptions::default())?;
-        hidden.image.save(out.join("monitor0_icons_hidden.png")).map_err(snap_core::Error::Image)?;
-        drop(guard);
-        println!("icons hidden for a capture and restored");
-    } else {
-        println!("no desktop icon list found");
-    }
+    // Windows hides the icon list on screen while the guard lives; macOS leaves Finder's icons out of the capture.
+    let hidden = {
+        let guard = snap_capture::hide_desktop_icons();
+        if guard.is_some() {
+            thread::sleep(Duration::from_millis(300));
+        }
+        capture_monitor(0, &CaptureOptions { hide_desktop_icons: true, ..Default::default() })?
+    };
+    hidden.image.save(out.join("monitor0_icons_hidden.png")).map_err(snap_core::Error::Image)?;
+    println!("saved monitor0_icons_hidden.png");
     Ok(())
 }

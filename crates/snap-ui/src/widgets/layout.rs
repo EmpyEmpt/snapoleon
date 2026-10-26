@@ -40,28 +40,39 @@ pub fn section<R>(ui: &mut Ui, title: &str, add: impl FnOnce(&mut Ui) -> R) -> I
     out
 }
 
-/// One settings row: label and description on the left, `control` on the right.
-/// Rows after the first in a container get a hairline above them.
+/// One settings row: label and description on the left, `control` on the right (added right to left).
+/// When the control would leave the text too little room (a narrow window, a long path field), it moves to its own
+/// line under the text instead of drawing over it. Rows after the first in a container get a hairline above them.
 pub fn setting_row<R>(ui: &mut Ui, label: &str, desc: &str, control: impl FnOnce(&mut Ui) -> R) -> InnerResponse<R> {
+    /// The narrowest the label column gets before the control moves under it.
+    const MIN_TEXT: f32 = 200.0;
+    const PAD: f32 = 10.0;
     let p = Palette::of(ui);
     let id = ui.make_persistent_id(("setting_row", label, ui.next_auto_id()));
     let gap = space::LG;
     let first = ui.min_rect().height() < 1.0;
     let full_w = ui.available_width();
 
-    // The control's width is only known after it is laid out, so wrap the text against last frame's width.
-    let prev_w = ui.data(|d| d.get_temp::<f32>(id)).unwrap_or(120.0);
-    let wrap_w = (full_w - prev_w - gap).max(120.0);
+    // The control's size is only known after it is laid out, so the text wraps against last frame's size.
+    // Both layouts measure the same control, so the choice between them is stable.
+    let prev = ui.data(|d| d.get_temp::<Vec2>(id)).unwrap_or(Vec2::new(120.0, util::control_height(ui)));
+    let stacked = prev.x + gap + MIN_TEXT > full_w;
+    let wrap_w = if stacked { full_w } else { full_w - prev.x - gap };
     let label_g = util::layout_wrapped(ui, label, &body_style(), p.text, wrap_w);
     let desc_g = (!desc.is_empty()).then(|| util::layout_wrapped(ui, desc, &caption_style(), p.text_dim, wrap_w));
     let text_h = label_g.size().y + desc_g.as_ref().map_or(0.0, |g| g.size().y + 2.0);
-    let row_h = (text_h + 20.0).max(52.0);
+    let row_h = if stacked { PAD + text_h + space::SM + prev.y + PAD + 2.0 } else { (text_h + 2.0 * PAD).max(prev.y + 16.0).max(52.0) };
 
     let (rect, resp) = ui.allocate_exact_size(Vec2::new(full_w, row_h), Sense::hover());
+    // The texts are painted, so they reach the accessibility tree through this node and as the control's name.
+    resp.widget_info(|| WidgetInfo::labeled(Role::Label, true, label));
+    if !desc.is_empty() {
+        ui.ctx().accesskit_node_builder(resp.id, |node| node.set_description(desc));
+    }
     if !first && ui.is_rect_visible(rect) {
         ui.painter().hline(rect.x_range(), rect.top() + 0.5, Stroke::new(1.0, p.border));
     }
-    let mut y = rect.center().y - text_h / 2.0;
+    let mut y = if stacked { rect.top() + PAD + 1.0 } else { rect.center().y - text_h / 2.0 };
     let label_h = label_g.size().y;
     ui.painter().galley(util::snap(ui, Pos2::new(rect.left(), y)), label_g, p.text);
     y += label_h + 2.0;
@@ -69,10 +80,22 @@ pub fn setting_row<R>(ui: &mut Ui, label: &str, desc: &str, control: impl FnOnce
         ui.painter().galley(util::snap(ui, Pos2::new(rect.left(), y)), g, p.text_dim);
     }
 
-    let mut child = ui.new_child(UiBuilder::new().max_rect(rect).layout(Layout::right_to_left(Align::Center)));
-    let inner = control(&mut child);
-    let used = child.min_rect().width();
-    if (used - prev_w).abs() > 0.5 {
+    let band = if stacked {
+        let bottom = rect.bottom() - PAD - 1.0;
+        Rect::from_min_max(Pos2::new(rect.left(), bottom - prev.y), Pos2::new(rect.right(), bottom))
+    } else {
+        rect
+    };
+    let mut child = ui.new_child(UiBuilder::new().max_rect(band).layout(Layout::right_to_left(Align::Center)));
+    let inner = util::with_control_name(&mut child, label, control);
+    let mut used = child.min_rect().size();
+    // A centred right-to-left child reports the whole band as its height, and the band is sized from last frame's
+    // height plus padding: taken as the control's height, every frame would add the padding again. Only a control
+    // that overflows the band says how tall it really is.
+    if used.y <= band.height() + 0.5 {
+        used.y = prev.y;
+    }
+    if (used - prev).abs().max_elem() > 0.5 {
         ui.data_mut(|d| d.insert_temp(id, used));
         ui.ctx().request_repaint();
     }

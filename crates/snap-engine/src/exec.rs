@@ -164,6 +164,10 @@ impl<'a> Run<'a> {
             Step::Resize { max_width, max_height, readable } => {
                 let fitted = snap_image::resize::fit(&self.cap.image, *max_width, *max_height, *readable);
                 if fitted.dimensions() != self.cap.image.dimensions() {
+                    // Fewer pixels for the same on-screen size, down to one pixel per point: the clipboard and the
+                    // editor keep showing it at the size it had.
+                    let ratio = fitted.width() as f32 / self.cap.image.width() as f32;
+                    self.cap.scale_factor = (self.cap.scale_factor * ratio).max(1.0);
                     self.cap.image = fitted;
                     self.touch();
                 }
@@ -175,7 +179,7 @@ impl<'a> Run<'a> {
             Step::Save { dir, template, format } => self.save(dir.as_deref(), template, *format),
             Step::CopyImage => {
                 // The clipboard may be held by another process; that must not cost the user the later steps.
-                match self.engine.copy_image(&self.cap.image) {
+                match self.engine.copy_image(&self.cap.image, self.cap.scale_factor) {
                     Ok(()) => self.done.push(Done::ImageCopied),
                     Err(e) => {
                         tracing::warn!("cannot copy the image: {e}");
@@ -255,8 +259,15 @@ impl<'a> Run<'a> {
         Ok(())
     }
 
+    /// The pill while text is read; the first request after an install waits about half a minute for the system to
+    /// prepare recognition, which must not look like a hang.
+    fn ocr_progress(&self) {
+        let label = if snap_ocr::warming_up(&self.settings.ocr) { "ocr.warmup.label" } else { "engine.progress.ocr" };
+        self.ui.progress(&t(label), None);
+    }
+
     fn ocr(&mut self, copy: bool, as_markdown_table: bool) -> Result<()> {
-        self.ui.progress(&t("engine.progress.ocr"), None);
+        self.ocr_progress();
         let result = self.engine.ocr(&self.cap.image)?;
         let plain = result.text();
         let text = if as_markdown_table { result.to_markdown_table().unwrap_or_else(|| plain.clone()) } else { plain.clone() };
@@ -294,7 +305,7 @@ impl<'a> Run<'a> {
         let source = match self.text.clone() {
             Some(text) => text,
             None => {
-                self.ui.progress(&t("engine.progress.ocr"), None);
+                self.ocr_progress();
                 let text = self.engine.ocr(&self.cap.image)?.text();
                 self.ocr_text = Some(text.clone());
                 text
@@ -377,7 +388,7 @@ impl<'a> Run<'a> {
         }
         let dir = paths::cache_dir().join("run");
         let path = dir.join(format!("{}.png", self.cap.id));
-        snap_image::encode::save(&self.cap.image, &path, ImageFormat::Png, 100, false)?;
+        snap_image::encode::save(&self.cap.image, &path, ImageFormat::Png, 100, false, Some(self.cap.scale_factor))?;
         self.scratch = Some(path.clone());
         Ok(path)
     }
@@ -434,6 +445,7 @@ impl<'a> Run<'a> {
             image,
             url: self.link.as_ref().map(|l| l.best().to_string()),
             file: self.file.clone(),
+            permission: None,
         });
     }
 

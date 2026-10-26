@@ -213,5 +213,5 @@ pub fn capture_window(hwnd: HWND, visible: Rect, o: &crate::CaptureOptions) -> R
     let fp16 = o.hdr == HdrMode::Auto && hdr::hdr_monitors().contains(&(hmon.0 as isize));
     let raw = grab_frame(&item, fp16, Some(crop))?;
     let screen_rect = Rect::new(origin.x + crop.x, origin.y + crop.y, raw.width, raw.height);
-    Ok(WindowGrab { image: to_image(raw, monitors::sdr_white_nits(hmon), false), screen_rect, tone_mapped: fp16 })
+    Ok(WindowGrab { image: to_image(raw, monitors::sdr_white_nits(hmon), false), screen_rect, tone_mapped: fp16, shadow: false })
 }

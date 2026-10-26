@@ -68,15 +68,6 @@ pub fn exe_path(pid: u32) -> Option<String> {
     std::fs::read_link(format!("/proc/{pid}/exe")).ok().map(|p| p.to_string_lossy().into_owned())
 }
 
-/// X11 needs no grant; Wayland asks through the desktop portal at capture time.
-pub fn check_capture_access() -> Result<()> {
-    Ok(())
-}
-
-pub fn trim_window_frame(img: RgbaImage, _expected: Rect) -> RgbaImage {
-    img
-}
-
 /// Linux desktops have no common icon layer to hide, so no guard is ever created.
 pub enum IconsGuard {}
 

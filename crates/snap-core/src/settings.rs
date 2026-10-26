@@ -49,6 +49,10 @@ pub struct Settings {
     pub ai: AiSettings,
     pub pins: PinSettings,
     pub beautify_presets: Vec<BeautifyPreset>,
+    /// [`crate::hotkey::DEFAULTS_REV`] the hotkeys were written with. A file without it predates the field (0), not
+    /// the current defaults, hence the field-level default.
+    #[serde(default)]
+    pub hotkeys_rev: u32,
 }
 
 impl Default for Settings {
@@ -71,6 +75,7 @@ impl Default for Settings {
             ai: AiSettings::default(),
             pins: PinSettings::default(),
             beautify_presets: default_beautify_presets(),
+            hotkeys_rev: crate::hotkey::DEFAULTS_REV,
         }
     }
 }
@@ -78,9 +83,22 @@ impl Default for Settings {
 impl Settings {
     pub fn load(path: &Path) -> Result<Settings> {
         match std::fs::read_to_string(path) {
-            Ok(s) => toml::from_str(&s).map_err(|e| crate::Error::invalid(format!("{}: {e}", path.display()))),
+            Ok(s) => {
+                let mut settings: Settings = toml::from_str(&s).map_err(|e| crate::Error::invalid(format!("{}: {e}", path.display())))?;
+                settings.migrate();
+                Ok(settings)
+            }
             Err(e) if e.kind() == std::io::ErrorKind::NotFound => Ok(Settings::default()),
             Err(e) => Err(e.into()),
+        }
+    }
+
+    /// Brings a file written by an older version up to date. Runs on every load and writes nothing: the result
+    /// reaches the file with the next save, and until then the same file migrates the same way again.
+    fn migrate(&mut self) {
+        if self.hotkeys_rev < crate::hotkey::DEFAULTS_REV {
+            crate::hotkey::migrate(&mut self.hotkeys, self.hotkeys_rev);
+            self.hotkeys_rev = crate::hotkey::DEFAULTS_REV;
         }
     }
 
@@ -151,18 +169,31 @@ pub struct General {
     pub play_sounds: bool,
     pub tray_click: crate::hotkey::Action,
     pub first_run_done: bool,
+    /// The onboarding card the first run is on, so it resumes there after a relaunch (macOS asks for one after a
+    /// Screen Recording grant).
+    pub onboarding_card: u8,
     /// Disable UI animations regardless of the OS preference.
     pub reduce_motion: bool,
     /// Keep the capture overlay's cover windows open (hidden) in the background so it appears at once, at the
     /// price of about 100 MB of memory with the OpenGL renderer (about 200 MB with wgpu). Off: covers are opened per
     /// session and closed after it.
     pub instant_overlay: bool,
+    /// Size of the interface in app windows, 1.0 = 100 %. Read it through [`General::interface_scale`].
+    pub ui_scale: f32,
 }
 
 impl General {
+    /// The smallest and largest interface scale offered.
+    pub const UI_SCALE_RANGE: std::ops::RangeInclusive<f32> = 0.8..=1.5;
+
     /// The user's accent override, if set and valid.
     pub fn accent_color(&self) -> Option<[u8; 3]> {
         parse_hex_color(&self.accent).map(|c| [c[0], c[1], c[2]])
+    }
+
+    /// The interface scale, kept to the offered range (a hand-edited file may hold anything).
+    pub fn interface_scale(&self) -> f32 {
+        if self.ui_scale.is_finite() { self.ui_scale.clamp(*Self::UI_SCALE_RANGE.start(), *Self::UI_SCALE_RANGE.end()) } else { 1.0 }
     }
 }
 
@@ -177,8 +208,10 @@ impl Default for General {
             play_sounds: false,
             tray_click: crate::hotkey::Action::CaptureRegion,
             first_run_done: false,
+            onboarding_card: 0,
             reduce_motion: false,
             instant_overlay: true,
+            ui_scale: 1.0,
         }
     }
 }

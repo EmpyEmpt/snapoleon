@@ -21,8 +21,6 @@ impl App {
         match cmd {
             Command::StartCapture { action, pipeline } => self.start_action(sh, action, pipeline),
             Command::OpenOverlay(request) => self.open_with(sh, |cx| views::overlay::open(cx, request)),
-            #[cfg(target_os = "macos")]
-            Command::OpenOverlayIconsHidden(request) => self.open_with(sh, |cx| views::overlay::open_frozen(cx, request)),
             Command::CaptureAndRun { request, work, reply } => self.capture_and_run(sh, request, work, reply),
             Command::RunPipeline { capture, pipeline } => {
                 let show_text = self.settings.pipeline(&pipeline).is_some_and(|p| shows_text(&p.steps));
@@ -74,6 +72,7 @@ impl App {
             Command::OpenLibrary => self.open_with(sh, views::library::open),
             Command::OpenSettings { page } => self.open_with(sh, |cx| views::settings::open(cx, page)),
             Command::OpenOnboarding => self.open_with(sh, views::onboarding::open),
+            Command::FirstRunDone => self.first_run_hint(),
             Command::OpenAbout => self.open_with(sh, views::about::open),
             Command::ShowText { title, text } => self.open_with(sh, |cx| views::text::open(cx, title, text)),
             Command::ShowCodes { title, text, codes } => self.open_with(sh, |cx| views::text::open_with_codes(cx, title, text, codes)),
@@ -103,6 +102,7 @@ impl App {
                 Ok(image) => self.cmds.push(Command::OpenPin { image, origin: None }),
                 Err(e) => self.report_error(sh, &e),
             },
+            Command::FixPermission(perm) => crate::notices::fix_permission(perm),
             Command::CopyText(text) => {
                 if let Err(e) = snap_platform::clipboard::set_text(&text) {
                     self.report_error(sh, &e);
@@ -120,6 +120,11 @@ impl App {
             }
             Command::OpenUrl(url) => {
                 if let Err(e) = snap_platform::open::url(&url) {
+                    self.report_error(sh, &e);
+                }
+            }
+            Command::OpenSystemSettings(url) => {
+                if let Err(e) = snap_platform::open::system_settings(url) {
                     self.report_error(sh, &e);
                 }
             }

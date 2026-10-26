@@ -162,6 +162,7 @@ pub(crate) fn start(o: RecordOptions) -> Result<Recorder> {
             target: &o.target,
             show_cursor: o.show_cursor,
             exclude_windows: &o.exclude_windows,
+            hide_desktop_icons: o.hide_desktop_icons,
             system_audio: want_audio && o.system_audio,
             fps,
             ffmpeg: o.ffmpeg.as_deref(),

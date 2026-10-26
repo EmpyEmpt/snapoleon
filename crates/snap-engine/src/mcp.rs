@@ -1,6 +1,7 @@
 //! MCP server over stdio (JSON-RPC 2.0, newline-delimited). Tools:
 //! list_monitors, list_windows, capture_screen, capture_window,
-//! capture_region, ocr_image, decode_codes, search_history, get_capture.
+//! capture_region, ocr_image, decode_codes, search_history, get_capture,
+//! permissions.
 //!
 //! Stdout carries protocol messages only, one JSON object per line. Diagnostics go through `tracing`, which the
 //! host binary must send to stderr.
@@ -24,7 +25,10 @@ const INVALID_PARAMS: i64 = -32602;
 
 const INSTRUCTIONS: &str = "Snapoleon gives you eyes on the user's screen. Use list_monitors and list_windows to see what exists, \
 capture_screen, capture_window or capture_region to look at it (every capture returns a capture_id), ocr_image and decode_codes to \
-read text and QR codes from a capture or file, and search_history to find earlier screenshots by what was on them.";
+read text and QR codes from a capture or file, and search_history to find earlier screenshots by what was on them. \
+Coordinates are physical pixels with the origin at the top-left of the primary monitor; divide by a monitor's scale_factor to get \
+macOS points. Give a capture tool save_to to get the full-resolution image as a file. When a capture fails for lack of permission, \
+call permissions: on macOS captures go through the Snapoleon app, which needs Screen Recording.";
 
 pub fn serve_stdio(engine: Engine) -> Result<()> {
     serve(engine, std::io::stdin().lock(), std::io::stdout().lock())

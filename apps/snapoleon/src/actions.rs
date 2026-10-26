@@ -20,7 +20,8 @@ impl App {
     /// Run an action as if its hotkey was pressed. Interactive actions queue an overlay or a view;
     /// the rest capture right away on a worker thread.
     pub(crate) fn start_action(&mut self, sh: &mut Shell<AppEvent>, action: Action, pipeline: Option<String>) {
-        // A capture now would photograph the overlay that is already up.
+        // A capture now would photograph the overlay that is already up. (A hotkey pressed during a session ends it
+        // instead; see `on_hotkey`.)
         if action.is_capture() && overlay::active() {
             return;
         }

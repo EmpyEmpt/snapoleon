@@ -63,6 +63,7 @@ other = "Удалено {n} снимков"
 [library.drawer]
 close = "Закрыть сведения"
 missing = "Файла больше нет на месте."
+not_saved = "Этот снимок не сохранялся на диск."
 
 [library.empty]
 title = "Здесь пока пусто"
@@ -176,8 +177,11 @@ oct = "окт."
 nov = "нояб."
 dec = "дек."
 
-[library.size]
-b = "{n} Б"
-kb = "{n} КБ"
-mb = "{n} МБ"
-gb = "{n} ГБ"
+[macos.library.action]
+reveal = "Показать в Finder"
+
+[macos.library.empty]
+body_nokey = "Сделайте первый снимок через значок в строке меню."
+
+[library.a11y]
+remove_tag = "Удалить тег {tag}"

@@ -6,7 +6,8 @@
 //!   definition for `application/vnd.snapoleon.project+zip` (the type the packaged desktop file declares);
 //!   `xdg-mime default` is run best-effort.
 //! - macOS: nothing to do at runtime - the scheme and document type come from the
-//!   app bundle's `Info.plist`.
+//!   app bundle's `Info.plist`. LaunchServices hands links and documents to the running
+//!   app as Apple Events, never as arguments; `snap-shell` delivers them as `OsRequest`s.
 
 use snap_core::Result;
 

@@ -25,6 +25,7 @@ telegram = "Telegram, 2 GB"
 email = "Email, 25 MB"
 discord = "Discord, 10 MB"
 custom = "Custom"
+custom_unit = " MB"
 width = "Width"
 fps = "Frame rate"
 original = "Original"
@@ -46,3 +47,9 @@ uploading = "Uploading"
 copy_link = "Copy link"
 copy_link_tip = "Copy the link again"
 link_copied = "Link copied"
+
+[macos.video.result]
+show = "Show in Finder"
+
+[video.a11y]
+playhead = "Playhead"

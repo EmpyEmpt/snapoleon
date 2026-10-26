@@ -5,7 +5,7 @@ use snap_core::t;
 use snap_image::combine::Align as CellAlign;
 use snap_ui::{
     Palette, icon, space, text,
-    widgets::{Button, ButtonKind, Slider, color_swatches, divider, dropdown, number_field, segmented, tooltip},
+    widgets::{Button, ButtonKind, Slider, color_swatches, divider, dropdown, number_field, segmented, tooltip, util},
 };
 
 use super::{CombineView, Mode, ViewCx};
@@ -23,7 +23,7 @@ fn row(ui: &mut Ui, label: &str, control: impl FnOnce(&mut Ui)) {
     ui.horizontal(|ui| {
         ui.set_min_height(32.0);
         ui.label(label);
-        ui.with_layout(Layout::right_to_left(Align::Center), control);
+        ui.with_layout(Layout::right_to_left(Align::Center), |ui| util::with_control_name(ui, label, control));
     });
 }
 

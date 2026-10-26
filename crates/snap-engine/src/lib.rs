@@ -30,6 +30,7 @@ pub use snap_ocr::{OcrResult, codes::Code};
 pub use snap_record::{RecordOptions, RecordTarget, Recording};
 pub use snap_redact::Hit;
 
+pub mod agent;
 pub mod cli;
 pub mod mcp;
 pub mod steps;
@@ -43,7 +44,7 @@ mod redact;
 mod remote;
 mod scroll;
 
-pub use capture::icons_hidden;
+pub use capture::{icons_hidden, load_saved_image};
 pub use remote::{LinkAccess, ServerEvent};
 pub use scroll::stitch_scroll;
 mod share;
@@ -97,6 +98,8 @@ pub struct Notice {
     pub url: Option<String>,
     /// Offered as "Show in folder".
     pub file: Option<PathBuf>,
+    /// A missing privacy permission the notice is about (macOS), offered as "Open System Settings".
+    pub permission: Option<snap_platform::permissions::Perm>,
 }
 
 /// Interactive hooks a pipeline may need. Called from worker threads; the GUI
@@ -337,8 +340,9 @@ impl Engine {
         share::copy_link(self, link, format, title, true)
     }
 
-    pub fn copy_image(&self, img: &RgbaImage) -> Result<()> {
-        snap_platform::clipboard::set_image(img)
+    /// Put an image on the clipboard; `scale` is its pixels per point, so a Retina capture pastes at its on-screen size.
+    pub fn copy_image(&self, img: &RgbaImage, scale: f32) -> Result<()> {
+        snap_platform::clipboard::set_image_scaled(img, scale)
     }
 
     pub fn ocr(&self, img: &RgbaImage) -> Result<OcrResult> {

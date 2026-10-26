@@ -55,7 +55,10 @@ They are embedded once, in `snap_core::fonts`: use those statics, never a new `i
 
 Coordinate conventions (see `snap_core::geom`): integer `Rect`/`Point` are
 **physical pixels in virtual-desktop space**; `RectF`/`PointF` are image-pixel
-space in documents. Images are straight-alpha sRGB `RgbaImage`.
+space in documents. Images are straight-alpha sRGB `RgbaImage`. macOS lays displays
+out in points; `snap_core::geom::PointLayout` turns that into the pixel space (origins
+scaled by the largest display scale, so mixed-DPI displays never overlap), and every
+crate converts through it.
 
 ---
 
@@ -68,7 +71,8 @@ pub struct WindowInfo { pub id: u64, pub pid: u32, pub title: String, pub app_na
                         pub rect: Rect /* visible frame, no invisible resize borders (DWMWA_EXTENDED_FRAME_BOUNDS) */,
                         pub z: u32 /* 0 = front-most */, pub minimized: bool }
 pub struct ElementInfo { pub rect: Rect, pub name: String, pub role: String, pub app_name: Option<String>, pub window_id: Option<u64> }
-pub struct CaptureOptions { pub include_cursor: bool, pub hdr: HdrMode, pub window_shadow: bool }  // Default impl
+pub struct CaptureOptions { pub include_cursor: bool, pub hdr: HdrMode, pub window_shadow: bool,
+                            pub hide_desktop_icons: bool /* macOS: leave Finder's icons out of the capture */ }  // Default impl
 
 pub fn monitors() -> Result<Vec<MonitorInfo>>;
 pub fn windows() -> Result<Vec<WindowInfo>>;            // visible top-level, front→back, excludes our own pid & shell/desktop windows
@@ -77,7 +81,8 @@ pub fn cursor_position() -> Point;
 pub fn capture_monitor(index: usize, o: &CaptureOptions) -> Result<Capture>;
 pub fn capture_all(o: &CaptureOptions) -> Result<Capture>;            // composite of all monitors, physical px
 pub fn capture_rect(r: Rect, o: &CaptureOptions) -> Result<Capture>;  // may span monitors (mixed DPI correct)
-pub fn capture_window(id: u64, o: &CaptureOptions) -> Result<Capture>;// works when occluded where the OS allows (WGC / CGWindowList / XComposite)
+pub fn capture_rect_pixels(r: Rect, o: &CaptureOptions) -> Result<RgbaImage>; // pixels only, no context (scroll frames)
+pub fn capture_window(id: u64, o: &CaptureOptions) -> Result<Capture>;// works when occluded where the OS allows (WGC / ScreenCaptureKit / XComposite)
 
 /// Instant snapshot for the selection overlay: every monitor image + window list + cursor.
 pub struct Frozen { pub monitors: Vec<(MonitorInfo, RgbaImage)>, pub windows: Vec<WindowInfo>, pub cursor: Point, pub taken_at_ms: i64 }
@@ -97,9 +102,14 @@ pub fn elements_at(p: Point) -> Result<Vec<ElementInfo>>;
 pub fn context_for_window(w: &WindowInfo) -> CaptureContext;  // app name, title, browser URL via accessibility where possible
 pub fn context_at(p: Point) -> CaptureContext;
 
-/// Hides desktop icons while alive (Windows: SHELLDLL_DefView list view; macOS: Finder CreateDesktop;
-/// Linux: best effort/no-op).
+/// Hides desktop icons while alive (Windows: SHELLDLL_DefView list view). `None` on macOS, where
+/// captures leave Finder's icon window out (`CaptureOptions::hide_desktop_icons`), and on Linux.
 pub fn hide_desktop_icons() -> Option<DesktopIconsGuard>;
+/// macOS: a system prompt (screen capture approval, Gatekeeper, password) is on screen; overlays must not cover it.
+pub fn system_alert_on_screen() -> bool;
+/// macOS: throwaway tiny capture right after Screen Recording is granted, so the "bypass the private
+/// window picker" prompt appears while nothing covers it. No-op elsewhere.
+pub fn prime_capture_consent();
 /// Simulate wheel scroll over a point (for scrolling capture).
 pub fn scroll_at(p: Point, notches: i32) -> Result<()>;
 ```
@@ -110,8 +120,9 @@ HDR and tone-map to SDR using the monitor's SDR white level; otherwise BGRA8),
 DXGI desktop duplication or GDI BitBlt for fast monitor snapshots; per-monitor
 DPI awareness v2 must be set (call `snap_platform::dpi::init()` early; capture
 crate must also work if the process is already DPI-aware). macOS →
-ScreenCaptureKit / CGWindowList; Linux → `xcap` (X11 + Wayland portal). `xcap`
-may be used everywhere as the baseline backend; platform fast paths override.
+ScreenCaptureKit screenshots (macOS 14+; `CGWindowListCreateImage` on 12.3 and 13),
+converted to sRGB, with the CGWindowList for window enumeration; Linux → `xcap`
+(X11 + Wayland portal).
 UIA calls run on a dedicated COM (MTA) worker thread inside the crate.
 
 ## snap-image
@@ -322,7 +333,9 @@ pub mod hotkeys {
     impl HotkeyManager { pub fn new(on_event: impl Fn(HotkeyEvent) + Send + 'static) -> Result<Self>;
         pub fn register(&mut self, b: &[HotkeyBinding]) -> Vec<(usize, Result<()>)>;   // conflicts reported per binding
         pub fn unregister_all(&mut self); pub fn pause(&mut self, paused: bool); }       // pause while the hotkey recorder is focused
-    pub fn validate(accel: &str) -> Result<()>;  pub fn display(accel: &str) -> String;   // "⌘⇧4" on mac, "Ctrl+Shift+4" elsewhere
+    pub fn validate(accel: &str) -> Result<()>;  pub fn display(accel: &str) -> String;   // "⇧⌘4" on mac, "Ctrl+Shift+4" elsewhere
+    pub struct SystemConflict { pub message: String, pub open_label: String, pub settings_url: &'static str }
+    pub fn system_conflict(accel: &str) -> Option<SystemConflict>;   // enabled macOS system shortcut / Print Screen -> Snipping Tool
     pub fn from_egui(mods: egui::Modifiers, key: egui::Key) -> Option<String>; // feature "egui"
 }
 pub mod tray {
@@ -331,7 +344,8 @@ pub mod tray {
     pub struct Tray; impl Tray { pub fn new(tooltip: &str, icon: &RgbaImage, items: Vec<TrayItem>, on_event: impl Fn(TrayEvent) + Send + Sync + 'static) -> Result<Self>;
         pub fn set_items(&mut self, items: Vec<TrayItem>); pub fn set_icon(&mut self, icon: &RgbaImage); pub fn set_tooltip(&mut self, t: &str); }
 }   // tray-icon/muda on Windows+macOS (create on the main thread after the event loop starts), ksni (no GTK) on Linux
-pub mod clipboard { pub fn set_image(img: &RgbaImage) -> Result<()>; pub fn set_text(t: &str) -> Result<()>; pub fn set_html(html: &str, alt: &str) -> Result<()>;
+pub mod clipboard { pub fn set_image(img: &RgbaImage) -> Result<()>; pub fn set_image_scaled(img: &RgbaImage, scale: f32) -> Result<()>;
+                    pub fn set_text(t: &str) -> Result<()>; pub fn set_html(html: &str, alt: &str) -> Result<()>;
                     pub fn set_files(paths: &[PathBuf]) -> Result<()>; pub fn get_image() -> Option<RgbaImage>; pub fn get_text() -> Option<String>; }
 pub mod notify { pub fn show(title: &str, body: &str, image: Option<&Path>) -> Result<()>; }  // WinRT toast w/ AUMID, NSUserNotification/osascript, notify-rust
 pub mod ipc { pub struct Server; pub fn serve(handler: impl Fn(Request) -> Response + Send + Sync + 'static) -> Result<Server>;  // Err if another instance owns it
@@ -353,7 +367,8 @@ pub mod sound { pub fn shutter(); }                               // tiny embedd
 pub enum RecordTarget { Region(Rect), Monitor(usize), Window(u64) }
 pub struct RecordOptions { pub target: RecordTarget, pub format: VideoFormat, pub fps: u32, pub bitrate: u32, pub system_audio: bool,
     pub microphone: bool, pub mic_device: Option<String>, pub show_cursor: bool, pub highlight_clicks: bool, pub show_keystrokes: bool,
-    pub encoder: EncoderPref, pub max_gif_width: u32, pub output: PathBuf, pub ffmpeg: Option<PathBuf>, pub exclude_windows: Vec<u64> }
+    pub encoder: EncoderPref, pub max_gif_width: u32, pub output: PathBuf, pub ffmpeg: Option<PathBuf>, pub exclude_windows: Vec<u64>,
+    pub hide_desktop_icons: bool /* macOS: Finder's icon window left out of the filter */ }
 pub struct Recorder; pub fn start(o: RecordOptions) -> Result<Recorder>;
 impl Recorder { pub fn pause(&self); pub fn resume(&self); pub fn is_paused(&self) -> bool; pub fn elapsed_ms(&self) -> u64;
                 pub fn audio_level(&self) -> f32; pub fn stop(self) -> Result<Recording>; pub fn cancel(self); }
@@ -490,7 +505,7 @@ forwards its args over IPC). Subcommands: `capture`, `record`, `ocr`, `qr`,
 Windows/views: **Overlay** (per monitor `cover` window over a frozen snapshot:
 crosshair + loupe w/ pixel grid and HEX/RGB readout, window & element snapping
 with scroll-to-parent, drag/resize handles, size label, aspect lock (Shift),
-arrow-key nudge, Space to move, instant toolbar: Copy, Save, Edit, Pin, Upload,
+arrow-key nudge, Space to move, F for the whole monitor, instant toolbar: Copy, Save, Edit, Pin, Upload,
 OCR, QR, Record, Scroll-capture, Redact, Cancel; color picker mode; measure mode
 (px distance, element-to-element gaps)), **Editor** (tools: select, crop, arrow,
 line, rect, ellipse, pen, highlighter, text, callout, step badge, redact

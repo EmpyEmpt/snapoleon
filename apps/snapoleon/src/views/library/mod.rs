@@ -648,6 +648,7 @@ impl LibraryView {
             file_ok,
             now_ms: snap_core::now_ms(),
             recognizing: self.recognizing.contains(&entry.id.0),
+            ocr_warming: snap_ocr::warming_up(&cx.settings.ocr),
             uploading: self.uploading.contains(&entry.id.0),
         };
         let out = drawer::show(ui, &mut self.drawer, &props);

@@ -117,6 +117,7 @@ struct TileOut {
 fn paint_tile(ui: &mut Ui, tile: &TileUi, tex: &egui::TextureHandle, count: usize) -> (Rect, TileOut) {
     let p = Palette::of(ui);
     let (rect, resp) = ui.allocate_exact_size(Vec2::new(TILE_W, TILE_H), Sense::click_and_drag());
+    resp.widget_info(|| egui::WidgetInfo::selected(egui::Role::Button, ui.is_enabled(), tile.selected, tile.name));
     let hover = util::hover_anim(ui, &resp);
     let thumb = Rect::from_min_size(rect.min, Vec2::new(TILE_W, THUMB_H));
     let mut out = TileOut { clicked: resp.clicked(), grabbed: resp.drag_started(), removed: false };

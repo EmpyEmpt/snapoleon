@@ -1,0 +1,6 @@
+# Any current stable works (the workspace needs Rust 1.95 or newer, see rust-version in Cargo.toml); this file only
+# makes sure rustfmt and clippy come with it. It overrides `rustup default`, so a job that needs another toolchain
+# names it (`cargo +1.95 ...`).
+[toolchain]
+channel = "stable"
+components = ["rustfmt", "clippy"]

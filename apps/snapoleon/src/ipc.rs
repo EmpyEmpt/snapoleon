@@ -1,7 +1,12 @@
 //! Single-instance IPC: serving requests from the CLI, `snapoleon://` URLs and second launches,
-//! and forwarding this process's own request to the instance that already runs.
+//! and forwarding this process's own request to the instance that already runs. On macOS the
+//! system delivers links, documents and second launches to the running app itself (`OsRequest`);
+//! they take the same paths.
 
-use std::{path::PathBuf, time::Duration};
+use std::{
+    path::{Path, PathBuf},
+    time::{Duration, Instant},
+};
 
 use crossbeam_channel::Sender;
 use snap_core::{
@@ -10,9 +15,9 @@ use snap_core::{
     ipc::{AppWindow, Request, Response},
     t,
 };
-use snap_engine::CaptureRequest;
+use snap_engine::{CaptureRequest, Notice, NoticeKind};
 use snap_platform::ipc::Server;
-use snap_shell::{Proxy, Shell};
+use snap_shell::{OsRequest, Proxy, Shell};
 
 use crate::{
     actions::mode_work,
@@ -26,6 +31,24 @@ use crate::{
 /// How long a client waits for the app to answer. Interactive requests answer at once;
 /// non-interactive captures answer when the pipeline has finished.
 const ANSWER_TIMEOUT: Duration = Duration::from_secs(300);
+
+/// How long a reopen waits for the notification click it may have come with.
+const REOPEN_DELAY: Duration = Duration::from_millis(300);
+
+/// A reopen this close to a notification click, before or after it, came with the click.
+const NOTIFIED_REOPEN: Duration = Duration::from_secs(2);
+
+/// Clicking a notification also reopens the app, and macOS delivers the reopen and the click in either order. The
+/// Library the reopen opens would cover what the click opens (the editor), so a reopen waits a moment and
+/// [`App::reopen`] drops it when a click came close to it.
+fn defer_reopen(sh: &mut Shell<AppEvent>) {
+    let at = Instant::now();
+    let proxy = sh.proxy();
+    std::thread::spawn(move || {
+        std::thread::sleep(REOPEN_DELAY);
+        proxy.send(AppEvent::Reopen(at));
+    });
+}
 
 /// Start serving. Fails with `AlreadyRunning` when another instance owns the endpoint.
 pub fn serve(proxy: Proxy<AppEvent>) -> Result<Server> {
@@ -93,6 +116,45 @@ fn link_action(action: Action) -> Option<Action> {
 }
 
 impl App {
+    /// A request from macOS: the app menu, the Dock, Finder and LaunchServices.
+    pub(crate) fn handle_os_request(&mut self, sh: &mut Shell<AppEvent>, request: OsRequest) {
+        match request {
+            OsRequest::Reopen => defer_reopen(sh),
+            OsRequest::OpenUrl(url) => match snap_core::ipc::parse_url(&url) {
+                Some(request) => self.handle_os_ipc(sh, request),
+                None => self.os_request_failed(sh, t("app.ipc.link_refused").into_owned()),
+            },
+            OsRequest::OpenFile(path) => self.handle_os_ipc(sh, Request::Edit { path: path.to_string_lossy().into_owned() }),
+            OsRequest::About => self.cmds.push(Command::OpenAbout),
+            OsRequest::Settings => self.cmds.push(Command::OpenSettings { page: None }),
+            OsRequest::Quit => self.cmds.push(Command::Quit),
+        }
+    }
+
+    /// What a second launch does elsewhere (`forward` with no request), unless the reopen came with a notification
+    /// click (see [`defer_reopen`]).
+    pub(crate) fn reopen(&mut self, at: Instant) {
+        let near = |n: Instant| n.saturating_duration_since(at).max(at.saturating_duration_since(n)) < NOTIFIED_REOPEN;
+        if self.notified.is_some_and(near) {
+            return;
+        }
+        self.cmds.push(if self.settings.general.first_run_done { Command::OpenLibrary } else { Command::OpenOnboarding });
+    }
+
+    /// [`App::handle_request`] for a request nobody waits on: a refusal (a link that may not start its action, a
+    /// file that is gone) becomes a notice instead.
+    fn handle_os_ipc(&mut self, sh: &mut Shell<AppEvent>, request: Request) {
+        let (reply, answer) = crossbeam_channel::bounded(1);
+        self.handle_request(sh, request, Some(reply));
+        if let Ok(Response { ok: false, error, .. }) = answer.try_recv() {
+            self.os_request_failed(sh, error.unwrap_or_default());
+        }
+    }
+
+    fn os_request_failed(&mut self, sh: &mut Shell<AppEvent>, error: String) {
+        self.notice(sh, Notice { kind: NoticeKind::Error, title: error, ..Notice::default() });
+    }
+
     /// Handle a request from the CLI, a URL or a second instance. `reply` is `None` for this
     /// process's own launch request.
     pub(crate) fn handle_request(&mut self, sh: &mut Shell<AppEvent>, request: Request, reply: Option<Sender<Response>>) {
@@ -153,6 +215,12 @@ impl App {
                 answer(reply, Response::ok());
                 self.cmds.push(Command::Quit);
             }
+            // A headless `snapoleon capture` or `snapoleon mcp` that may not read the screen itself (snap_engine::agent).
+            Request::Grab { target, cursor, out } => {
+                let engine = self.engine.clone();
+                std::thread::spawn(move || answer(reply, snap_engine::agent::grab(&engine, target, cursor, Path::new(&out))));
+            }
+            Request::Status => answer(reply, snap_engine::agent::status()),
         }
     }
 

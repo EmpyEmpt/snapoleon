@@ -25,6 +25,19 @@ pub fn url(u: &str) -> Result<()> {
     imp::open_url(u)
 }
 
+/// Open a pane of the OS settings app: `x-apple.systempreferences:` on macOS, `ms-settings:` on Windows. Kept apart
+/// from [`url`], which refuses these schemes because it opens strings from captured text; callers pass the app's own
+/// constant links here.
+pub fn system_settings(u: &str) -> Result<()> {
+    let u = u.trim();
+    let allowed = ["x-apple.systempreferences:", "ms-settings:"];
+    let ok = allowed.iter().any(|s| u.len() > s.len() && u.get(..s.len()).is_some_and(|head| head.eq_ignore_ascii_case(s)));
+    if !ok || u.chars().any(char::is_control) {
+        return Err(Error::invalid(format!("refusing to open {u:?}")));
+    }
+    imp::open_url(u)
+}
+
 /// Show a file selected in its folder (Explorer, Finder, or the default file manager).
 pub fn reveal(p: &Path) -> Result<()> {
     if !p.exists() {

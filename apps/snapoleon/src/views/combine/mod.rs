@@ -27,8 +27,12 @@ pub const TAG: &str = "combine";
 /// Images are added to the end of the strip.
 const APPEND: usize = 0;
 
-pub fn open(cx: &mut OpenCx, images: Vec<RgbaImage>) {
-    let items = images.into_iter().enumerate().map(|(i, image)| Item::new(tf("combine.tile.name", &[("n", &(i + 1).to_string())]), image));
+/// `images` with their pixels per point.
+pub fn open(cx: &mut OpenCx, images: Vec<(RgbaImage, f32)>) {
+    let items = images
+        .into_iter()
+        .enumerate()
+        .map(|(i, (image, scale))| Item::new(tf("combine.tile.name", &[("n", &(i + 1).to_string())]), image, scale));
     let mut view = CombineView::new();
     view.add(items.collect());
     cx.open(window_spec(t("combine.title"), TAG, (1080.0, 720.0), (800.0, 520.0)), view);
@@ -72,6 +76,7 @@ struct Tile {
     id: u64,
     name: String,
     image: Arc<RgbaImage>,
+    scale: f32,
     thumb: RgbaImage,
     tex: Option<TextureHandle>,
 }
@@ -119,7 +124,14 @@ impl CombineView {
 
     fn add(&mut self, items: Vec<Item>) {
         for item in items {
-            self.tiles.push(Tile { id: self.next_id, name: item.name, image: Arc::new(item.image), thumb: item.thumb, tex: None });
+            self.tiles.push(Tile {
+                id: self.next_id,
+                name: item.name,
+                image: Arc::new(item.image),
+                scale: item.scale,
+                thumb: item.thumb,
+                tex: None,
+            });
             self.next_id += 1;
         }
         self.dirty = true;
@@ -227,13 +239,13 @@ impl CombineView {
 
     fn copy(&mut self, cx: &mut ViewCx) {
         if let Some(image) = self.result() {
-            source::copy_image(cx, image);
+            source::copy_image(cx, image, source::combined_scale(self.tiles.iter().map(|t| t.scale)));
         }
     }
 
     fn save(&mut self, cx: &mut ViewCx) {
         if let Some(image) = self.result() {
-            source::save_image(cx, image);
+            source::save_image(cx, image, source::combined_scale(self.tiles.iter().map(|t| t.scale)));
         }
     }
 
