@@ -128,6 +128,7 @@ pub fn show(ui: &mut Ui, rect: Rect, entry: &Entry, tex: Option<&TextureHandle>,
     if pointer_inside || look.selecting || look.selected {
         let check = Rect::from_min_size(Pos2::new(x, thumb.top() + 8.0), Vec2::splat(22.0));
         let check_resp = ui.interact(check, id.with("check"), Sense::CLICK);
+        check_resp.widget_info(|| WidgetInfo::selected(Role::CheckBox, true, look.selected, &title));
         let painter = ui.painter();
         if look.selected {
             painter.circle_filled(check.center(), 11.0, p.accent);

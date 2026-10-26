@@ -23,3 +23,8 @@ px = "{n} px"
 
 [ui.toast]
 dismiss = "Dismiss"
+
+# Names for assistive technology (screen readers, UI agents) of controls that show no text.
+[ui.a11y]
+color_field = "Saturation and brightness"
+hue = "Hue"

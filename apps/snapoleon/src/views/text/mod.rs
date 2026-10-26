@@ -559,8 +559,8 @@ fn edit_area(ui: &mut Ui, id: Id, content: &mut String, mono: bool, size: Vec2) 
             .lock_focus(true);
         ui.add_sized(Vec2::new(ui.available_width(), ui.available_height().max(40.0)), edit);
     });
-    // The whole area is the click target, not just the lines of text.
-    let click = ui.interact(rect, id.with("area"), Sense::click());
+    // The whole area is the click target, not just the lines of text. Not focusable: the text edit takes the keyboard.
+    let click = ui.interact(rect, id.with("area"), Sense::CLICK);
     if click.clicked() {
         ui.memory_mut(|m| m.request_focus(id));
     }

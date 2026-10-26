@@ -228,7 +228,7 @@ impl<'a> Rows<'a> {
             }
         });
         ui.add_space(space::SM);
-        ui.add_enabled_ui(!locked, content);
+        ui.add_enabled_ui(!locked, |ui| util::with_control_name(ui, &label, content));
         ui.add_space(space::MD);
         ui.add_space(-ui.spacing().item_spacing.y);
     }
@@ -561,10 +561,11 @@ pub fn form_row(ui: &mut Ui, label: &str, add: impl FnOnce(&mut Ui)) {
         let width = if avail < 150.0 + space::SM + 320.0 { (avail * 0.3).clamp(96.0, 150.0) } else { 150.0 };
         let galley = util::layout_wrapped(ui, label, &text::body_style(), p.text_dim, width);
         let height = galley.size().y.max(util::control_height(ui));
-        let (rect, _) = ui.allocate_exact_size(egui::vec2(width, height), Sense::hover());
+        let (rect, label_resp) = ui.allocate_exact_size(egui::vec2(width, height), Sense::hover());
+        label_resp.widget_info(|| egui::WidgetInfo::labeled(egui::Role::Label, true, label));
         let pos = egui::pos2(rect.left(), rect.center().y - galley.size().y / 2.0);
         ui.painter().galley(util::snap(ui, pos), galley, p.text_dim);
-        add(ui);
+        util::with_control_name(ui, label, add);
     });
 }
 

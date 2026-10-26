@@ -3,6 +3,7 @@
 use std::{collections::HashMap, time::Instant};
 
 use anyhow::anyhow;
+use egui_winit::accesskit_winit;
 use snap_core::{Error, Result};
 use winit::{
     application::ApplicationHandler,
@@ -156,6 +157,18 @@ impl<E: Send + 'static, A: ShellApp<E>> Runner<E, A> {
         }
     }
 
+    /// egui builds its accessibility tree only while a client (VoiceOver, an agent reading the UI) is attached, so a
+    /// window without one pays nothing for it.
+    fn accesskit(&mut self, event: accesskit_winit::Event) {
+        let Some(w) = self.core.ids.get(&event.window_id).and_then(|key| self.core.windows.get_mut(key)) else { return };
+        match event.window_event {
+            accesskit_winit::WindowEvent::InitialTreeRequested => w.ctx.enable_accesskit(),
+            accesskit_winit::WindowEvent::ActionRequested(request) => w.egui_state.on_accesskit_action_request(request),
+            accesskit_winit::WindowEvent::AccessibilityDeactivated => return w.ctx.disable_accesskit(),
+        }
+        w.window.request_redraw();
+    }
+
     /// Re-apply an overlay's exact rect when the OS has moved or rescaled it.
     fn enforce_cover(&mut self, key: WindowKey) {
         let Some(w) = self.core.windows.get_mut(&key) else { return };
@@ -199,6 +212,7 @@ impl<E: Send + 'static, A: ShellApp<E>> ApplicationHandler<Msg<E>> for Runner<E,
                 self.flush(el);
             }
             Msg::Hook(hook) => self.hook(el, hook),
+            Msg::AccessKit(event) => self.accesskit(event),
             Msg::Repaint { key, at } => self.schedule(key, at),
             Msg::RepaintAll => {
                 let now = Instant::now();

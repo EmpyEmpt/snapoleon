@@ -256,6 +256,13 @@ impl<'a> Chrome<'a> {
         };
         let center = self.center;
         let title = self.title;
+        // Window lists, the Window menu and assistive tools read the native title, which the bar drawn here hides:
+        // keep it the one shown, also after the title changes or the language is switched.
+        let title_id = egui::Id::unique("snap-native-title");
+        if ctx.data(|d| d.get_temp::<String>(title_id)).as_deref() != Some(title) {
+            ctx.data_mut(|d| d.insert_temp(title_id, title.to_owned()));
+            cx.shell.set_title(cx.win, title);
+        }
         let out = ctx.root_ui(|ui| {
             egui::CentralPanel::default()
                 .frame(egui::Frame::new().fill(palette(ui.ctx()).bg))

@@ -1,6 +1,5 @@
 use snap_core::{Error, Rect, Result};
 use winit::{
-    dpi::{PhysicalPosition, PhysicalSize},
     event_loop::ActiveEventLoop,
     monitor::MonitorHandle,
     platform::{
@@ -56,7 +55,7 @@ pub(crate) fn set_exclude_from_capture(_window: &Window, _on: bool) -> Result<()
 
 pub(crate) fn place_cover(window: &Window, r: Rect) {
     if window.fullscreen().is_none() {
-        winit_set_outer_rect(window, r);
+        super::winit_set_outer_rect(window, r);
     }
 }
 
@@ -88,7 +87,8 @@ pub(crate) fn show(window: &Window, _key: bool) {
 }
 
 pub(crate) fn app_active(windows: &mut dyn Iterator<Item = &Window>) -> bool {
-    windows.any(Window::has_focus)
+    // `any` needs a sized iterator; `&mut dyn Iterator` is one.
+    Iterator::any(&mut { windows }, Window::has_focus)
 }
 
 /// The OS gives the focus back to the window below when ours goes away.

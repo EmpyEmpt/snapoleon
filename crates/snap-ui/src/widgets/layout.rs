@@ -64,6 +64,11 @@ pub fn setting_row<R>(ui: &mut Ui, label: &str, desc: &str, control: impl FnOnce
     let row_h = if stacked { PAD + text_h + space::SM + prev.y + PAD + 2.0 } else { (text_h + 2.0 * PAD).max(prev.y + 16.0).max(52.0) };
 
     let (rect, resp) = ui.allocate_exact_size(Vec2::new(full_w, row_h), Sense::hover());
+    // The texts are painted, so they reach the accessibility tree through this node and as the control's name.
+    resp.widget_info(|| WidgetInfo::labeled(Role::Label, true, label));
+    if !desc.is_empty() {
+        ui.ctx().accesskit_node_builder(resp.id, |node| node.set_description(desc));
+    }
     if !first && ui.is_rect_visible(rect) {
         ui.painter().hline(rect.x_range(), rect.top() + 0.5, Stroke::new(1.0, p.border));
     }
@@ -82,7 +87,7 @@ pub fn setting_row<R>(ui: &mut Ui, label: &str, desc: &str, control: impl FnOnce
         rect
     };
     let mut child = ui.new_child(UiBuilder::new().max_rect(band).layout(Layout::right_to_left(Align::Center)));
-    let inner = control(&mut child);
+    let inner = util::with_control_name(&mut child, label, control);
     let used = child.min_rect().size();
     if (used - prev).abs().max_elem() > 0.5 {
         ui.data_mut(|d| d.insert_temp(id, used));

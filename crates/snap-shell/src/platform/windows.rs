@@ -163,7 +163,8 @@ pub(crate) fn show(window: &Window, _key: bool) {
 }
 
 pub(crate) fn app_active(windows: &mut dyn Iterator<Item = &Window>) -> bool {
-    windows.any(Window::has_focus)
+    // `any` needs a sized iterator; `&mut dyn Iterator` is one.
+    Iterator::any(&mut { windows }, Window::has_focus)
 }
 
 /// The OS gives the focus back to the window below when ours goes away.

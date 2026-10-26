@@ -551,6 +551,8 @@ impl EditorView {
             let y = if bottom { rect.bottom() - 9.0 } else { rect.top() + 9.0 };
             let hit = egui::Rect::from_center_size(egui::pos2(rect.center().x, y), Vec2::new(rect.width(), 18.0));
             let arrow = ui.interact(hit, ui.make_persistent_id(("rail-more", bottom)), egui::Sense::click());
+            let name = t(if bottom { "editor.a11y.tools_down" } else { "editor.a11y.tools_up" });
+            arrow.widget_info(|| egui::WidgetInfo::labeled(egui::Role::Button, true, &name));
             let color = if arrow.hovered() { p.text } else { p.text_dim };
             ui_util::paint_icon(ui, hit.center(), if bottom { icon::CARET_DOWN } else { icon::CARET_UP }, 12.0, color);
             if arrow.on_hover_cursor(egui::CursorIcon::PointingHand).clicked() {

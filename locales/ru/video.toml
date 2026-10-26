@@ -49,3 +49,6 @@ link_copied = "Ссылка скопирована"
 
 [macos.video.result]
 show = "Показать в Finder"
+
+[video.a11y]
+playhead = "Позиция воспроизведения"

@@ -157,7 +157,7 @@ impl ScrollView {
             ui.label(text::body_strong(t("scroll.title")));
         });
         // The panel has no title bar: the header moves it.
-        if ui.interact(row.response.rect, ui.scope_id().with("drag"), Sense::drag()).drag_started() {
+        if ui.interact(row.response.rect, ui.scope_id().with("drag"), Sense::DRAG).drag_started() {
             cx.shell.drag_window(cx.win);
         }
         let area = &self.input.rect;

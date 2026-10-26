@@ -405,6 +405,10 @@ impl Editor {
         ui.spacing_mut().item_spacing = Vec2::ZERO;
         let player_height = (ui.available_height() - BELOW_PLAYER).max(140.0);
         let (rect, surface) = ui.allocate_exact_size(Vec2::new(ui.available_width(), player_height), Sense::click());
+        let playing = self.playing.is_some();
+        surface.widget_info(|| {
+            egui::WidgetInfo::labeled(egui::Role::Button, ui.is_enabled(), t(if playing { "video.pause" } else { "video.play" }))
+        });
         self.paint_player(ui, rect);
         if surface.clicked() {
             self.toggle_play();

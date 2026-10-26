@@ -411,6 +411,7 @@ fn stamp_row(ui: &mut Ui, current: &mut Stamp) -> bool {
 
 fn icon_toggle(ui: &mut Ui, glyph: &str, tip: &str, selected: bool, p: &Palette) -> egui::Response {
     let (rect, resp) = ui.allocate_exact_size(Vec2::splat(28.0), Sense::click());
+    resp.widget_info(|| egui::WidgetInfo::selected(egui::Role::Button, ui.is_enabled(), selected, tip));
     if ui.is_rect_visible(rect) {
         let sel = anim(ui.ctx(), resp.id.with("sel"), selected, Motion::HOVER);
         let hover = hover_anim(ui, &resp);

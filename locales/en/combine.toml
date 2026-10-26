@@ -61,3 +61,6 @@ add = "Add"
 zoom_out = "Zoom out"
 zoom_in = "Zoom in"
 fit = "Fit to window"
+
+[combine.a11y]
+preview = "Preview"

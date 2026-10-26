@@ -2,7 +2,7 @@
 
 use std::time::{Duration, Instant};
 
-use egui::{Align, Color32, Layout, Margin, Pos2, Rect, Response, Sense, Stroke, StrokeKind, Ui, Vec2};
+use egui::{Align, Color32, Layout, Margin, Pos2, Rect, Response, Role, Sense, Stroke, StrokeKind, Ui, Vec2, WidgetInfo};
 use snap_core::{Rect as PxRect, t, tf};
 use snap_image::color::{self, WcagLevel};
 use snap_ui::{
@@ -114,6 +114,7 @@ fn copy_tooltip(ui: &Ui, row: &Response, rect: Rect, copied: bool) {
 fn copy_row(ui: &mut Ui, divider: bool, label: &str, value: &str, copied: bool) -> Response {
     let p = Palette::of(ui);
     let (rect, resp) = ui.allocate_exact_size(Vec2::new(ui.available_width(), 36.0), Sense::click());
+    resp.widget_info(|| util::valued_info(Some(label), Role::Button, ui.is_enabled(), value));
     let hover = util::hover_anim(ui, &resp);
     if ui.is_rect_visible(rect) {
         let painter = ui.painter();
@@ -144,6 +145,7 @@ pub fn recent(ui: &mut Ui, shown: &Shown, out: &mut Out) {
         ui.spacing_mut().item_spacing = Vec2::splat(space::SM);
         for (i, sample) in shown.colors.iter().enumerate() {
             let (rect, resp) = ui.allocate_exact_size(Vec2::splat(32.0), Sense::click());
+            resp.widget_info(|| WidgetInfo::selected(Role::Button, ui.is_enabled(), i == shown.selected, color::hex(sample.rgba)));
             let hover = util::hover_anim(ui, &resp);
             paint_chip(ui, rect, sample.rgba, 6.0);
             if i == shown.selected {
@@ -195,6 +197,8 @@ pub fn contrast(ui: &mut Ui, shown: &mut Shown, out: &mut Out) {
 fn slot(ui: &mut Ui, width: f32, label: &str, value: &mut [u8; 4], choices: &[[u8; 4]]) {
     let p = Palette::of(ui);
     let (rect, resp) = ui.allocate_exact_size(Vec2::new(width, 48.0), Sense::click());
+    let hex = color::hex(*value);
+    resp.widget_info(|| util::valued_info(Some(label), Role::Button, ui.is_enabled(), &hex));
     let hover = util::hover_anim(ui, &resp);
     let popup_open = egui::Popup::is_id_open(ui.ctx(), egui::Popup::default_response_id(&resp));
     if ui.is_rect_visible(rect) {
@@ -229,6 +233,7 @@ fn slot(ui: &mut Ui, width: f32, label: &str, value: &mut [u8; 4], choices: &[[u
                     ui.spacing_mut().item_spacing = Vec2::splat(6.0);
                     for &c in choices {
                         let (rect, resp) = ui.allocate_exact_size(Vec2::splat(32.0), Sense::click());
+                        resp.widget_info(|| WidgetInfo::selected(Role::Button, ui.is_enabled(), c == *value, color::hex(c)));
                         paint_chip(ui, rect, c, 6.0);
                         if c == *value {
                             ui.painter().rect_stroke(rect.expand(2.0), 8.0, Stroke::new(2.0, p.accent), StrokeKind::Outside);
@@ -320,6 +325,7 @@ fn gap(a: PxRect, b: PxRect) -> (u32, u32) {
 fn measurement_row(ui: &mut Ui, divider: bool, glyph: &str, value: &str, note: &str, copied: bool) -> Response {
     let p = Palette::of(ui);
     let (rect, resp) = ui.allocate_exact_size(Vec2::new(ui.available_width(), 52.0), Sense::click());
+    resp.widget_info(|| util::valued_info(Some(note), Role::Button, ui.is_enabled(), value));
     let hover = util::hover_anim(ui, &resp);
     if ui.is_rect_visible(rect) {
         let painter = ui.painter();

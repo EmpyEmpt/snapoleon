@@ -143,7 +143,8 @@ fn custom_well(ui: &mut Ui, color: &mut [u8; 4], selected: bool, alpha: bool, p:
 pub fn color_well(ui: &mut Ui, color: &mut [u8; 4], alpha: bool) -> Response {
     let p = Palette::of(ui);
     let (rect, mut resp) = ui.allocate_exact_size(Vec2::splat(CELL), Sense::click());
-    resp.widget_info(|| egui::WidgetInfo::labeled(egui::Role::Button, ui.is_enabled(), hex_string(*color, alpha)));
+    let name = util::control_name(ui);
+    resp.widget_info(|| util::valued_info(name.as_deref(), egui::Role::Button, ui.is_enabled(), &hex_string(*color, alpha)));
     let open = Popup::is_id_open(ui.ctx(), Popup::default_response_id(&resp));
     if ui.is_rect_visible(rect) {
         paint_swatch(ui, rect.center(), *color, open, hover_anim(ui, &resp), &p);
@@ -197,6 +198,7 @@ pub fn color_picker(ui: &mut Ui, color: &mut [u8; 4], alpha: bool) -> Response {
 
             // Saturation / value field.
             let (sv_rect, sv) = ui.allocate_exact_size(Vec2::new(PICKER_W, 132.0), Sense::click_and_drag());
+            sv.widget_info(|| egui::WidgetInfo::labeled(egui::Role::ColorWell, ui.is_enabled(), t("ui.a11y.color_field")));
             if let Some(pos) = sv.interact_pointer_pos()
                 && (sv.dragged() || sv.is_pointer_button_down_on())
             {
@@ -215,14 +217,14 @@ pub fn color_picker(ui: &mut Ui, color: &mut [u8; 4], alpha: bool) -> Response {
             painter.circle_stroke(knob, 8.5, Stroke::new(1.0, Color32::from_black_alpha(70)));
 
             // Hue bar.
-            let hue_bar = bar(ui, &mut hsva.h, &hue_texture(ui.ctx()), None, None);
+            let hue_bar = bar(ui, &mut hsva.h, &hue_texture(ui.ctx()), None, &t("ui.a11y.hue"), false);
             changed |= hue_bar;
 
             if alpha {
                 let base = Hsva { a: 1.0, ..hsva };
                 let tex = alpha_texture(ui.ctx(), base.to_srgb());
                 let mut a = hsva.a;
-                if bar(ui, &mut a, &tex, Some(base.to_srgb()), Some(t("ui.color.opacity").into_owned())) {
+                if bar(ui, &mut a, &tex, Some(base.to_srgb()), &t("ui.color.opacity"), true) {
                     hsva.a = a;
                     changed = true;
                 }
@@ -250,7 +252,10 @@ pub fn color_picker(ui: &mut Ui, color: &mut [u8; 4], alpha: bool) -> Response {
                     s = hex_string(hsva.to_srgba_unmultiplied(), alpha);
                 }
                 let before = s.clone();
-                let field = ui.add(TextField::new(&mut s).mono(true).width(ui.available_width()).hint(&t("ui.color.hex")));
+                let hex = t("ui.color.hex");
+                let field = util::with_control_name(ui, &hex, |ui| {
+                    ui.add(TextField::new(&mut s).mono(true).width(ui.available_width()).hint(&hex))
+                });
                 if field.changed()
                     && s != before
                     && let Some(c) = parse_color(&s)
@@ -271,11 +276,13 @@ pub fn color_picker(ui: &mut Ui, color: &mut [u8; 4], alpha: bool) -> Response {
     group
 }
 
-/// A 12 px gradient bar with a round handle. `value` is 0..1 (hue or alpha); returns true when it changed.
-fn bar(ui: &mut Ui, value: &mut f32, tex: &TextureHandle, handle_fill: Option<[u8; 3]>, tip: Option<String>) -> bool {
+/// A 12 px gradient bar with a round handle, named `name` (also its tooltip with `tip`). `value` is 0..1 (hue or
+/// alpha); returns true when it changed.
+fn bar(ui: &mut Ui, value: &mut f32, tex: &TextureHandle, handle_fill: Option<[u8; 3]>, name: &str, tip: bool) -> bool {
     let (rect, resp) = ui.allocate_exact_size(Vec2::new(PICKER_W, 14.0), Sense::click_and_drag());
-    if let Some(tip) = tip {
-        resp.clone().on_hover_text(tip);
+    resp.widget_info(|| egui::WidgetInfo::slider(ui.is_enabled(), f64::from(*value), name));
+    if tip {
+        resp.clone().on_hover_text(name);
     }
     let mut changed = false;
     let r = 7.0;

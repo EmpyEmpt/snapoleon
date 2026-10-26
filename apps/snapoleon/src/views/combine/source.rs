@@ -310,6 +310,7 @@ fn grid(ui: &mut egui::Ui, cards: &mut [Card], multi: bool) -> bool {
         egui::Grid::new("library-grid").num_columns(COLUMNS).spacing(Vec2::splat(CARD_GAP)).show(ui, |ui| {
             for (i, card) in cards.iter_mut().enumerate() {
                 let (rect, resp) = ui.allocate_exact_size(Vec2::new(cell_w, thumb_h + 22.0), Sense::click());
+                resp.widget_info(|| egui::WidgetInfo::selected(egui::Role::CheckBox, ui.is_enabled(), card.selected, &card.label));
                 let hover = util::hover_anim(ui, &resp);
                 let thumb = Rect::from_min_size(rect.min, Vec2::new(cell_w, thumb_h));
                 if ui.is_rect_visible(rect) {
@@ -420,6 +421,7 @@ pub fn source_menu(ui: &Ui, resp: &Response, latest: bool) -> Option<Pick> {
 fn menu_item(ui: &mut Ui, glyph: &str, label: &str) -> Response {
     let p = Palette::of(ui);
     let (rect, resp) = ui.allocate_exact_size(Vec2::new(ui.available_width(), 32.0), Sense::click());
+    resp.widget_info(|| egui::WidgetInfo::labeled(egui::Role::MenuItem, ui.is_enabled(), label));
     if ui.is_rect_visible(rect) {
         let hover = util::hover_anim(ui, &resp);
         ui.painter().rect_filled(rect, 6.0, p.hover().gamma_multiply(hover));
