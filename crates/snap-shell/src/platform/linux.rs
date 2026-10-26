@@ -1,5 +1,6 @@
 use snap_core::{Error, Rect, Result};
 use winit::{
+    dpi::{PhysicalPosition, PhysicalSize},
     event_loop::ActiveEventLoop,
     monitor::MonitorHandle,
     platform::{
@@ -55,12 +56,22 @@ pub(crate) fn set_exclude_from_capture(_window: &Window, _on: bool) -> Result<()
 
 pub(crate) fn place_cover(window: &Window, r: Rect, _monitors: &[(Rect, f32)]) {
     if window.fullscreen().is_none() {
-        super::winit_set_outer_rect(window, r);
+        winit_set_outer_rect(window, r);
     }
 }
 
-pub(crate) fn set_outer_rect(window: &Window, r: Rect) {
-    super::winit_set_outer_rect(window, r);
+pub(crate) fn set_outer_rect(window: &Window, r: Rect, _monitors: &[(Rect, f32)]) {
+    winit_set_outer_rect(window, r);
+}
+
+/// Position and size a window through winit only (no native calls).
+fn winit_set_outer_rect(window: &Window, r: Rect) {
+    let outer = window.outer_size();
+    let inner = window.inner_size();
+    let frame_w = outer.width.saturating_sub(inner.width);
+    let frame_h = outer.height.saturating_sub(inner.height);
+    window.set_outer_position(PhysicalPosition::new(r.x, r.y));
+    let _ = window.request_inner_size(PhysicalSize::new(r.w.saturating_sub(frame_w).max(1), r.h.saturating_sub(frame_h).max(1)));
 }
 
 #[allow(clippy::unnecessary_cast)] // `c_ulong` is 32-bit on 32-bit targets
@@ -73,3 +84,20 @@ pub(crate) fn native_id(window: &Window) -> Option<u64> {
 }
 
 pub(crate) fn activate(_window: &Window) {}
+
+pub(crate) fn show(window: &Window, _key: bool) {
+    window.set_visible(true);
+}
+
+pub(crate) fn app_active(windows: &mut dyn Iterator<Item = &Window>) -> bool {
+    windows.any(Window::has_focus)
+}
+
+/// The OS gives the focus back to the window below when ours goes away.
+pub(crate) fn remember_frontmost() {}
+
+pub(crate) fn restore_frontmost() {}
+
+pub(crate) fn safe_area_top(_window: &Window) -> f32 {
+    0.0
+}

@@ -106,18 +106,7 @@ impl<E: Send + 'static, A: ShellApp<E>> Runner<E, A> {
             w.window.request_redraw();
         }
         if w.want_visible && !w.shown {
-            w.shown = true;
-            w.window.set_visible(true);
-            platform::refresh(&w.window, w.tool_style);
-            if w.activate {
-                // A window opened by a hotkey or the tray must not appear behind the app the user is in: the OS
-                // only hands the foreground over when asked.
-                platform::activate(&w.window);
-            }
-            if let Some(on) = w.pending_passthrough.take() {
-                w.set_passthrough(on);
-            }
-            w.window.request_redraw();
+            w.show(true);
         }
         if close {
             self.request_close(el, key);

@@ -117,7 +117,7 @@ pub(crate) fn place_cover(window: &Window, r: Rect, _monitors: &[(Rect, f32)]) {
     }
 }
 
-pub(crate) fn set_outer_rect(window: &Window, r: Rect) {
+pub(crate) fn set_outer_rect(window: &Window, r: Rect, _monitors: &[(Rect, f32)]) {
     if let Some(h) = hwnd(window) {
         // SAFETY: plain Win32 call on a window owned by this process.
         unsafe { SetWindowPos(h, std::ptr::null_mut(), r.x, r.y, r.w as i32, r.h as i32, SWP_NOZORDER | SWP_NOACTIVATE) };
@@ -148,4 +148,21 @@ pub(crate) fn activate(window: &Window) {
         SetForegroundWindow(h);
         AttachThreadInput(ours, theirs, 0);
     }
+}
+
+pub(crate) fn show(window: &Window, _key: bool) {
+    window.set_visible(true);
+}
+
+pub(crate) fn app_active(windows: &mut dyn Iterator<Item = &Window>) -> bool {
+    windows.any(Window::has_focus)
+}
+
+/// The OS gives the focus back to the window below when ours goes away.
+pub(crate) fn remember_frontmost() {}
+
+pub(crate) fn restore_frontmost() {}
+
+pub(crate) fn safe_area_top(_window: &Window) -> f32 {
+    0.0
 }

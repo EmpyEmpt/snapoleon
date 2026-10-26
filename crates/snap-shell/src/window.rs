@@ -31,6 +31,8 @@ pub(crate) struct WindowState {
     pub activate: bool,
     pub first_pass_done: bool,
     pub shown: bool,
+    /// Focus was asked for while the window was hidden, when the OS ignores it; it is taken on show instead.
+    pub focus_on_show: bool,
     /// Click-through requested before the window was first shown.
     pub pending_passthrough: Option<bool>,
     pub opened_at: Instant,
@@ -77,6 +79,7 @@ impl WindowState {
             activate: setup.activate,
             first_pass_done: false,
             shown: false,
+            focus_on_show: false,
             pending_passthrough: None,
             opened_at: setup.opened_at,
             first_frame: None,
@@ -95,6 +98,29 @@ impl WindowState {
             tracing::warn!("set_passthrough failed: {e}");
         }
         crate::platform::refresh(&self.window, self.tool_style);
+    }
+
+    /// Put the window on screen. It takes the keyboard when focus was asked for while it was hidden, or when it is an
+    /// ordinary window that activates; covers and `activate: false` windows appear without it, so pins and HUDs leave
+    /// the keyboard where it is and the covers of an overlay do not take it from the one under the pointer.
+    /// `activate_app` also asks the OS for the foreground: a window opened by a hotkey or the tray must not appear
+    /// behind the app the user is in.
+    pub fn show(&mut self, activate_app: bool) {
+        self.shown = true;
+        let focus = std::mem::take(&mut self.focus_on_show);
+        let take_key = focus || (self.activate && self.cover.is_none());
+        crate::platform::show(&self.window, take_key);
+        crate::platform::refresh(&self.window, self.tool_style);
+        if focus || (activate_app && take_key) {
+            crate::platform::activate(&self.window);
+        }
+        if focus {
+            self.window.focus_window();
+        }
+        if let Some(on) = self.pending_passthrough.take() {
+            self.set_passthrough(on);
+        }
+        self.window.request_redraw();
     }
 
     /// Collect input for the next egui pass, or `None` while the window has no

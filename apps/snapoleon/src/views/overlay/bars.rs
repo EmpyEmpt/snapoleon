@@ -80,15 +80,15 @@ pub fn shown_rect(ctx: &Context) -> Option<Rect> {
     ctx.data(|d| d.get_temp(rect_id()))
 }
 
-/// A bar under (or over) `anchor`, remembering where it ended up.
-fn bar(ctx: &Context, name: &str, anchor: Rect, add: impl FnOnce(&mut Ui) -> Option<BarEvent>) -> Option<BarEvent> {
-    let out = floating_toolbar_anchored(ctx, Id::unique(name), anchor, ctx.content_rect(), add);
+/// A bar under (or over) `anchor`, kept inside `bounds`, remembering where it ended up.
+fn bar(ctx: &Context, name: &str, anchor: Rect, bounds: Rect, add: impl FnOnce(&mut Ui) -> Option<BarEvent>) -> Option<BarEvent> {
+    let out = floating_toolbar_anchored(ctx, Id::unique(name), anchor, bounds, add);
     ctx.data_mut(|d| d.insert_temp(rect_id(), out.response.rect));
     out.inner
 }
 
-pub fn instant(ctx: &Context, anchor: Rect) -> Option<BarEvent> {
-    bar(ctx, "snap-bar-instant", anchor, |ui| {
+pub fn instant(ctx: &Context, anchor: Rect, bounds: Rect) -> Option<BarEvent> {
+    bar(ctx, "snap-bar-instant", anchor, bounds, |ui| {
         let mut event = None;
         for group in GROUPS {
             for item in group.iter() {
@@ -105,8 +105,8 @@ pub fn instant(ctx: &Context, anchor: Rect) -> Option<BarEvent> {
     })
 }
 
-pub fn record(ctx: &Context, anchor: Rect, options: &mut RecordOptions) -> Option<BarEvent> {
-    bar(ctx, "snap-bar-record", anchor, |ui| {
+pub fn record(ctx: &Context, anchor: Rect, bounds: Rect, options: &mut RecordOptions) -> Option<BarEvent> {
+    bar(ctx, "snap-bar-record", anchor, bounds, |ui| {
         let mut event = None;
         segmented(ui, &mut options.format, &[(VideoFormat::Mp4, "MP4"), (VideoFormat::Gif, "GIF"), (VideoFormat::Webp, "WebP")]);
         toolbar_separator(ui);
@@ -144,8 +144,8 @@ pub fn record(ctx: &Context, anchor: Rect, options: &mut RecordOptions) -> Optio
     })
 }
 
-pub fn scroll(ctx: &Context, anchor: Rect) -> Option<BarEvent> {
-    bar(ctx, "snap-bar-scroll", anchor, |ui| {
+pub fn scroll(ctx: &Context, anchor: Rect, bounds: Rect) -> Option<BarEvent> {
+    bar(ctx, "snap-bar-scroll", anchor, bounds, |ui| {
         let mut event = None;
         if ui.add(Button::new(&t("overlay.scroll.start")).kind(ButtonKind::Primary).icon(icon::SCROLL)).clicked() {
             event = Some(BarEvent::Confirm);

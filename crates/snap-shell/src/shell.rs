@@ -168,15 +168,11 @@ impl<E: Send + 'static> Shell<'_, E> {
         if !v {
             state.window.set_visible(false);
             state.shown = false;
+            state.focus_on_show = false;
+            platform::refresh(&state.window, state.tool_style);
         } else if state.first_pass_done {
-            state.window.set_visible(true);
-            state.shown = true;
-            if let Some(on) = state.pending_passthrough.take() {
-                state.set_passthrough(on);
-            }
-            state.window.request_redraw();
+            state.show(false);
         }
-        platform::refresh(&state.window, state.tool_style);
     }
 
     /// Take the window off the screen for as long as a screen recording runs. Wayland cannot unmap a toplevel, so
@@ -212,11 +208,40 @@ impl<E: Send + 'static> Shell<'_, E> {
         }
     }
 
+    /// Give the window the keyboard focus, bringing the app forward. A window that is not on screen yet (it renders its
+    /// first frame hidden) takes the focus when it appears: the OS ignores the request for a hidden window.
     pub fn focus(&mut self, w: WindowKey) {
-        if let Some(state) = self.core.windows.get(&w) {
-            platform::activate(&state.window);
-            state.window.focus_window();
+        let Some(state) = self.core.windows.get_mut(&w) else { return };
+        if !state.shown {
+            state.focus_on_show = true;
+            return;
         }
+        platform::activate(&state.window);
+        state.window.focus_window();
+    }
+
+    /// Whether this app is the one the user is in (macOS: the active app; elsewhere: one of its windows has focus).
+    pub fn app_active(&self) -> bool {
+        platform::app_active(&mut self.core.windows.values().map(|s| s.window.as_ref()))
+    }
+
+    /// Remember the app the user is in, before a window of ours takes the keyboard, so
+    /// [`restore_focus`](Self::restore_focus) can hand it back. macOS only: Windows and X11 give the focus back to the
+    /// window below by themselves when ours goes away.
+    pub fn remember_focus(&mut self) {
+        platform::remember_frontmost();
+    }
+
+    /// Hand the keyboard back to the app [`remember_focus`](Self::remember_focus) saw, when this app is still the
+    /// active one. An accessory app whose last window was ordered out otherwise stays active with no key window.
+    pub fn restore_focus(&mut self) {
+        platform::restore_frontmost();
+    }
+
+    /// Height in points at the top of the window's screen that is hidden by a camera housing (MacBook notch); 0 where
+    /// there is none.
+    pub fn safe_area_top(&self, w: WindowKey) -> f32 {
+        self.core.windows.get(&w).map_or(0.0, |s| platform::safe_area_top(&s.window))
     }
 
     pub fn set_title(&mut self, w: WindowKey, t: &str) {
@@ -235,7 +260,7 @@ impl<E: Send + 'static> Shell<'_, E> {
             state.cover_dirty = true;
             platform::place_cover(&state.window, r, &monitor_list(self.el));
         } else {
-            platform::set_outer_rect(&state.window, r);
+            platform::set_outer_rect(&state.window, r, &monitor_list(self.el));
         }
     }
 

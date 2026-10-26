@@ -184,6 +184,7 @@ impl App {
         for _ in 0..16 {
             let cmds = std::mem::take(&mut self.cmds);
             if cmds.is_empty() {
+                self.sync_escape(sh);
                 return;
             }
             for cmd in cmds {

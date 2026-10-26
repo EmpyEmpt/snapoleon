@@ -61,3 +61,6 @@ none = "Текст не найден"
 [app.ipc]
 no_answer = "Snapoleon не ответил вовремя"
 link_refused = "Ссылка не может запустить это действие. Запустите его из Snapoleon или из командной строки."
+
+[app.countdown]
+cancel = "Esc — отмена"

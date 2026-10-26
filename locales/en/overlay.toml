@@ -39,3 +39,10 @@ record = "Select an area to record."
 scroll = "Select the area to scroll through."
 color = "Click to copy a color. Shift switches the format."
 measure = "Drag to measure, or click two elements. Hold Ctrl for distances to edges."
+
+[overlay.monitor]
+hint = "whole screen"
+
+[overlay.alert]
+title = "macOS is waiting for an answer"
+body = "A system dialog is open. Answer it, then press the shortcut again."
