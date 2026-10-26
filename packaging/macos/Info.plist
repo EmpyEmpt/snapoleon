@@ -6,15 +6,13 @@
   <key>LSUIElement</key>
   <true/>
   <key>LSMinimumSystemVersion</key>
-  <string>12.3</string>
+  <string>14.0</string>
   <key>NSHighResolutionCapable</key>
   <true/>
   <key>NSScreenCaptureUsageDescription</key>
   <string>Snapoleon needs Screen Recording access to capture screenshots and record your screen. Captures stay on this Mac unless you choose to share them.</string>
   <key>NSMicrophoneUsageDescription</key>
   <string>Snapoleon uses the microphone only when you turn on voice narration while recording the screen.</string>
-  <key>NSAppleEventsUsageDescription</key>
-  <string>Snapoleon uses Apple Events to reveal captured files in Finder.</string>
   <key>CFBundleURLTypes</key>
   <array>
     <dict>

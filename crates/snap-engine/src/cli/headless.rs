@@ -20,8 +20,10 @@ use snap_core::{
 };
 use snap_history::{History, Query};
 
-use super::{CaptureArgs, Cli, Command, HistoryCommand, OcrArgs, PipelineCommand, QrCommand, RecordArgs, UploadArgs};
-use crate::{Annotated, CaptureRequest, Engine, Notice, NoticeKind, Outcome, PipelineUi, RecordTarget, SaveOptions, capture, exec, share};
+use super::{CaptureArgs, Cli, Command, HistoryCommand, OcrArgs, PipelineCommand, QrCommand, RecordArgs, UploadArgs, system};
+use crate::{
+    Annotated, CaptureRequest, Engine, Notice, NoticeKind, Outcome, PipelineUi, RecordTarget, SaveOptions, agent, capture, exec, share,
+};
 
 /// How often the recording loop looks at its stop conditions.
 const POLL: Duration = Duration::from_millis(100);
@@ -44,7 +46,7 @@ pub fn run(cli: Cli) -> Result<i32> {
     }
 }
 
-fn error_line(e: &Error) -> String {
+pub(super) fn error_line(e: &Error) -> String {
     tf("cli.error.line", &[("message", &exec::error_text(e))])
 }
 
@@ -59,6 +61,12 @@ fn execute(command: Command, settings: Settings) -> Result<i32> {
         Command::Pipeline { action } => pipeline_cmd(action, settings),
         Command::Mcp => {
             crate::mcp::serve_stdio(Engine::new(settings))?;
+            Ok(0)
+        }
+        Command::List { what } => system::list_cmd(what),
+        Command::Doctor { json } => system::doctor_cmd(json),
+        Command::InstallCli { dir } => {
+            println!("{}", system::install_cli(dir.as_deref())?.display());
             Ok(0)
         }
         Command::Url { .. } | Command::Edit { .. } | Command::Pin { .. } | Command::Settings | Command::Quit => {
@@ -131,7 +139,7 @@ fn capture_cmd(args: CaptureArgs, mut settings: Settings) -> Result<i32> {
     if let Some(secs) = args.delay {
         std::thread::sleep(Duration::from_secs(u64::from(secs)));
     }
-    let cap = engine.capture(&request)?;
+    let cap = agent::capture(&engine, &request)?;
     let format: Option<ImageFormat> = args.format.map(Into::into);
 
     if args.out.as_deref() == Some(Path::new("-")) {
@@ -157,10 +165,24 @@ fn capture_cmd(args: CaptureArgs, mut settings: Settings) -> Result<i32> {
             steps
         }
     };
+    let (width, height, screen_rect) = (cap.image.width(), cap.image.height(), cap.screen_rect);
     let save = SaveOptions { path: args.out, format, ..SaveOptions::default() };
     let outcome = engine.run_steps_with_save(cap, &steps, &save, &CliUi::new())?;
-    print_outcome(&outcome);
+    if args.json {
+        let mut value = outcome_json(&outcome);
+        value["width"] = json!(width);
+        value["height"] = json!(height);
+        value["screen_rect"] = json!({ "x": screen_rect.x, "y": screen_rect.y, "w": screen_rect.w, "h": screen_rect.h });
+        print_json(&value)?;
+    } else {
+        print_outcome(&outcome);
+    }
     Ok(0)
+}
+
+pub(super) fn print_json(value: &impl serde::Serialize) -> Result<()> {
+    println!("{}", serde_json::to_string_pretty(value).map_err(|e| Error::Other(e.into()))?);
+    Ok(())
 }
 
 /// The shareable result on stdout: the link if there is one, else the file.
@@ -208,6 +230,11 @@ fn record_cmd(args: RecordArgs, settings: Settings) -> Result<i32> {
     let engine = Engine::new(settings);
     if !engine.recording_allowed() {
         return Err(Error::Policy(t("engine.error.recording_disabled").into_owned()));
+    }
+    // Unlike a screenshot, a recording cannot be handed to the app: it would be the app's recording, not this command's.
+    #[cfg(target_os = "macos")]
+    if !agent::can_read_screen() {
+        return Err(agent::host_permission_error());
     }
     let target = if let Some(r) = args.region {
         RecordTarget::Region(r)
@@ -284,7 +311,7 @@ fn ocr_cmd(args: OcrArgs, settings: &Settings) -> Result<i32> {
     if args.json {
         let mut value = serde_json::to_value(&result).map_err(|e| Error::Other(e.into()))?;
         value["text"] = json!(result.text());
-        println!("{}", serde_json::to_string_pretty(&value).map_err(|e| Error::Other(e.into()))?);
+        print_json(&value)?;
     } else if args.markdown || args.tsv {
         let table = if args.markdown { result.to_markdown_table() } else { result.to_tsv() };
         let Some(table) = table else {
@@ -310,7 +337,7 @@ fn qr_cmd(action: QrCommand) -> Result<i32> {
                 return Ok(1);
             }
             if json {
-                println!("{}", serde_json::to_string_pretty(&codes).map_err(|e| Error::Other(e.into()))?);
+                print_json(&codes)?;
             } else {
                 for code in &codes {
                     println!("{}", code.text);
@@ -369,7 +396,7 @@ fn history_cmd(action: HistoryCommand) -> Result<i32> {
     let HistoryCommand::Search { query, json, limit } = action;
     let entries = History::open_default()?.search(&Query { text: query.join(" "), limit, ..Query::default() })?;
     if json {
-        println!("{}", serde_json::to_string_pretty(&entries).map_err(|e| Error::Other(e.into()))?);
+        print_json(&entries)?;
         return Ok(0);
     }
     for e in &entries {
@@ -392,7 +419,7 @@ fn pipeline_cmd(action: PipelineCommand, settings: Settings) -> Result<i32> {
     match action {
         PipelineCommand::List { json } => {
             if json {
-                println!("{}", serde_json::to_string_pretty(&settings.pipelines).map_err(|e| Error::Other(e.into()))?);
+                print_json(&settings.pipelines)?;
             } else {
                 for p in &settings.pipelines {
                     println!("{}\t{}\t{}", p.id, p.name, p.steps.iter().map(step_name).collect::<Vec<_>>().join(","));
@@ -408,7 +435,7 @@ fn pipeline_cmd(action: PipelineCommand, settings: Settings) -> Result<i32> {
             let engine = Engine::new(settings);
             let outcome = engine.run_file(&image, CaptureKind::File, &steps, &CliUi::new())?;
             if json {
-                println!("{}", serde_json::to_string_pretty(&outcome_json(&outcome)).map_err(|e| Error::Other(e.into()))?);
+                print_json(&outcome_json(&outcome))?;
             } else {
                 print_outcome(&outcome);
             }

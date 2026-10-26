@@ -45,6 +45,48 @@ jobs:
       # Plain clippy: warnings are reported but do not block the build.
       - run: cargo clippy --workspace --all-targets
 
+  macos:
+    name: macOS (clippy, app bundle, smoke test)
+    runs-on: macos-15
+    env:
+      # The same floor as LSMinimumSystemVersion (packaging/macos/Info.plist); bundle.sh uses it too.
+      MACOSX_DEPLOYMENT_TARGET: "14.0"
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: clippy
+      - run: brew install nasm
+      - uses: Swatinem/rust-cache@v2
+        with:
+          key: macos-checks
+      # The only place where cfg(target_os = "macos") code is linted. Like the Ubuntu job, warnings do not fail it.
+      - run: cargo clippy --workspace --all-targets --locked
+      - name: Bundle (ad-hoc signature)
+        run: packaging/macos/bundle.sh --debug
+      # TCC attributes privacy grants by the signature: it must name app.snapoleon and cover the Info.plist.
+      - name: Check the signature
+        run: |
+          app=target/macos/Snapoleon.app
+          codesign --verify --strict "$app"
+          codesign -dv "$app" 2>&1 | tee "$RUNNER_TEMP/codesign.txt"
+          grep -q '^Identifier=app.snapoleon$' "$RUNNER_TEMP/codesign.txt"
+          grep -q '^Info.plist entries=' "$RUNNER_TEMP/codesign.txt"
+      # Commands that need no privacy permission, run from inside the bundle as an installed copy would be.
+      - name: Smoke test (CLI and MCP)
+        run: |
+          B=target/macos/Snapoleon.app/Contents/MacOS/snapoleon
+          "$B" --help
+          "$B" doctor
+          "$B" qr encode hi -o "$RUNNER_TEMP/q.png"
+          "$B" qr decode "$RUNNER_TEMP/q.png" --json | grep -q '"hi"'
+          printf '%s\n' \
+            '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2025-06-18","capabilities":{},"clientInfo":{"name":"ci","version":"0"}}}' \
+            '{"jsonrpc":"2.0","id":2,"method":"tools/list"}' \
+            | "$B" mcp | tee "$RUNNER_TEMP/mcp.txt"
+          grep -q '"capture_screen"' "$RUNNER_TEMP/mcp.txt"
+          grep -q '"permissions"' "$RUNNER_TEMP/mcp.txt"
+
   build:
     name: build (${{ matrix.name }})
     runs-on: ${{ matrix.os }}
@@ -112,6 +154,8 @@ jobs:
 
       - name: Build (macOS universal)
         if: matrix.target == 'universal'
+        env:
+          MACOSX_DEPLOYMENT_TARGET: "14.0"
         run: |
           cargo build --locked --profile ci -p snapoleon --target aarch64-apple-darwin
           cargo build --locked --profile ci -p snapoleon --target x86_64-apple-darwin

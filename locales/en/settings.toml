@@ -1081,3 +1081,10 @@ label = "Reset all settings"
 desc = "Back to the defaults. Destinations and saved secrets are kept."
 button = "Reset…"
 confirm = "Reset all settings"
+
+[settings.advanced.install_cli]
+label = "Command line tool"
+desc = "Add a snapoleon command to your PATH that runs this app, so terminals, scripts and agents can call it. macOS asks for an administrator password."
+button = "Install…"
+done = "Command line tool installed"
+failed = "Could not install the command line tool"

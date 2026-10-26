@@ -128,7 +128,7 @@ pub fn decode(bytes: &[u8]) -> Result<RgbaImage> {
 
 pub fn load(path: &Path) -> Result<RgbaImage> {
     let bytes = std::fs::read(path).map_err(|e| match e.kind() {
-        std::io::ErrorKind::NotFound => Error::NotFound(path.display().to_string()),
+        std::io::ErrorKind::NotFound => Error::NotFound(tf("image.error.no_file", &[("path", &path.display().to_string())])),
         _ => Error::Io(e),
     })?;
     decode(&bytes)

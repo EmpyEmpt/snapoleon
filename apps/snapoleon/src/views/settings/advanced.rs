@@ -7,7 +7,9 @@ use snap_core::{Settings, paths, policy::Policy, tf};
 use snap_ui::{Palette, ToastKind, Tone, icon, radius, space, text, widgets};
 
 use super::kit::{Msg, Rows, managed_badge, s};
-use crate::{commands::Command, views::ViewCx};
+use snap_engine::{Notice, NoticeKind};
+
+use crate::{commands::Command, events::AppEvent, views::ViewCx};
 
 #[derive(Default)]
 pub struct State {
@@ -156,9 +158,39 @@ fn command_line(ui: &mut Ui, rc: &mut Rows, cx: &mut ViewCx, exe: &str) {
     let claude_code = format!("claude mcp add snapoleon -- {quoted} mcp");
 
     rc.section(ui, &s("advanced.section.cli"), |ui, rc| {
+        if cfg!(not(windows)) {
+            rc.row(ui, "advanced.install_cli", |ui| {
+                if widgets::secondary_button(ui, &s("advanced.install_cli.button")).clicked() {
+                    install_cli(cx);
+                }
+            });
+        }
         rc.stacked(ui, false, "advanced.cli", |ui| snippet(ui, cx, &cli));
         rc.stacked(ui, false, "advanced.mcp_desktop", |ui| snippet(ui, cx, &mcp));
         rc.stacked(ui, false, "advanced.mcp_code", |ui| snippet(ui, cx, &claude_code));
+    });
+}
+
+/// `snapoleon install-cli` on a worker (it may wait for the macOS administrator prompt); the result is a notice.
+fn install_cli(cx: &ViewCx) {
+    let proxy = cx.proxy.clone();
+    std::thread::spawn(move || {
+        let notice = match snap_engine::cli::install_cli(None) {
+            Ok(path) => Notice {
+                kind: NoticeKind::Success,
+                title: s("advanced.install_cli.done"),
+                body: path.display().to_string(),
+                ..Notice::default()
+            },
+            Err(snap_core::Error::Cancelled) => return,
+            Err(e) => Notice {
+                kind: NoticeKind::Error,
+                title: s("advanced.install_cli.failed"),
+                body: crate::notices::error_text(&e),
+                ..Notice::default()
+            },
+        };
+        proxy.send(AppEvent::Notice(notice));
     });
 }
 

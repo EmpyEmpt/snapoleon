@@ -1,9 +1,11 @@
 #!/usr/bin/env bash
-# Build Snapoleon.app from source on a Mac, sign it, and optionally install it.
+# Build Snapoleon.app from source on a Mac, sign it, and optionally run or install it.
 #
-#   packaging/macos/bundle.sh                  # release build, bundle in target/macos/Snapoleon.app
-#   packaging/macos/bundle.sh --debug          # debug build (faster to compile)
-#   packaging/macos/bundle.sh --install        # also replace /Applications/Snapoleon.app and launch it
+#   packaging/macos/bundle.sh                      # release build, bundle in target/macos/Snapoleon.app
+#   packaging/macos/bundle.sh --debug              # debug build (faster to compile)
+#   packaging/macos/bundle.sh --run                # also open the built bundle where it is
+#   packaging/macos/bundle.sh --install            # also replace /Applications/Snapoleon.app and launch it
+#   packaging/macos/bundle.sh --reset-permissions  # also make macOS forget every privacy grant of app.snapoleon
 #
 # Signing decides whether macOS remembers the privacy permissions (Screen Recording, Accessibility) across
 # rebuilds. TCC keys a grant to the app's designated requirement:
@@ -17,14 +19,24 @@ set -euo pipefail
 root="$(cd "$(dirname "$0")/../.." && pwd)"
 profile=release
 install=0
+run=0
+reset=0
 for arg in "$@"; do
   case "$arg" in
     --debug) profile=debug ;;
     --install) install=1 ;;
-    -h|--help) sed -n '2,15p' "$0"; exit 0 ;;
+    --run) run=1 ;;
+    --reset-permissions) reset=1 ;;
+    -h|--help) sed -n '2,16p' "$0"; exit 0 ;;
     *) echo "unknown argument: $arg" >&2; exit 2 ;;
   esac
 done
+
+lsregister=/System/Library/Frameworks/CoreServices.framework/Frameworks/LaunchServices.framework/Support/lsregister
+installed=/Applications/Snapoleon.app
+
+# The same floor as LSMinimumSystemVersion in Info.plist and the release build.
+export MACOSX_DEPLOYMENT_TARGET="${MACOSX_DEPLOYMENT_TARGET:-14.0}"
 
 cd "$root"
 if [[ "$profile" == release ]]; then
@@ -65,20 +77,54 @@ if [[ -n "$identity" ]]; then
 else
   echo "signing ad-hoc: permissions will have to be granted again after every rebuild" >&2
   echo "(run packaging/macos/make-signing-identity.sh once to avoid that)" >&2
-  codesign --force --identifier app.snapoleon --entitlements packaging/macos/entitlements.plist --sign - "$app"
+  # The hardened runtime as in the release build, so a local build behaves like a shipped one.
+  codesign --force --options runtime --identifier app.snapoleon \
+    --entitlements packaging/macos/entitlements.plist --sign - "$app"
 fi
 codesign --verify --strict "$app"
 codesign -d -r- "$app" 2>&1 | sed -n 's/^designated => /designated requirement: /p'
 
-if [[ "$install" == 1 ]]; then
-  osascript -e 'tell application id "app.snapoleon" to quit' >/dev/null 2>&1 || true
-  pkill -x snapoleon >/dev/null 2>&1 || true
+# Process ids of the GUI app running from bundle $1. `snapoleon mcp` servers that agents keep open and CLI calls run
+# the same executable with a subcommand; they are left alone.
+gui_pids() {
+  local exe="$1/Contents/MacOS/snapoleon"
+  pgrep -l -f "^$exe( |\$)" 2>/dev/null | awk -v exe="$exe" '$2 == exe && ($3 == "" || $3 == "--background") { print $1 }' || true
+}
+
+# Ask the running app to quit over its own IPC, then end what is left of a GUI copy from bundle $1.
+stop_app() {
+  "$app/Contents/MacOS/snapoleon" quit >/dev/null 2>&1 || true
+  for _ in 1 2 3 4 5 6 7 8 9 10; do
+    [[ -z "$(gui_pids "$1")" ]] && return 0
+    sleep 0.5
+  done
+  gui_pids "$1" | xargs kill 2>/dev/null || true
   sleep 0.5
-  rm -rf /Applications/Snapoleon.app
-  ditto "$app" /Applications/Snapoleon.app
-  /System/Library/Frameworks/CoreServices.framework/Frameworks/LaunchServices.framework/Support/lsregister -f /Applications/Snapoleon.app
-  open /Applications/Snapoleon.app
-  echo "installed /Applications/Snapoleon.app"
+}
+
+if [[ "$reset" == 1 ]]; then
+  for service in ScreenCapture Accessibility ListenEvent Microphone; do
+    tccutil reset "$service" app.snapoleon >/dev/null 2>&1 || true
+  done
+  echo "reset Screen Recording, Accessibility, Input Monitoring and Microphone for app.snapoleon"
+fi
+
+if [[ "$install" == 1 ]]; then
+  stop_app "$installed"
+  rm -rf "$installed"
+  ditto "$app" "$installed"
+  # One registered app.snapoleon only: `open -b`, snapoleon:// links, notifications and the rows in System Settings
+  # otherwise pick whichever copy LaunchServices saw last (this build folder, a mounted DMG).
+  "$lsregister" -u "$app" >/dev/null 2>&1 || true
+  "$lsregister" -u /Volumes/Snapoleon/Snapoleon.app >/dev/null 2>&1 || true
+  rm -rf "$app"
+  "$lsregister" -f "$installed"
+  open "$installed"
+  echo "installed $installed"
+elif [[ "$run" == 1 ]]; then
+  stop_app "$app"
+  open "$app"
+  echo "running $app"
 else
   echo "built $app"
 fi

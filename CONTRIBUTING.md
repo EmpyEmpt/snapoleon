@@ -5,7 +5,7 @@ a language.
 
 ## Setup
 
-1. Install Rust 1.90 or newer (`rustup update stable`). The workspace uses edition 2024.
+1. Install Rust 1.95 or newer (`rustup update stable`). The workspace uses edition 2024.
 2. Linux only: install the build dependencies listed in the [README](README.md#build-from-source).
    PipeWire 1.0 or newer is required.
 3. Build and run:
@@ -20,7 +20,26 @@ a language.
 `apps/snapoleon` is the default workspace member, so plain `cargo run` starts the app.
 
 For the in-app development harness (how to open individual windows and views without going through the whole
-capture flow), see [docs/APP.md](docs/APP.md).
+capture flow), see [docs/APP.md](docs/APP.md). Do not run `cargo clean`; incremental builds are what keep the
+debug loop fast.
+
+### macOS
+
+On a Mac, `cargo run` starts the app as part of your terminal: macOS then checks Screen Recording and the other
+privacy permissions for the terminal, and there is no Info.plist or bundle id. That is fine for the dev harness, not
+for capture, permissions, notifications, hotkeys or `snapoleon://` links. For those:
+
+1. `brew install nasm` and the Xcode command line tools (`xcode-select --install`).
+2. Once per Mac: `packaging/macos/make-signing-identity.sh`. It creates a local signing certificate, so builds keep
+   one code signature and macOS keeps their permissions across rebuilds.
+3. `packaging/macos/bundle.sh --debug --install` builds, signs and installs `/Applications/Snapoleon.app` and starts
+   it. `--run` opens the build without installing.
+4. Reset the permissions to test first-run flows: `bundle.sh --reset-permissions`, or
+   `tccutil reset ScreenCapture|Accessibility|ListenEvent|Microphone app.snapoleon`.
+5. The log is `~/Library/Application Support/app.Snapoleon.Snapoleon/logs/snapoleon.log`;
+   `snapoleon doctor` shows the signature and the permissions of the app and of your terminal.
+
+The details, and how to screenshot windows from a script, are in [docs/MACOS.md](docs/MACOS.md).
 
 ## Architecture in one minute
 
@@ -78,7 +97,8 @@ Community translations are a goal of the project.
 - Prefer plain functions and data over trait hierarchies. Avoid new dependencies unless they pay for themselves;
   look at what is already in `[workspace.dependencies]` first.
 - Errors: library crates return `snap_core::Result`; use `anyhow` only in the binary. Never panic on user input.
-  The release profile uses `panic = "abort"`.
+  The release profile unwinds, so a panic in a view or a job thread is caught and reported instead of ending the app;
+  do not rely on that for ordinary errors.
 - Do not store secrets in settings files. Use the `SecretStore` (OS keyring) and keep a `secret_ref` instead.
 - Comments explain why, not what. Keep public items documented.
 - Do not use emojis in code, comments, commit messages or docs.
@@ -100,6 +120,6 @@ Describe in the pull request what you ran and what you saw.
 
 - Keep a change focused; separate refactors from behavior changes.
 - Mention the platforms you tested on. macOS and Linux testing from contributors is especially valuable.
-- Packaging changes under `packaging/` and `.github/` are checked by the release workflow only on tags; say
-  how you validated them.
+- Packaging changes under `packaging/` and `.github/` are checked by the release workflow only on tags (CI does build
+  and check the macOS bundle on every push); say how you validated them.
 - By submitting a contribution you agree to license it under the project's dual MIT / Apache-2.0 license.

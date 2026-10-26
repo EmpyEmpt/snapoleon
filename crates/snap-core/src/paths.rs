@@ -57,8 +57,13 @@ fn dirs() -> &'static Dirs {
 }
 
 fn portable_root() -> Option<PathBuf> {
-    let exe = std::env::current_exe().ok()?;
+    // Resolved, so a symlink to the executable (a PATH entry) does not make the folder it sits in look portable.
+    let exe = std::env::current_exe().and_then(std::fs::canonicalize).ok()?;
     let dir = exe.parent()?;
+    // A macOS app bundle is never portable: its data belongs in Application Support, not inside the signed bundle.
+    if dir.ends_with("Contents/MacOS") {
+        return None;
+    }
     (dir.join("portable").exists() || dir.join("data").is_dir()).then(|| dir.to_path_buf())
 }
 

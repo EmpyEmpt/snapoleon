@@ -30,6 +30,7 @@ pub use snap_ocr::{OcrResult, codes::Code};
 pub use snap_record::{RecordOptions, RecordTarget, Recording};
 pub use snap_redact::Hit;
 
+pub mod agent;
 pub mod cli;
 pub mod mcp;
 pub mod steps;
