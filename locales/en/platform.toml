@@ -9,3 +9,6 @@ duplicate = "{accel} is already assigned to shortcut {n} in this list"
 in_use = "{accel} is already in use by another application"
 wayland_hint = "Global hotkeys are not available in this Wayland session. Bind the command `snapoleon capture region` to a key in your desktop's keyboard shortcut settings."
 portal_cancelled = "The shortcut request was cancelled."
+
+[platform.autostart]
+translocated = "Move Snapoleon to the Applications folder and open it from there, then turn on launch at login again."

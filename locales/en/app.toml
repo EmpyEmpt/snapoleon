@@ -10,8 +10,8 @@ recent = "Recent captures"
 no_recent = "No captures yet"
 tools = "More tools"
 colors = "Colors and measurements"
-combine = "Combine images"
-compare = "Compare images"
+combine = "Combine images…"
+compare = "Compare images…"
 close_pins = "Close all pins"
 unlock_pins = "Unlock pins"
 quit = "Quit Snapoleon"
@@ -61,3 +61,20 @@ none = "No text found"
 [app.ipc]
 no_answer = "Snapoleon did not answer in time"
 link_refused = "A link cannot start this action. Start it from Snapoleon or the command line."
+
+[app.menu]
+settings = "Settings…"
+about = "About Snapoleon"
+open_last = "Open last capture"
+copy_last = "Copy last capture"
+copy_last_link = "Copy last link"
+no_file = "This capture has no file"
+
+[app.notify]
+open = "Open"
+show_in_finder = "Show in Finder"
+open_link = "Open link"
+
+[app.crash]
+title = "Snapoleon quit unexpectedly"
+body = "A report was saved. Open it to see what went wrong, or attach it to a bug report."

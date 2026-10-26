@@ -1,5 +1,7 @@
 //! General: language, theme, accent, startup, notifications, tray.
 
+use std::time::{Duration, Instant};
+
 use egui::Ui;
 use snap_core::{
     hotkey::Action,
@@ -7,6 +9,7 @@ use snap_core::{
     settings::{Theme, parse_hex_color, to_hex_color},
     t,
 };
+use snap_platform::autostart;
 use snap_ui::{
     Palette, ThemeSpec,
     widgets::{self, ColorSwatches},
@@ -18,6 +21,18 @@ use crate::{commands::Command, views::ViewCx};
 #[derive(Default)]
 pub struct State {
     languages: Option<Vec<(String, String)>>,
+    /// The OS's view of the login item and when it was read.
+    login_item: Option<(Instant, autostart::Status)>,
+}
+
+impl State {
+    /// Re-read every few seconds: the user can change it in the system settings while this page is open.
+    fn login_item(&mut self) -> autostart::Status {
+        if self.login_item.is_none_or(|(at, _)| at.elapsed() > Duration::from_secs(2)) {
+            self.login_item = Some((Instant::now(), autostart::status()));
+        }
+        self.login_item.map_or(autostart::Status::Off, |(_, status)| status)
+    }
 }
 
 /// Accent swatches after the brand blue: calm, saturated, readable on both themes.
@@ -32,6 +47,7 @@ const ACCENTS: [[u8; 4]; 7] = [
 ];
 
 pub fn show(ui: &mut Ui, rc: &mut Rows, st: &mut State, cx: &mut ViewCx, set: &mut snap_core::Settings) {
+    let needs_approval = !rc.env.portable && st.login_item() == autostart::Status::NeedsApproval;
     let languages = st.languages.get_or_insert_with(|| {
         let mut all = vec![(String::new(), s("general.language.system"))];
         all.extend(i18n::available_languages());
@@ -63,9 +79,26 @@ pub fn show(ui: &mut Ui, rc: &mut Rows, st: &mut State, cx: &mut ViewCx, set: &m
                 widgets::toggle(ui, &mut g.launch_at_login);
             }
         });
+        if needs_approval && g.launch_at_login {
+            rc.row(ui, "general.login_item_approval", |ui| {
+                if widgets::secondary_button(ui, &s("general.login_item_approval.button")).clicked() {
+                    kit::report(cx, autostart::open_login_items());
+                }
+            });
+        }
         rc.toggle(ui, "general.instant_overlay", &mut g.instant_overlay);
-        rc.choice(ui, "general.tray_click", &mut g.tray_click, &tray_actions);
+        // macOS menu bar convention: any click on the icon opens the menu, so there is no click action to choose.
+        if !cfg!(target_os = "macos") {
+            rc.choice(ui, "general.tray_click", &mut g.tray_click, &tray_actions);
+        }
         rc.toggle(ui, "general.show_notifications", &mut g.show_notifications);
+        if g.show_notifications && snap_platform::notify::blocked() {
+            rc.row(ui, "general.notifications_blocked", |ui| {
+                if widgets::secondary_button(ui, &s("general.notifications_blocked.button")).clicked() {
+                    kit::report(cx, snap_platform::notify::open_settings());
+                }
+            });
+        }
         rc.toggle(ui, "general.play_sounds", &mut g.play_sounds);
     });
 

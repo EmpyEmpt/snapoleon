@@ -1,8 +1,11 @@
 //! Notices, the progress pill and the end of jobs.
 
+use std::path::PathBuf;
+
 use egui::{Align2, Context, Id, Margin, Order, Stroke};
 use snap_core::{Error, ipc::Response, t};
 use snap_engine::{Notice, NoticeKind};
+use snap_platform::notify::{ActionLabels, NotifyAction, OsNotice};
 use snap_shell::Shell;
 use snap_ui::{
     Toast, ToastKind, palette, radius,
@@ -28,6 +31,41 @@ pub fn error_text(e: &Error) -> String {
     }
 }
 
+/// The titles of the buttons on OS notifications, in the current language.
+pub(crate) fn action_labels() -> ActionLabels {
+    ActionLabels {
+        open: t("app.notify.open").into_owned(),
+        reveal: t("app.notify.show_in_finder").into_owned(),
+        copy_link: t("app.notice.copy_link").into_owned(),
+        open_link: t("app.notify.open_link").into_owned(),
+    }
+}
+
+/// What a click on an OS notification (or one of its buttons) does.
+pub(crate) fn notify_command(action: NotifyAction) -> Command {
+    match action {
+        NotifyAction::Open { file: Some(file), .. } => open_file(file),
+        NotifyAction::Open { file: None, url: Some(url) } => Command::OpenUrl(url),
+        NotifyAction::Open { file: None, url: None } => Command::OpenLibrary,
+        NotifyAction::Reveal(file) => Command::Reveal(file),
+        NotifyAction::CopyLink(url) => Command::CopyText(url),
+        NotifyAction::OpenLink(url) => Command::OpenUrl(url),
+    }
+}
+
+/// Captures, projects and videos open in Snapoleon's editors; anything else (a GIF recording, a crash report) in
+/// its default app, as the tray's recent list does.
+fn open_file(path: PathBuf) -> Command {
+    let project = path.extension().is_some_and(|e| e.eq_ignore_ascii_case(snap_core::PROJECT_EXT));
+    let picture = image::ImageFormat::from_path(&path).is_ok_and(|f| f != image::ImageFormat::Gif);
+    if project || picture || crate::routing::is_video(&path) { Command::EditFile(path) } else { Command::OpenPath(path) }
+}
+
+/// The toast button that reveals a file, named like the platform's file manager.
+fn show_in_folder() -> std::borrow::Cow<'static, str> {
+    if cfg!(target_os = "macos") { t("app.notify.show_in_finder") } else { t("app.notice.show_in_folder") }
+}
+
 pub(crate) struct Progress {
     label: String,
     frac: Option<f32>,
@@ -50,17 +88,16 @@ impl App {
                 (Some(url), _) => toast
                     .action(t("app.notice.copy_link"), self.toast_actions.register(Command::CopyText(url.clone())))
                     .action(t("app.notice.show_qr"), self.toast_actions.register(Command::ShowQr(url.clone()))),
-                (None, Some(file)) => {
-                    toast.action(t("app.notice.show_in_folder"), self.toast_actions.register(Command::Reveal(file.clone())))
-                }
+                (None, Some(file)) => toast.action(show_in_folder(), self.toast_actions.register(Command::Reveal(file.clone()))),
                 (None, None) => toast,
             };
             slot.toasts.push_toast(toast);
             sh.repaint(win);
         } else if notice.kind == NoticeKind::Error || self.settings.general.show_notifications {
+            // Off the UI thread: the preview is copied for the notification (macOS) and the OS call may block.
             std::thread::spawn(move || {
-                let body = notice.url.as_deref().or(Some(notice.body.as_str())).filter(|b| !b.is_empty()).unwrap_or_default().to_string();
-                if let Err(e) = snap_platform::notify::show(&notice.title, &body, notice.image.as_deref()) {
+                let os = OsNotice { title: notice.title, body: notice.body, image: notice.image, file: notice.file, url: notice.url };
+                if let Err(e) = snap_platform::notify::show(&os) {
                     tracing::warn!("notification failed: {e}");
                 }
             });

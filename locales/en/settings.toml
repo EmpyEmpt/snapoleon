@@ -1081,3 +1081,13 @@ label = "Reset all settings"
 desc = "Back to the defaults. Destinations and saved secrets are kept."
 button = "Reset…"
 confirm = "Reset all settings"
+
+[settings.general.login_item_approval]
+label = "Allow in Login Items"
+desc = "Snapoleon is switched off in System Settings, General, Login Items, so it will not start at login."
+button = "Open Login Items"
+
+[settings.general.notifications_blocked]
+label = "Notifications are off"
+desc = "Snapoleon is not allowed to show notifications. Turn them on in System Settings, Notifications."
+button = "Open Notifications"
