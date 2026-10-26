@@ -20,7 +20,7 @@ pub struct WindowSpec {
     /// the window (mixed-DPI multi-monitor setups).
     pub cover: Option<Rect>,
     pub decorations: bool,
-    /// The app draws the title bar itself, this many logical pixels tall. On macOS the window still gets the
+    /// The app draws the title bar itself, this many egui points tall (scaled by the window's zoom). On macOS the window still gets the
     /// system's window controls, rounded corners, shadow, full screen and tiling: it is titled, with a transparent
     /// title bar over full-size content, and the traffic lights are centred in this height (see
     /// [`Shell::title_bar_inset`](crate::Shell::title_bar_inset)). Elsewhere `decorations` decides, as without it.

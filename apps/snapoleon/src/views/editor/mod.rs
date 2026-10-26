@@ -774,6 +774,9 @@ impl EditorView {
 
 impl View for EditorView {
     fn ui(&mut self, cx: &mut ViewCx, ctx: &Context) {
+        // Cmd+= / Cmd+- / Cmd+0 zoom the canvas here. egui's end-of-pass keyboard zoom would otherwise take them while
+        // typing (or with the close dialog up) and change the interface size of every window.
+        ctx.options_mut(|o| o.zoom_with_keyboard = false);
         if !std::mem::replace(&mut self.started, true) {
             demo::first_frame(self, cx);
         }

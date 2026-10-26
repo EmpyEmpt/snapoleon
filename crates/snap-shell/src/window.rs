@@ -40,9 +40,9 @@ pub(crate) struct WindowState {
     pub pill: bool,
     /// An ordinary app window (`WindowSpec::is_app_window`).
     pub app_window: bool,
-    /// Height of the title bar the app draws (`WindowSpec::title_bar`).
+    /// Height of the title bar the app draws (`WindowSpec::title_bar`), in egui points.
     pub title_bar: Option<f32>,
-    /// Width the OS's own window controls take at the left of that title bar (macOS traffic lights).
+    /// Width the OS's own window controls take at the left of that title bar (macOS traffic lights), in OS points.
     pub controls_inset: Option<f32>,
     pub want_visible: bool,
     /// Ask the OS for the foreground when the window appears (`WindowSpec::activate`).

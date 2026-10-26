@@ -55,6 +55,8 @@ pub(crate) mod app {
         None
     }
 
+    pub(crate) fn hook_edit(_window: &Window) {}
+
     pub(crate) fn title_bar_double_click(window: &Window) {
         window.set_maximized(!window.is_maximized());
     }
