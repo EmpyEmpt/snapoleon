@@ -476,8 +476,8 @@ pub fn copy_image(cx: &ViewCx, image: Arc<RgbaImage>, scale: f32) {
 }
 
 /// Ask where to save (starting in the configured folder with the configured name), then encode by
-/// the chosen file's extension.
-pub fn save_image(cx: &ViewCx, image: Arc<RgbaImage>) {
+/// the chosen file's extension. `scale` is as for [`copy_image`].
+pub fn save_image(cx: &ViewCx, image: Arc<RgbaImage>, scale: f32) {
     let capture = &cx.settings.capture;
     let dir = snap_core::paths::save_dir(&capture.save_dir);
     let name = snap_core::naming::expand(&capture.filename_template, &snap_core::naming::NameContext::now());
@@ -496,7 +496,7 @@ pub fn save_image(cx: &ViewCx, image: Arc<RgbaImage>) {
                 ImageFormat::Webp => webp,
                 ImageFormat::Png => 100,
             };
-            snap_image::encode::save(&image, &path, format, quality, optimize).map(|_| Some(path))
+            snap_image::encode::save(&image, &path, format, quality, optimize, Some(scale)).map(|_| Some(path))
         }))
     });
 }

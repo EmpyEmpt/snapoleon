@@ -7,6 +7,7 @@ use egui::{
     epaint::text::{LayoutJob, TextWrapping},
     load::SizedTexture,
 };
+use snap_core::capture::tidy_title;
 use snap_history::Entry;
 use snap_ui::{Palette, icon};
 
@@ -88,12 +89,14 @@ pub fn paint_texture(ui: &Ui, tex: &egui::TextureHandle, rect: Rect, uv: Rect, r
 
 /// The title a capture goes by: its window title, else the app, else what kind of capture it is.
 pub fn title_of(entry: &Entry) -> String {
-    [&entry.context.window_title, &entry.context.app_name]
-        .into_iter()
-        .flatten()
-        .map(|s| s.trim())
-        .find(|s| !s.is_empty())
-        .map_or_else(|| snap_history::kind_label(entry.kind).into_owned(), str::to_owned)
+    // Tidied here too: captures taken before titles were tidied at capture time keep their raw title.
+    entry
+        .context
+        .window_title
+        .as_deref()
+        .and_then(tidy_title)
+        .or_else(|| app_of(entry).map(str::to_owned))
+        .unwrap_or_else(|| snap_history::kind_label(entry.kind).into_owned())
 }
 
 pub fn app_of(entry: &Entry) -> Option<&str> {

@@ -455,6 +455,7 @@ impl ShellApp<AppEvent> for App {
             }
         }
 
+        escape_closes_popup(ctx);
         self.with_view(sh, win, |view, cx| view.ui(cx, ctx));
 
         if self.host == Some(win) {
@@ -533,6 +534,15 @@ impl App {
         for win in self.slots.keys().copied().collect::<Vec<_>>() {
             self.deliver(sh, win, Box::new(HistoryChanged));
         }
+    }
+}
+
+/// Escape over an open popup (a dropdown, a menu) closes that popup and nothing else. egui closes it while drawing
+/// it, halfway through the view, after which nothing tells the view what the key was for: it is spent here, before the
+/// view runs, so no window closes, steps back or drops its selection along with the list.
+fn escape_closes_popup(ctx: &Context) {
+    if egui::Popup::is_any_open(ctx) && ctx.input_mut(|i| i.consume_key(egui::Modifiers::NONE, egui::Key::Escape)) {
+        egui::Popup::close_all(ctx);
     }
 }
 

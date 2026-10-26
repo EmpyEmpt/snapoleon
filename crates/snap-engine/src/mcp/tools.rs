@@ -238,7 +238,7 @@ impl Tools {
 
     fn capture(&mut self, request: &CaptureRequest, args: &Value) -> Result<Output> {
         let cap = agent::capture(&self.engine, request)?;
-        let file = self.save_to(args, &cap.image)?;
+        let file = self.save_to(args, &cap.image, Some(cap.scale_factor))?;
         let (shown, scale) = shrink(&cap.image);
         let details = json!({
             "capture_id": cap.id,
@@ -261,8 +261,9 @@ impl Tools {
         Ok(output)
     }
 
-    /// Write the full-resolution image where the call's `save_to` says; the absolute path written.
-    fn save_to(&self, args: &Value, image: &RgbaImage) -> Result<Option<PathBuf>> {
+    /// Write the full-resolution image where the call's `save_to` says, at `scale` pixels per point when known; the
+    /// absolute path written.
+    fn save_to(&self, args: &Value, image: &RgbaImage, scale: Option<f32>) -> Result<Option<PathBuf>> {
         let Some(path) = args.get("save_to").and_then(Value::as_str).filter(|p| !p.trim().is_empty()) else {
             return Ok(None);
         };
@@ -274,7 +275,7 @@ impl Tools {
         let format = snap_image::encode::format_from_path(&path).unwrap_or(ImageFormat::Png);
         let capture = self.engine.settings().capture;
         let quality = if format == ImageFormat::Webp { capture.webp_quality } else { capture.jpeg_quality };
-        snap_image::encode::save(image, &path, format, quality, capture.optimize_png)?;
+        snap_image::encode::save(image, &path, format, quality, capture.optimize_png, scale)?;
         Ok(Some(std::path::absolute(&path).unwrap_or(path)))
     }
 
@@ -342,16 +343,17 @@ impl Tools {
         let id =
             args.get("id").and_then(Value::as_str).ok_or_else(|| Error::invalid(tf("mcp.error.missing_argument", &[("name", "id")])))?;
         let session = self.captures.iter().find(|c| c.id.0 == id);
-        let (image, details) = match session {
+        let (image, density, details) = match session {
             Some(cap) => (
                 cap.image.clone(),
+                Some(cap.scale_factor),
                 json!({ "capture_id": cap.id, "kind": kind_name(cap.kind), "app": cap.context.app_name, "window_title": cap.context.window_title, "url": cap.context.url }),
             ),
-            None => (self.find_image(id)?, entry_json(&self.history_entry(id)?)),
+            None => (self.find_image(id)?, None, entry_json(&self.history_entry(id)?)),
         };
         let (shown, scale) = shrink(&image);
         let mut details = details;
-        if let Some(file) = self.save_to(args, &image)? {
+        if let Some(file) = self.save_to(args, &image, density)? {
             details["file"] = json!(file);
         }
         details["width"] = json!(image.width());
@@ -423,7 +425,7 @@ fn shrink(img: &RgbaImage) -> (RgbaImage, f32) {
 }
 
 fn image_block(img: &RgbaImage) -> Result<Value> {
-    let png = snap_image::encode::encode(img, snap_core::settings::ImageFormat::Png, 100, false)?;
+    let png = snap_image::encode::encode(img, snap_core::settings::ImageFormat::Png, 100, false, None)?;
     Ok(json!({ "type": "image", "data": base64::engine::general_purpose::STANDARD.encode(png), "mimeType": "image/png" }))
 }
 

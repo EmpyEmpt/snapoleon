@@ -60,7 +60,8 @@ pub struct Look {
 pub fn show(ui: &mut Ui, rect: Rect, entry: &Entry, tex: Option<&TextureHandle>, look: &Look) -> Event {
     let p = Palette::of(ui);
     let id = ui.scope_id().with(("library-card", &entry.id.0));
-    let sense = if snap_platform::drag::SUPPORTED { Sense::click_and_drag() } else { Sense::CLICK };
+    // Only a capture with a file can be dragged out; one that was never saved has nothing to hand over.
+    let sense = if snap_platform::drag::SUPPORTED && entry.file.is_some() { Sense::click_and_drag() } else { Sense::CLICK };
     let resp = ui.interact(rect, id, sense);
     let hover = util::hover_anim(ui, &resp);
     let sel = util::anim(ui.ctx(), id.with("sel"), look.selected, util::Motion::HOVER);

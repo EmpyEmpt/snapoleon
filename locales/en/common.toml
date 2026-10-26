@@ -16,6 +16,12 @@ retry = "Retry"
 done = "Done"
 error = "Something went wrong"
 
+[common.size]
+b = "{n} B"
+kb = "{n} KB"
+mb = "{n} MB"
+gb = "{n} GB"
+
 [action]
 capture_region = "Capture region"
 capture_window = "Capture window"

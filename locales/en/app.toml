@@ -92,10 +92,10 @@ elements = "UI elements cannot be selected"
 
 [app.ready]
 title = "Snapoleon is now in the tray"
-body = "Press {accel} to capture. Everything else is in the menu of its tray icon."
-body_no_key = "Captures, recordings and settings are in the menu of its tray icon."
+body = "Press {accel} to capture. Click its tray icon for everything else."
+body_no_key = "Click its tray icon to capture, record or change settings."
 
 [macos.app.ready]
 title = "Snapoleon is now in the menu bar"
-body = "Press {accel} to capture. Everything else is in the menu of its icon in the menu bar."
-body_no_key = "Captures, recordings and settings are in the menu of its icon in the menu bar."
+body = "Press {accel} to capture. Click its menu bar icon for everything else."
+body_no_key = "Click its menu bar icon to capture, record or change settings."

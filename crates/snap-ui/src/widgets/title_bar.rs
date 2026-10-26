@@ -6,7 +6,10 @@
 //! macOS traffic lights of a window with a transparent title bar), the bar only keeps their place free
 //! ([`TitleBarActions::native_controls`]).
 
-use egui::{Color32, Context, InnerResponse, Pos2, Rect, Response, Role, Sense, Stroke, Ui, UiBuilder, Vec2, ViewportCommand, WidgetInfo};
+use egui::{
+    Color32, Context, InnerResponse, Pos2, Rect, Response, Role, Sense, Stroke, Ui, UiBuilder, Vec2, ViewportCommand, WidgetInfo,
+    text::{LayoutJob, TextWrapping},
+};
 use snap_core::t;
 
 use super::util::{self, hover_anim, lerp_color};
@@ -135,7 +138,11 @@ pub fn title_bar_with<R>(ui: &mut Ui, title: &str, actions: &mut TitleBarActions
         brand::logo_colored(&logo_painter, logo, brand::LogoColors::from_palette(&p));
         left += 18.0 + space::SM;
     }
-    let galley = util::layout(ui, title, &body_strong_style(), text_color);
+    // A long title (a file or window name) leaves the slot room for its controls: it is cut with an ellipsis.
+    let mut job = LayoutJob::simple_singleline(title.to_owned(), util::font_id(ui, &body_strong_style()), text_color);
+    job.wrap =
+        TextWrapping { max_width: ((right - left) * 0.4).max(1.0), max_rows: 1, break_anywhere: true, overflow_character: Some('…') };
+    let galley = ui.painter().layout_job(job);
     let pos = Pos2::new(left, rect.center().y - galley.size().y / 2.0);
     left += galley.size().x + space::LG;
     ui.painter().galley(util::snap(ui, pos), galley, text_color);

@@ -63,6 +63,7 @@ other = "Deleted {n} captures"
 [library.drawer]
 close = "Close details"
 missing = "The file is no longer there."
+not_saved = "This capture was not saved to disk."
 
 [library.empty]
 title = "Nothing here yet"
@@ -175,12 +176,6 @@ sep = "Sep"
 oct = "Oct"
 nov = "Nov"
 dec = "Dec"
-
-[library.size]
-b = "{n} B"
-kb = "{n} KB"
-mb = "{n} MB"
-gb = "{n} GB"
 
 [macos.library.action]
 reveal = "Show in Finder"

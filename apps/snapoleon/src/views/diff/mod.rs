@@ -217,8 +217,8 @@ impl DiffView {
     }
 
     fn save(&mut self, cx: &mut ViewCx) {
-        if let Some(image) = self.export_image() {
-            source::save_image(cx, image);
+        if let (Some(image), Some((a, b))) = (self.export_image(), self.pair()) {
+            source::save_image(cx, image, source::combined_scale([a.scale, b.scale]));
         }
     }
 

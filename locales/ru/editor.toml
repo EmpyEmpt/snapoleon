@@ -1,5 +1,6 @@
 [editor]
 title = "Редактор"
+title_named = "Редактор — {name}"
 undo = "Отменить"
 redo = "Повторить"
 copy_tip = "Копировать изображение"

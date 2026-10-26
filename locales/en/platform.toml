@@ -12,9 +12,12 @@ portal_cancelled = "The shortcut request was cancelled."
 
 [platform.hotkey.system]
 mac_screenshots = "macOS also uses {accel} to take screenshots, so both would run. Turn it off in System Settings > Keyboard > Keyboard Shortcuts > Screenshots, or choose another shortcut."
+mac_screenshots_brief = "{accel} also takes a macOS screenshot. Change it in Settings."
 mac_other = "macOS already uses {accel} for a system shortcut. Turn it off in System Settings > Keyboard > Keyboard Shortcuts, or choose another shortcut."
+mac_other_brief = "macOS already uses {accel}. Change it in Settings."
 mac_open = "Open Keyboard Shortcuts…"
 print_screen = "Windows opens Snipping Tool when Print Screen is pressed. Turn off “Use the Print screen key to open screen capture” in Settings > Accessibility > Keyboard, or choose another shortcut."
+print_screen_brief = "Print Screen also opens Snipping Tool. Change it in Settings."
 windows_open = "Open keyboard settings…"
 
 [platform.autostart]

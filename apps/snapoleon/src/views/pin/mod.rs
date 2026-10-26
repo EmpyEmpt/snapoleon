@@ -277,7 +277,7 @@ impl PinView {
     }
 
     fn save_as(&self, cx: &mut ViewCx) {
-        let image = self.image.clone();
+        let (image, scale) = (self.image.clone(), self.scale);
         let capture = &cx.settings.capture;
         let (dir, template, default_format) = (paths::save_dir(&capture.save_dir), capture.filename_template.clone(), capture.format);
         let (jpeg_quality, webp_quality, optimize_png) = (capture.jpeg_quality, capture.webp_quality, capture.optimize_png);
@@ -300,7 +300,7 @@ impl PinView {
                 default_format
             });
             let quality = if format == ImageFormat::Webp { webp_quality } else { jpeg_quality };
-            PinMsg::Saved(snap_image::encode::save(&image, &path, format, quality, optimize_png).map(|_| Some(path)))
+            PinMsg::Saved(snap_image::encode::save(&image, &path, format, quality, optimize_png, Some(scale)).map(|_| Some(path)))
         });
     }
 

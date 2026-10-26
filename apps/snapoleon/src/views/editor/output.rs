@@ -64,7 +64,7 @@ fn natural_width(doc: &Document) -> u32 {
 
 /// Bytes the image takes in the chosen format.
 pub fn encoded_len(img: &RgbaImage, p: &ExportParams) -> Result<u64> {
-    Ok(encode::encode(img, p.format, p.quality, p.optimize_png)?.len() as u64)
+    Ok(encode::encode(img, p.format, p.quality, p.optimize_png, None)?.len() as u64)
 }
 
 /// A small copy of `img` for previews, at most `max_side` on its longest side.

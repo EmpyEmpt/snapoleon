@@ -177,16 +177,3 @@ pub fn heading(ui: &mut Ui, label: &str) {
     ui.add_space(space::XS);
     ui.label(RichText::new(label).text_style(text::body_strong_style()));
 }
-
-/// `1.2 MB`, `482 KB`, `812 B`.
-pub fn bytes_label(bytes: u64) -> String {
-    const KB: f64 = 1024.0;
-    let b = bytes as f64;
-    if b < KB {
-        format!("{bytes} B")
-    } else if b < KB * KB {
-        format!("{:.0} KB", b / KB)
-    } else {
-        format!("{:.1} MB", b / (KB * KB))
-    }
-}

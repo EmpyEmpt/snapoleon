@@ -1,5 +1,6 @@
 [editor]
 title = "Editor"
+title_named = "Editor – {name}"
 undo = "Undo"
 redo = "Redo"
 copy_tip = "Copy image"

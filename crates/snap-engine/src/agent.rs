@@ -51,7 +51,7 @@ pub fn grab(engine: &Engine, target: GrabTarget, cursor: bool, out: &Path) -> Re
         GrabTarget::ElementAtCursor => CaptureRequest::ElementAtCursor,
     };
     let grabbed = engine.capture(&request).and_then(|cap| {
-        snap_image::encode::save(&cap.image, out, ImageFormat::Png, 100, false)?;
+        snap_image::encode::save(&cap.image, out, ImageFormat::Png, 100, false, Some(cap.scale_factor))?;
         Ok(cap)
     });
     match grabbed {

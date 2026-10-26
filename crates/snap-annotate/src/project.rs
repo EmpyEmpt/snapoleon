@@ -44,7 +44,7 @@ fn bad(reason: impl ToString) -> Error {
 }
 
 fn png(img: &RgbaImage) -> Result<Vec<u8>> {
-    encode::encode(img, ImageFormat::Png, 100, false)
+    encode::encode(img, ImageFormat::Png, 100, false, None)
 }
 
 /// Writes the project atomically (temporary file, then rename).

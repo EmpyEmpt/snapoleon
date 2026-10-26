@@ -71,6 +71,7 @@ pub fn export_markdown(guide: &Guide, dir: &Path) -> Result<PathBuf> {
             ImageFormat::Png,
             100,
             false,
+            None,
         )?;
         let caption = step.caption.trim();
         md.push_str(&format!("## {}. {caption}\n\n![{}]({images_dir}/{name})\n\n", i + 1, markdown_alt(caption)));
@@ -160,8 +161,9 @@ fn markdown_alt(s: &str) -> String {
 
 /// `data:` URI of the smaller of PNG and lossy WebP.
 fn embed_image(img: &RgbaImage) -> Result<String> {
-    let png = snap_image::encode::encode(img, ImageFormat::Png, 100, false)?;
-    let webp = snap_image::encode::encode(img, ImageFormat::Webp, HTML_WEBP_QUALITY, false).ok().filter(|w| w.len() * 5 < png.len() * 4);
+    let png = snap_image::encode::encode(img, ImageFormat::Png, 100, false, None)?;
+    let webp =
+        snap_image::encode::encode(img, ImageFormat::Webp, HTML_WEBP_QUALITY, false, None).ok().filter(|w| w.len() * 5 < png.len() * 4);
     let (mime, bytes) = match &webp {
         Some(w) => (ImageFormat::Webp.mime(), w),
         None => (ImageFormat::Png.mime(), &png),

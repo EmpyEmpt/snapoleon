@@ -1,6 +1,6 @@
 //! Backend-independent assembly: stitching monitor grabs, window context, snapshots.
 
-use snap_core::{Capture, CaptureContext, CaptureKind, Error, Point, Rect, Result, RgbaImage};
+use snap_core::{Capture, CaptureContext, CaptureKind, Error, Point, Rect, Result, RgbaImage, capture::tidy_title};
 
 use crate::{
     CaptureOptions, Frozen, MonitorInfo, WindowInfo, blit,
@@ -37,7 +37,7 @@ pub(crate) fn window_context(w: &WindowInfo, with_url: bool) -> CaptureContext {
     CaptureContext {
         app_name: Some(w.app_name.clone()).filter(|s| !s.is_empty()),
         app_id: w.app_id.clone(),
-        window_title: Some(w.title.clone()).filter(|s| !s.is_empty()),
+        window_title: tidy_title(&w.title),
         url: if with_url { platform::browser_url(w) } else { None },
         element: None,
         monitor_name: None,

@@ -128,7 +128,7 @@ fn conflicts(bindings: &[HotkeyBinding], refused: impl IntoIterator<Item = (usiz
         .map(|(index, error)| {
             let accel = bindings[index].accel.clone();
             // When the OS holds the key for a feature of its own, saying which and how to free it beats "in use".
-            let reason = hotkeys::system_conflict(&accel).map(|system| system.message).unwrap_or_else(|| match error {
+            let reason = hotkeys::system_conflict(&accel).map(|system| system.brief).unwrap_or_else(|| match error {
                 Error::Invalid(reason) => reason,
                 other => other.to_string(),
             });
@@ -175,7 +175,7 @@ impl App {
             let notice = Notice {
                 kind: NoticeKind::Warning,
                 title: t("app.hotkey.system_title").into_owned(),
-                body: conflict.message,
+                body: conflict.brief,
                 ..Notice::default()
             };
             self.notice(sh, notice);

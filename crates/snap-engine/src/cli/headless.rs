@@ -146,7 +146,7 @@ fn capture_cmd(args: CaptureArgs, mut settings: Settings) -> Result<i32> {
         let settings = engine.settings();
         let fmt = format.unwrap_or(settings.capture.format);
         let quality = if fmt == ImageFormat::Webp { settings.capture.webp_quality } else { settings.capture.jpeg_quality };
-        write_stdout(&snap_image::encode::encode(&cap.image, fmt, quality, settings.capture.optimize_png)?)?;
+        write_stdout(&snap_image::encode::encode(&cap.image, fmt, quality, settings.capture.optimize_png, Some(cap.scale_factor))?)?;
         return Ok(0);
     }
 
@@ -350,9 +350,9 @@ fn qr_cmd(action: QrCommand) -> Result<i32> {
         QrCommand::Encode { text, out, size } => {
             let img = snap_ocr::codes::try_qr(&text, size.clamp(1, 64))?;
             if out == Path::new("-") {
-                write_stdout(&snap_image::encode::encode(&img, ImageFormat::Png, 100, false)?)?;
+                write_stdout(&snap_image::encode::encode(&img, ImageFormat::Png, 100, false, None)?)?;
             } else {
-                snap_image::encode::save(&img, &out, ImageFormat::Png, 100, false)?;
+                snap_image::encode::save(&img, &out, ImageFormat::Png, 100, false, None)?;
                 println!("{}", out.display());
             }
             Ok(0)
