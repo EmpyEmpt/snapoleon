@@ -26,8 +26,8 @@ for each release by `packaging/render-manifests.py`, but none have been submitte
 Silent install:
 
 ```powershell
-.\Snapoleon-0.2.0-windows-x64-setup.exe /S
-msiexec /i Snapoleon-0.2.0-windows-x64.msi /qn
+.\Snapoleon-0.2.1-windows-x64-setup.exe /S
+msiexec /i Snapoleon-0.2.1-windows-x64.msi /qn
 ```
 
 Unsigned builds show a SmartScreen warning ("More info", then "Run anyway"). Signed releases use Azure Trusted
@@ -193,7 +193,7 @@ cargo build --release -p snapoleon
 cargo packager --config packaging/Packager.toml --release --formats nsis,wix   # Windows
 cargo packager --config packaging/Packager.toml --release --formats app,dmg    # macOS
 cargo packager --config packaging/Packager.toml --release --formats deb,appimage  # Linux
-pwsh packaging/windows/make-portable.ps1 -Exe target/release/snapoleon.exe -Version 0.2.0   # portable zip
+pwsh packaging/windows/make-portable.ps1 -Exe target/release/snapoleon.exe -Version 0.2.1   # portable zip
 ```
 
 On a Mac, `packaging/macos/bundle.sh` builds a signed `Snapoleon.app` for your own use without cargo-packager; see

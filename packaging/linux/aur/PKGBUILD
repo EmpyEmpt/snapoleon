@@ -3,7 +3,7 @@
 # pkgver and the sha256sums are updated by the release workflow (see packaging/linux/aur/).
 pkgname=snapoleon-bin
 _name=snapoleon
-pkgver=0.2.0
+pkgver=0.2.1
 pkgrel=1
 pkgdesc='Screenshots, screen recording, OCR and sharing, written in Rust'
 arch=('x86_64' 'aarch64')

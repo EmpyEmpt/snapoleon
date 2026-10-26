@@ -9,7 +9,7 @@
 name = "snapoleon"
 product-name = "Snapoleon"
 identifier = "app.snapoleon"
-version = "0.2.0" # the release workflow writes the Cargo.toml version here, after checking it matches the tag
+version = "0.2.1" # the release workflow writes the Cargo.toml version here, after checking it matches the tag
 description = "Screenshots, screen recording, OCR and sharing in one small Rust app"
 long-description = """
 Snapoleon is a screenshot, screen recording, OCR and sharing tool written entirely in Rust.
@@ -20,7 +20,8 @@ homepage = "https://github.com/EmpyEmpt/snapoleon"
 authors = ["The Snapoleon contributors"]
 publisher = "Snapoleon"
 copyright = "Copyright (c) The Snapoleon contributors"
-license-file = "../LICENSE-MIT"
+# No license-file: cargo-packager would put it on an "Agree" page in the DMG, the NSIS installer and the MSI. The app
+# is MIT / Apache-2.0 licensed, which asks nothing of the person installing it; the license texts are in the repository.
 category = "GraphicsAndDesign"
 
 out-dir = "../target/packager"

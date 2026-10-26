@@ -2,6 +2,10 @@
 
 All notable changes to Snapoleon. Versions follow [Semantic Versioning](https://semver.org).
 
+## [0.2.1] - 2026-10-26
+
+- The macOS disk image, the Windows installer and the MSI no longer ask you to accept a license before installing.
+
 ## [0.2.0] - 2026-10-26
 
 The macOS release: Snapoleon now runs on a Mac the way a Mac app should, and a lot of rough edges are gone on every
