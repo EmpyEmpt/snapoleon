@@ -109,10 +109,14 @@ pub fn ui(ui: &mut Ui, st: &mut State, cx: &mut PanelCx) -> Option<RectF> {
     let mut reveal = None;
     match (&st.job, &st.result) {
         (Job::Running, _) => {
+            let warming = snap_ocr::warming_up(&cx.vcx.settings.ocr);
             ui.add_space(space::XL);
             ui.vertical_centered(|ui| {
                 spinner(ui);
-                ui.label(text::dim(t("editor.ocr.running")));
+                ui.label(text::dim(t(if warming { "ocr.warmup.label" } else { "editor.ocr.running" })));
+                if warming {
+                    ui.label(text::caption(t("ocr.warmup.hint")));
+                }
             });
         }
         (_, None) => {

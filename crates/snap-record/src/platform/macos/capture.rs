@@ -162,7 +162,8 @@ fn ns_error(e: *mut NSError) -> Option<Error> {
     Some(Error::Other(anyhow!("ScreenCaptureKit: {}", e.localizedDescription())))
 }
 
-fn shareable_content() -> Result<Retained<SCShareableContent>> {
+/// `desktop_windows` also lists the desktop's own windows (wallpaper, Finder's icons), which are left out otherwise.
+fn shareable_content(desktop_windows: bool) -> Result<Retained<SCShareableContent>> {
     // Asking belongs to an explicit user action (the recorder's preflight, the record command), not to every
     // attempt to record: a system prompt from here would also pop up for scripted and repeated starts.
     if !CGPreflightScreenCaptureAccess() {
@@ -178,8 +179,21 @@ fn shareable_content() -> Result<Retained<SCShareableContent>> {
         let _ = tx.send(result);
     });
     // SAFETY: the block outlives the call and only uses thread-safe channel operations.
-    unsafe { SCShareableContent::getShareableContentWithCompletionHandler(&block) };
+    unsafe {
+        SCShareableContent::getShareableContentExcludingDesktopWindows_onScreenWindowsOnly_completionHandler(
+            !desktop_windows,
+            false,
+            &block,
+        )
+    };
     rx.recv_timeout(Duration::from_secs(10)).map_err(|_| Error::Other(anyhow!("ScreenCaptureKit did not answer")))?
+}
+
+/// Finder draws the desktop icons in a window of its own below every normal window (the same test as snap-capture's
+/// screenshot filter).
+fn is_desktop_icons(w: &SCWindow) -> bool {
+    // SAFETY: reading immutable properties of a listed window.
+    unsafe { w.windowLayer() < 0 && w.owningApplication().is_some_and(|app| app.bundleIdentifier().to_string() == "com.apple.finder") }
 }
 
 /// Pixels per point of a display.
@@ -191,7 +205,7 @@ fn display_scale(id: CGDirectDisplayID) -> f64 {
 }
 
 pub(crate) fn open_source(spec: &SourceSpec, slot: Arc<FrameSlot>) -> Result<Box<dyn FrameSource>> {
-    let content = shareable_content()?;
+    let content = shareable_content(spec.hide_desktop_icons)?;
     // SAFETY: reading immutable properties of SCK objects.
     let (displays, windows) = unsafe { (content.displays(), content.windows()) };
 
@@ -208,8 +222,12 @@ pub(crate) fn open_source(spec: &SourceSpec, slot: Arc<FrameSlot>) -> Result<Box
         key(a).partial_cmp(&key(b)).unwrap_or(std::cmp::Ordering::Equal)
     });
 
-    let excluded: Vec<Retained<SCWindow>> =
-        windows.iter().filter(|w| spec.exclude_windows.contains(&(unsafe { w.windowID() } as u64))).collect();
+    // Our own windows (the HUD) and, when asked, Finder's desktop icons; display filters drop them from the picture.
+    let excluded: Vec<Retained<SCWindow>> = windows
+        .iter()
+        // SAFETY: reading the window id.
+        .filter(|w| spec.exclude_windows.contains(&(unsafe { w.windowID() } as u64)) || (spec.hide_desktop_icons && is_desktop_icons(w)))
+        .collect();
     let excluded_refs: Vec<&SCWindow> = excluded.iter().map(|w| &**w).collect();
     let exclude = NSArray::from_slice(&excluded_refs);
 

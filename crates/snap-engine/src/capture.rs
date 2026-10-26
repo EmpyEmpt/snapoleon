@@ -1,9 +1,9 @@
 //! Non-interactive capture: turns a [`CaptureRequest`] into a [`Capture`].
 
-use std::time::Duration;
+use std::{path::Path, time::Duration};
 
 use snap_capture::{CaptureOptions, WindowInfo};
-use snap_core::{Capture, CaptureContext, CaptureKind, Error, Result, Settings, t, tf};
+use snap_core::{Capture, CaptureContext, CaptureKind, Error, Result, RgbaImage, Settings, t, tf};
 
 use crate::{CaptureRequest, Engine};
 
@@ -61,6 +61,18 @@ pub fn icons_hidden(settings: &Settings) -> Option<snap_capture::DesktopIconsGua
         std::thread::sleep(ICONS_SETTLE);
     }
     icons
+}
+
+/// A saved capture and its pixels per point, for the clipboard: the density the file records, else the scale of the
+/// monitor it was taken on (`monitor`, the history entry's `context.monitor_name`) while that monitor is connected,
+/// else 1. Saved files carry no density of their own, and history does not keep the scale.
+pub fn load_saved_image(file: &Path, monitor: Option<&str>) -> Result<(RgbaImage, f32)> {
+    let (image, density) = snap_image::encode::load_with_scale(file)?;
+    let scale = density.or_else(|| {
+        let name = monitor?;
+        snap_capture::monitors().ok()?.into_iter().find(|m| m.name == name).map(|m| m.scale_factor)
+    });
+    Ok((image, scale.unwrap_or(1.0)))
 }
 
 /// Grab pixels straight off the desktop, with the icons out of the way when the user asked for that.

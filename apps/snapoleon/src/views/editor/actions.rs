@@ -11,7 +11,7 @@ use snap_ui::{Toast, ToastKind};
 
 use super::{
     EditorView,
-    output::{ExportParams, Msg, Saved, render_export},
+    output::{ExportParams, Msg, Saved, export_scale, render_export},
 };
 use crate::{
     commands::Command,
@@ -81,7 +81,10 @@ impl EditorView {
         self.working.copy = true;
         self.export_rev = self.s.rev;
         let (doc, params, engine) = (self.s.doc.clone(), Self::params(cx), cx.engine.clone());
-        cx.spawn(move || Msg::Copied(engine.copy_image(&render_export(&doc, &params))));
+        cx.spawn(move || {
+            let image = render_export(&doc, &params);
+            Msg::Copied(engine.copy_image(&image, export_scale(&doc, &image)))
+        });
     }
 
     /// Save: the first time as a new library entry (picture plus editable project) through the engine's naming and

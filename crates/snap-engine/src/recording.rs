@@ -43,6 +43,7 @@ pub(crate) fn record_options(engine: &Engine, target: RecordTarget, format: Vide
         output: output_path(&s, format),
         ffmpeg: Some(PathBuf::from(r.ffmpeg_path.trim())).filter(|p| !p.as_os_str().is_empty()),
         exclude_windows: Vec::new(),
+        hide_desktop_icons: s.capture.hide_desktop_icons,
     }
 }
 

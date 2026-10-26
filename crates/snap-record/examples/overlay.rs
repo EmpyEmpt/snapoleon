@@ -117,6 +117,7 @@ fn main() -> snap_core::Result<()> {
             output: out.clone(),
             ffmpeg: None,
             exclude_windows: Vec::new(),
+            hide_desktop_icons: false,
         })?;
 
         let pause = |ms| std::thread::sleep(Duration::from_millis(ms));

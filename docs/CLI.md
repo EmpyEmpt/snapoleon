@@ -101,7 +101,12 @@ as that app, not as Snapoleon, and Snapoleon's own grant does not apply to it. S
 - `list windows` without Screen Recording shows empty titles (macOS hides them); it says so on standard error.
   `capture --window <title>` still works, because the app matches the title itself.
 
-`snapoleon doctor` shows the permissions of both: this process and the running app.
+`snapoleon doctor` shows the permissions of both: this process and the running app. Each permissions object has
+`screen_recording`, `accessibility`, `input_monitoring`, `microphone` and `needs_relaunch`. `needs_relaunch` is true
+when the app sent the user to grant Screen Recording (its prompt or its System Settings page) and still cannot use it:
+macOS applies a grant only to processes started after it, so restart the app (`snapoleon quit`, then open it) and
+check again. macOS does not expose a pending grant, so it is also true when the switch was left off; after a restart
+it is false until the app asks again.
 
 ## URL scheme
 

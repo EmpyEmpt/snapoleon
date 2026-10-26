@@ -47,6 +47,7 @@ pub(crate) struct SourceSpec<'a> {
     pub target: &'a RecordTarget,
     pub show_cursor: bool,
     pub exclude_windows: &'a [u64],
+    pub hide_desktop_icons: bool,
     pub system_audio: bool,
     pub fps: u32,
     pub ffmpeg: Option<&'a std::path::Path>,

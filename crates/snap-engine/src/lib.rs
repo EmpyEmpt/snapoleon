@@ -44,7 +44,7 @@ mod redact;
 mod remote;
 mod scroll;
 
-pub use capture::icons_hidden;
+pub use capture::{icons_hidden, load_saved_image};
 pub use remote::{LinkAccess, ServerEvent};
 pub use scroll::stitch_scroll;
 mod share;
@@ -338,8 +338,9 @@ impl Engine {
         share::copy_link(self, link, format, title, true)
     }
 
-    pub fn copy_image(&self, img: &RgbaImage) -> Result<()> {
-        snap_platform::clipboard::set_image(img)
+    /// Put an image on the clipboard; `scale` is its pixels per point, so a Retina capture pastes at its on-screen size.
+    pub fn copy_image(&self, img: &RgbaImage, scale: f32) -> Result<()> {
+        snap_platform::clipboard::set_image_scaled(img, scale)
     }
 
     pub fn ocr(&self, img: &RgbaImage) -> Result<OcrResult> {
