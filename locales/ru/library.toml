@@ -63,6 +63,7 @@ other = "Удалено {n} снимков"
 [library.drawer]
 close = "Закрыть сведения"
 missing = "Файла больше нет на месте."
+not_saved = "Этот снимок не сохранялся на диск."
 
 [library.empty]
 title = "Здесь пока пусто"
@@ -175,12 +176,6 @@ sep = "сент."
 oct = "окт."
 nov = "нояб."
 dec = "дек."
-
-[library.size]
-b = "{n} Б"
-kb = "{n} КБ"
-mb = "{n} МБ"
-gb = "{n} ГБ"
 
 [macos.library.action]
 reveal = "Показать в Finder"

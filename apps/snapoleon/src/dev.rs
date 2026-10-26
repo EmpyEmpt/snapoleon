@@ -238,7 +238,7 @@ fn take_shot(native: Option<u64>, rect: Option<Rect>, path: &Path) -> snap_core:
     if let Some(dir) = path.parent().filter(|d| !d.as_os_str().is_empty()) {
         std::fs::create_dir_all(dir)?;
     }
-    snap_image::encode::save(&capture.image, path, ImageFormat::Png, 90, false)?;
+    snap_image::encode::save(&capture.image, path, ImageFormat::Png, 90, false, Some(capture.scale_factor))?;
     Ok(how)
 }
 
@@ -316,7 +316,7 @@ fn seed_history(engine: &Engine, screen: Option<&RgbaImage>) {
         capture.context = demo_context(i);
         capture.taken_at_ms = now - (i as i64) * 7 * 3_600_000;
         let file = dir.join(format!("Snapoleon demo {i:02}.png"));
-        let bytes = snap_image::encode::save(&capture.image, &file, ImageFormat::Png, 90, false).unwrap_or(0);
+        let bytes = snap_image::encode::save(&capture.image, &file, ImageFormat::Png, 90, false, Some(capture.scale_factor)).unwrap_or(0);
         let mut entry = Entry::from_capture(&capture, Some(file), bytes);
         entry.thumb = snap_history::write_thumbnail(&capture.image, &capture.id).ok();
         entry.text = Some(DEMO_TEXT.lines().skip(i % 4).take(3).collect::<Vec<_>>().join(" "));

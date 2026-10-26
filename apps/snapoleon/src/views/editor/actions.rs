@@ -54,6 +54,8 @@ fn run(
 ) -> Result<snap_engine::Outcome> {
     let mut capture = meta.clone();
     capture.id = CaptureId::new();
+    // The picture is the export, perhaps shrunk to the maximum width: copies and files record its own density.
+    capture.scale_factor = export_scale(doc, &image);
     // The project remembers which library entry it belongs to, so that opening it again finds the entry.
     let mut document = doc.clone();
     document.meta.capture_id = Some(capture.id.clone());
@@ -391,7 +393,7 @@ fn save_in_place(
     let file = known_file.filter(|f| f.exists());
     if let Some(file) = &file {
         let format = encode::format_from_path(file).unwrap_or(params.format);
-        encode::save(&image, file, format, quality(&engine.settings(), format), params.optimize_png)?;
+        encode::save(&image, file, format, quality(&engine.settings(), format), params.optimize_png, Some(export_scale(doc, &image)))?;
         if let Err(e) = snap_history::write_thumbnail(&image, &meta.id) {
             tracing::warn!("could not refresh the library thumbnail: {e}");
         }

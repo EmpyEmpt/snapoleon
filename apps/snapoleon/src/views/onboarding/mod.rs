@@ -529,18 +529,20 @@ fn permission_row(ui: &mut Ui, cx: &ViewCx, perm: Perm, status: Status) {
             let (tile, _) = ui.allocate_exact_size(vec2(32.0, 32.0), Sense::hover());
             ui.painter().rect_filled(tile, 8.0, p.accent_soft);
             widgets::util::paint_icon(ui, tile.center(), glyph, 18.0, p.accent);
-            ui.vertical(|ui| {
-                // Room on the right for the widest action, "Open System Settings" with its icon.
-                ui.set_width((ui.available_width() - 200.0).max(120.0));
-                ui.horizontal(|ui| {
-                    ui.label(text::body_strong(t(&format!("onboarding.permissions.{key}.title"))));
-                    if required {
-                        badge(ui, &t("onboarding.permissions.required"), Tone::Gold);
-                    }
+            // The action first, from the right: the text then gets what that action, as wide as it turns out ("Open
+            // System Settings" and its translations), leaves, and the badge drops under a title that does not fit.
+            ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
+                perms::actions(ui, &cx.proxy, perm, status, required, false);
+                ui.with_layout(Layout::top_down(Align::Min), |ui| {
+                    ui.horizontal_wrapped(|ui| {
+                        ui.label(text::body_strong(t(&format!("onboarding.permissions.{key}.title"))));
+                        if required {
+                            badge(ui, &t("onboarding.permissions.required"), Tone::Gold);
+                        }
+                    });
+                    ui.add(egui::Label::new(text::caption(t(&format!("onboarding.permissions.{key}.body")))).wrap());
                 });
-                ui.add(egui::Label::new(text::caption(t(&format!("onboarding.permissions.{key}.body")))).wrap());
             });
-            ui.with_layout(Layout::right_to_left(Align::Center), |ui| perms::actions(ui, &cx.proxy, perm, status, required, false));
         });
     });
 }

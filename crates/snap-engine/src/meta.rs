@@ -1,5 +1,5 @@
 //! Removal of metadata (EXIF, XMP, GPS, text chunks) from image files we upload but did not encode ourselves.
-//! Images the engine encodes never carry metadata in the first place (see `snap_image::encode`).
+//! Images the engine encodes carry none in the first place, only their pixel density (see `snap_image::encode`).
 
 use snap_core::{Error, Result, settings::ImageFormat, t};
 
@@ -48,7 +48,7 @@ pub(crate) fn strip(bytes: Vec<u8>) -> Result<Vec<u8>> {
         Some(clean) => Ok(clean),
         None => {
             let img = snap_image::encode::decode(&bytes).map_err(|_| Error::invalid(t("engine.error.strip_failed")))?;
-            snap_image::encode::encode(&img, format, REENCODE_QUALITY, false)
+            snap_image::encode::encode(&img, format, REENCODE_QUALITY, false, None)
         }
     }
 }
@@ -57,7 +57,7 @@ fn strip_jpeg(b: &[u8]) -> Option<Vec<u8>> {
     // Dropping EXIF would also drop the rotation, so rotated photos are baked upright instead.
     if exif_orientation(b).is_some_and(|o| o != 1) {
         let upright = snap_image::encode::decode(b).ok()?;
-        return snap_image::encode::encode(&upright, ImageFormat::Jpeg, REENCODE_QUALITY, false).ok();
+        return snap_image::encode::encode(&upright, ImageFormat::Jpeg, REENCODE_QUALITY, false, None).ok();
     }
     let mut out = Vec::with_capacity(b.len());
     out.extend_from_slice(&b[..2]);

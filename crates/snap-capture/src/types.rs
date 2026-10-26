@@ -1,6 +1,7 @@
 use serde::{Deserialize, Serialize};
 use snap_core::{
     Capture, CaptureContext, CaptureKind, Point, Rect, RgbaImage,
+    capture::tidy_title,
     settings::{CaptureSettings, HdrMode},
 };
 
@@ -120,7 +121,7 @@ impl Frozen {
         if let Some(w) = self.window_at(center) {
             cap.context.app_name = Some(w.app_name.clone()).filter(|s| !s.is_empty());
             cap.context.app_id = w.app_id.clone();
-            cap.context.window_title = Some(w.title.clone()).filter(|s| !s.is_empty());
+            cap.context.window_title = tidy_title(&w.title);
         }
         cap
     }

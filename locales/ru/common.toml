@@ -16,6 +16,12 @@ retry = "Повторить"
 done = "Готово"
 error = "Что-то пошло не так"
 
+[common.size]
+b = "{n} Б"
+kb = "{n} КБ"
+mb = "{n} МБ"
+gb = "{n} ГБ"
+
 [action]
 capture_region = "Снимок области"
 capture_window = "Снимок окна"

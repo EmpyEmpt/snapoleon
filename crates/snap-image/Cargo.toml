@@ -17,6 +17,7 @@ tiny-skia = { version = "0.12", default-features = false, features = ["std", "si
 fast_image_resize = "6"
 ab_glyph = "0.2"
 webp = { version = "0.3", default-features = false }
+png = "0.18"
 oxipng = { version = "10", default-features = false, optional = true }
 rand.workspace = true
 tracing.workspace = true

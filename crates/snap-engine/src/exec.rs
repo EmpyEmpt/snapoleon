@@ -388,7 +388,7 @@ impl<'a> Run<'a> {
         }
         let dir = paths::cache_dir().join("run");
         let path = dir.join(format!("{}.png", self.cap.id));
-        snap_image::encode::save(&self.cap.image, &path, ImageFormat::Png, 100, false)?;
+        snap_image::encode::save(&self.cap.image, &path, ImageFormat::Png, 100, false, Some(self.cap.scale_factor))?;
         self.scratch = Some(path.clone());
         Ok(path)
     }

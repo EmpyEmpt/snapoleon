@@ -158,8 +158,14 @@ fn content(ui: &mut Ui, p: &Palette, state: &mut State, props: &Props, out: &mut
     ui.label(text::caption(format!("{kind} · {}", format::relative(props.now_ms, entry.created_ms))));
     ui.add_space(4.0);
 
-    if !props.file_ok {
-        missing_notice(ui, p);
+    // A capture that was only copied, pinned or read never had a file: say so plainly, it is not a fault. One kept as
+    // an editor project alone needs no note: it opens from that.
+    if entry.file.is_none() {
+        if entry.project.is_none() {
+            notice(ui, p, Tone::Neutral, icon::INFO, &t("library.drawer.not_saved"));
+        }
+    } else if !props.file_ok {
+        notice(ui, p, Tone::Warning, icon::WARNING, &t("library.drawer.missing"));
     }
     actions(ui, props, recording, out);
     ui.add_space(4.0);
@@ -237,12 +243,13 @@ fn spinner_at(ui: &mut Ui, center: Pos2) {
     ui.scope_builder(UiBuilder::new().max_rect(rect), spinner);
 }
 
-fn missing_notice(ui: &mut Ui, p: &Palette) {
-    egui::Frame::new().fill(p.tone_soft(Tone::Warning)).corner_radius(8).inner_margin(Margin::symmetric(10, 8)).show(ui, |ui| {
+fn notice(ui: &mut Ui, p: &Palette, tone: Tone, glyph: &str, message: &str) {
+    let fg = p.tone(tone);
+    egui::Frame::new().fill(p.tone_soft(tone)).corner_radius(8).inner_margin(Margin::symmetric(10, 8)).show(ui, |ui| {
         ui.set_width(ui.available_width());
         ui.horizontal(|ui| {
-            ui.label(RichText::new(icon::WARNING).color(p.warning));
-            ui.add(egui::Label::new(RichText::new(t("library.drawer.missing")).color(p.warning).size(12.0)).wrap());
+            ui.label(RichText::new(glyph).color(fg));
+            ui.add(egui::Label::new(RichText::new(message).color(fg).size(12.0)).wrap());
         });
     });
 }
@@ -275,7 +282,8 @@ fn actions(ui: &mut Ui, props: &Props, recording: bool, out: &mut Vec<Out>) {
                     out.push(Out::Act(Act::Upload));
                 }
             });
-            if icon_button(ui, icon::FOLDER_OPEN, &t("library.action.reveal"), None).clicked() {
+            let on_disk = props.entry.file.is_some() || props.entry.project.is_some();
+            if ui.add_enabled_ui(on_disk, |ui| icon_button(ui, icon::FOLDER_OPEN, &t("library.action.reveal"), None)).inner.clicked() {
                 out.push(Out::Act(Act::Reveal));
             }
             let more = icon_button(ui, icon::DOTS_THREE, &t("library.action.more"), None);
@@ -340,7 +348,7 @@ fn info(ui: &mut Ui, p: &Palette, entry: &Entry, out: &mut Vec<Out>) {
         info_row(ui, p, &t("library.info.size"), |ui, w| plain(ui, p, &format!("{} × {}", entry.width, entry.height), w, true));
     }
     if entry.bytes > 0 {
-        info_row(ui, p, &t("library.info.file_size"), |ui, w| plain(ui, p, &format::bytes(entry.bytes), w, true));
+        info_row(ui, p, &t("library.info.file_size"), |ui, w| plain(ui, p, &crate::views::file_size(entry.bytes), w, true));
     }
     if let Some(ms) = entry.duration_ms {
         info_row(ui, p, &t("library.info.duration"), |ui, w| plain(ui, p, &format::duration(ms), w, true));

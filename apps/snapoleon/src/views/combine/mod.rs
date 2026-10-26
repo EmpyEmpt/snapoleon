@@ -245,7 +245,7 @@ impl CombineView {
 
     fn save(&mut self, cx: &mut ViewCx) {
         if let Some(image) = self.result() {
-            source::save_image(cx, image);
+            source::save_image(cx, image, source::combined_scale(self.tiles.iter().map(|t| t.scale)));
         }
     }
 

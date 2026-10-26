@@ -240,7 +240,7 @@ impl SettingsView {
             return;
         }
         let back = ctx.input_mut(|i| i.consume_key(Modifiers::COMMAND, Key::OpenBracket))
-            || (!self.typing && !egui::Popup::is_any_open(ctx) && ctx.input_mut(|i| i.consume_key(Modifiers::NONE, Key::Escape)));
+            || (!self.typing && ctx.input_mut(|i| i.consume_key(Modifiers::NONE, Key::Escape)));
         if back {
             // Take the keyboard away, so a field still drawn this frame stores what was typed into it.
             ctx.memory_mut(|m| {

@@ -12,7 +12,7 @@ use crossbeam_channel::Sender;
 use egui::{Context, Event, Frame, Key, Margin, Modifiers, Panel as SidePanel, Stroke, Ui, UiBuilder, Vec2};
 use image::RgbaImage;
 use snap_annotate::{DocMeta, Document};
-use snap_core::{Capture, CaptureKind, PointF, Rect, Result, Settings, t, tf};
+use snap_core::{Capture, CaptureKind, PointF, Rect, Result, Settings, capture::tidy_title, t, tf};
 use snap_engine::Annotated;
 use snap_ui::{
     icon, palette, space, text,
@@ -254,9 +254,17 @@ impl EditorView {
         self.s.rev != self.saved_rev
     }
 
+    /// "Editor – name": the file saved to or opened, else what was captured (its window, the file it came from).
     fn title(&self) -> String {
-        match self.output_file.as_deref().or(self.project.as_deref()).and_then(|p| p.file_stem()) {
-            Some(name) => name.to_string_lossy().into_owned(),
+        let name = self
+            .output_file
+            .as_deref()
+            .or(self.project.as_deref())
+            .and_then(|p| p.file_stem())
+            .map(|n| n.to_string_lossy().into_owned())
+            .or_else(|| self.meta.context.window_title.as_deref().and_then(tidy_title));
+        match name {
+            Some(name) => tf("editor.title_named", &[("name", &name)]),
             None => t("editor.title").into_owned(),
         }
     }
@@ -602,7 +610,7 @@ impl EditorView {
                     Some(e) => {
                         let size = format!("{} × {}", e.size.0, e.size.1);
                         match e.bytes {
-                            Some(b) => format!("{size}  ·  ~{}", panel::bytes_label(b)),
+                            Some(b) => format!("{size}  ·  ~{}", super::file_size(b)),
                             None => size,
                         }
                     }

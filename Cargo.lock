@@ -6384,6 +6384,7 @@ dependencies = [
  "fast_image_resize",
  "image",
  "oxipng",
+ "png",
  "rand 0.9.5",
  "rayon",
  "snap-core",

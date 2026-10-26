@@ -8,11 +8,12 @@ use snap_ui::{
     widgets::{Button, ButtonKind, Slider, dropdown, segmented, spinner},
 };
 
-use super::{PanelCx, bytes_label, field, heading, switch_row};
+use super::{PanelCx, field, heading, switch_row};
 use crate::{
     commands::Command,
     views::{
         editor::output::{ExportParams, Msg},
+        file_size,
         settings::SettingsPage,
     },
 };
@@ -130,7 +131,7 @@ fn result_card(ui: &mut Ui, cx: &mut PanelCx, params: ExportParams) {
             let size = estimate.map_or(waiting.clone(), |((w, h), _)| format!("{w} × {h} px"));
             dim(ui, t("editor.export.result_size").into_owned(), size);
             let weight = match (estimate, params.format) {
-                (Some((_, Some(bytes))), _) => format!("~{}", bytes_label(bytes)),
+                (Some((_, Some(bytes))), _) => format!("~{}", file_size(bytes)),
                 _ => waiting,
             };
             dim(ui, t("editor.export.file_size").into_owned(), weight);

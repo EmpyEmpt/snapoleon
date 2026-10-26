@@ -100,6 +100,7 @@ mod mac {
         let key = if is_screenshot(code, mods) { "platform.hotkey.system.mac_screenshots" } else { "platform.hotkey.system.mac_other" };
         Some(SystemConflict {
             message: tf(key, &[("accel", &accel)]),
+            brief: tf(&format!("{key}_brief"), &[("accel", &accel)]),
             open_label: t("platform.hotkey.system.mac_open").into_owned(),
             settings_url: SETTINGS_URL,
         })
@@ -276,6 +277,7 @@ mod win {
         }
         Some(SystemConflict {
             message: t("platform.hotkey.system.print_screen").into_owned(),
+            brief: t("platform.hotkey.system.print_screen_brief").into_owned(),
             open_label: t("platform.hotkey.system.windows_open").into_owned(),
             settings_url: SETTINGS_URL,
         })

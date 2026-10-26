@@ -60,6 +60,8 @@ pub fn display(accel: &str) -> String {
 pub struct SystemConflict {
     /// What the OS does with the shortcut and where to turn that off, as a sentence for the user.
     pub message: String,
+    /// The same in a few words, short enough for a notification banner.
+    pub brief: String,
     /// Label for a button that opens [`settings_url`](Self::settings_url).
     pub open_label: String,
     /// The OS settings page where the system shortcut can be turned off.

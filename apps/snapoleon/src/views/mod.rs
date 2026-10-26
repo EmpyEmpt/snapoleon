@@ -10,7 +10,7 @@
 use std::{any::Any, collections::HashMap, sync::OnceLock};
 
 use egui::{Context, Key, SystemTheme, Ui, ViewportCommand};
-use snap_core::{Error, RgbaImage, Settings, t};
+use snap_core::{Error, RgbaImage, Settings, t, tf};
 use snap_engine::{Engine, Notice, NoticeKind};
 use snap_shell::{Proxy, Shell, WindowKey, WindowSpec};
 use snap_ui::{
@@ -183,6 +183,19 @@ impl OpenCx<'_, '_> {
     pub fn notify(&self, notice: Notice) {
         self.proxy.send(AppEvent::Notice(notice));
     }
+}
+
+/// A file size in the user's language: "812 B", "238 KB", "1.4 MB".
+pub fn file_size(n: u64) -> String {
+    const UNITS: [&str; 4] = ["b", "kb", "mb", "gb"];
+    let mut value = n as f64;
+    let mut unit = 0;
+    while value >= 1024.0 && unit < UNITS.len() - 1 {
+        value /= 1024.0;
+        unit += 1;
+    }
+    let number = if unit == 0 || value >= 100.0 { format!("{value:.0}") } else { format!("{value:.1}") };
+    tf(&format!("common.size.{}", UNITS[unit]), &[("n", &number)])
 }
 
 /// The app icon every window carries.
