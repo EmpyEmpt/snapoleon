@@ -70,6 +70,9 @@ pub struct RecordOptions {
     pub ffmpeg: Option<PathBuf>,
     /// Native window ids (of this process) to leave out of the capture, e.g. the recorder HUD.
     pub exclude_windows: Vec<u64>,
+    /// Leave Finder's desktop icons out of the capture (macOS). Elsewhere the caller hides them on screen for the
+    /// whole recording through `snap_capture::hide_desktop_icons`.
+    pub hide_desktop_icons: bool,
 }
 
 /// The finished file.

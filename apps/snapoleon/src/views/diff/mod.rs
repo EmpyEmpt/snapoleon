@@ -33,7 +33,7 @@ pub fn open(cx: &mut OpenCx, a: Option<RgbaImage>, b: Option<RgbaImage>) {
     let mut view = DiffView::new();
     for (slot, image) in [(BEFORE, a), (AFTER, b)] {
         if let Some(image) = image {
-            view.set(slot, Item::new(t("diff.capture").into_owned(), image));
+            view.set(slot, Item::new(t("diff.capture").into_owned(), image, 1.0));
         }
     }
     cx.open(window_spec(t("diff.title"), TAG, (1120.0, 800.0), (820.0, 560.0)), view);
@@ -76,6 +76,7 @@ impl Params {
 struct Slot {
     name: String,
     image: Arc<RgbaImage>,
+    scale: f32,
     thumb: RgbaImage,
     thumb_tex: Option<TextureHandle>,
     /// Full-size texture, only needed by the swipe mode.
@@ -123,7 +124,8 @@ impl DiffView {
     }
 
     fn set(&mut self, slot: usize, item: Item) {
-        self.slots[slot] = Some(Slot { name: item.name, image: Arc::new(item.image), thumb: item.thumb, thumb_tex: None, tex: None });
+        self.slots[slot] =
+            Some(Slot { name: item.name, image: Arc::new(item.image), scale: item.scale, thumb: item.thumb, thumb_tex: None, tex: None });
         self.outcome = None;
         self.dirty = true;
     }
@@ -209,8 +211,8 @@ impl DiffView {
     }
 
     fn copy(&mut self, cx: &mut ViewCx) {
-        if let Some(image) = self.export_image() {
-            source::copy_image(cx, image);
+        if let (Some(image), Some((a, b))) = (self.export_image(), self.pair()) {
+            source::copy_image(cx, image, source::combined_scale([a.scale, b.scale]));
         }
     }
 

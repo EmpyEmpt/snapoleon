@@ -104,6 +104,11 @@ pub struct Permissions {
     pub accessibility: bool,
     pub input_monitoring: bool,
     pub microphone: bool,
+    /// macOS: this process sent the user to grant Screen Recording and still cannot use it, so a grant made since
+    /// applies only after a relaunch (`snap_platform::permissions::needs_relaunch`; also true when the user left it
+    /// off).
+    #[serde(default)]
+    pub needs_relaunch: bool,
 }
 
 /// The running app, as [`Request::Status`] reports it.

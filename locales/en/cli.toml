@@ -173,6 +173,7 @@ microphone = "Microphone"
 [cli.doctor.hint]
 start_app = "Snapoleon is not running. Open it once to grant its permissions; after that, captures from the command line start it in the background and go through it."
 app_screen = "Snapoleon cannot capture yet: turn it on in System Settings > Privacy & Security > Screen & System Audio Recording, then quit and reopen Snapoleon."
+app_relaunch = "Snapoleon still cannot capture. If you have just turned it on in System Settings > Privacy & Security > Screen & System Audio Recording, macOS applies that only after a restart: run snapoleon quit, then open Snapoleon again."
 bare_binary = "This is a bare binary, not Snapoleon.app, so macOS gives it the permissions of the app it was started from. Build the app with packaging/macos/bundle.sh."
 install_cli = "No snapoleon command is on PATH. Run snapoleon install-cli, or install it from Settings > Advanced > Command line tool."
 

@@ -165,6 +165,8 @@ fn hints(r: &Value) -> Vec<String> {
     let granted = |p: &Value, key: &str| p[key] == true;
     if app["running"] != true {
         hints.push(t("cli.doctor.hint.start_app").into_owned());
+    } else if granted(&app["permissions"], "needs_relaunch") {
+        hints.push(t("cli.doctor.hint.app_relaunch").into_owned());
     } else if app["permissions"].is_object() && !granted(&app["permissions"], "screen_recording") {
         hints.push(t("cli.doctor.hint.app_screen").into_owned());
     }

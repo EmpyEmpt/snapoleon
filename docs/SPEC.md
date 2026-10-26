@@ -344,7 +344,8 @@ pub mod tray {
     pub struct Tray; impl Tray { pub fn new(tooltip: &str, icon: &RgbaImage, items: Vec<TrayItem>, on_event: impl Fn(TrayEvent) + Send + Sync + 'static) -> Result<Self>;
         pub fn set_items(&mut self, items: Vec<TrayItem>); pub fn set_icon(&mut self, icon: &RgbaImage); pub fn set_tooltip(&mut self, t: &str); }
 }   // tray-icon/muda on Windows+macOS (create on the main thread after the event loop starts), ksni (no GTK) on Linux
-pub mod clipboard { pub fn set_image(img: &RgbaImage) -> Result<()>; pub fn set_text(t: &str) -> Result<()>; pub fn set_html(html: &str, alt: &str) -> Result<()>;
+pub mod clipboard { pub fn set_image(img: &RgbaImage) -> Result<()>; pub fn set_image_scaled(img: &RgbaImage, scale: f32) -> Result<()>;
+                    pub fn set_text(t: &str) -> Result<()>; pub fn set_html(html: &str, alt: &str) -> Result<()>;
                     pub fn set_files(paths: &[PathBuf]) -> Result<()>; pub fn get_image() -> Option<RgbaImage>; pub fn get_text() -> Option<String>; }
 pub mod notify { pub fn show(title: &str, body: &str, image: Option<&Path>) -> Result<()>; }  // WinRT toast w/ AUMID, NSUserNotification/osascript, notify-rust
 pub mod ipc { pub struct Server; pub fn serve(handler: impl Fn(Request) -> Response + Send + Sync + 'static) -> Result<Server>;  // Err if another instance owns it
@@ -366,7 +367,8 @@ pub mod sound { pub fn shutter(); }                               // tiny embedd
 pub enum RecordTarget { Region(Rect), Monitor(usize), Window(u64) }
 pub struct RecordOptions { pub target: RecordTarget, pub format: VideoFormat, pub fps: u32, pub bitrate: u32, pub system_audio: bool,
     pub microphone: bool, pub mic_device: Option<String>, pub show_cursor: bool, pub highlight_clicks: bool, pub show_keystrokes: bool,
-    pub encoder: EncoderPref, pub max_gif_width: u32, pub output: PathBuf, pub ffmpeg: Option<PathBuf>, pub exclude_windows: Vec<u64> }
+    pub encoder: EncoderPref, pub max_gif_width: u32, pub output: PathBuf, pub ffmpeg: Option<PathBuf>, pub exclude_windows: Vec<u64>,
+    pub hide_desktop_icons: bool /* macOS: Finder's icon window left out of the filter */ }
 pub struct Recorder; pub fn start(o: RecordOptions) -> Result<Recorder>;
 impl Recorder { pub fn pause(&self); pub fn resume(&self); pub fn is_paused(&self) -> bool; pub fn elapsed_ms(&self) -> u64;
                 pub fn audio_level(&self) -> f32; pub fn stop(self) -> Result<Recording>; pub fn cancel(self); }

@@ -40,9 +40,7 @@ impl ExportParams {
 
 /// The finished image: crop, annotations, redactions and beautify applied, shrunk to the maximum width.
 pub fn render_export(doc: &Document, p: &ExportParams) -> RgbaImage {
-    let crop = doc.crop_rect();
-    let padding = doc.beautify.as_ref().map_or(0, |b| 2 * b.padding);
-    let natural = (crop.w + padding) as f32;
+    let natural = natural_width(doc) as f32;
     let scale = if p.max_width > 0 && natural > p.max_width as f32 { p.max_width as f32 / natural } else { 1.0 };
     let img = render(doc, &RenderOptions { scale, readable: p.readable, beautify: true });
     // Window frames and aspect ratios can add a little beyond the estimate above.
@@ -50,6 +48,18 @@ pub fn render_export(doc: &Document, p: &ExportParams) -> RgbaImage {
         return resize::fit(&img, Some(p.max_width), None, p.readable);
     }
     img
+}
+
+/// Pixels per point of `img`, a [`render_export`] of `doc`: the capture's display scale, less what the maximum width
+/// took off, never below one pixel per point. Window frames and aspect ratios only add pixels at the same scale.
+pub fn export_scale(doc: &Document, img: &RgbaImage) -> f32 {
+    let shrink = (img.width() as f32 / natural_width(doc).max(1) as f32).min(1.0);
+    (doc.scale_factor * shrink).max(1.0)
+}
+
+/// Width of the export before any shrinking: the crop plus the beautify padding.
+fn natural_width(doc: &Document) -> u32 {
+    doc.crop_rect().w + doc.beautify.as_ref().map_or(0, |b| 2 * b.padding)
 }
 
 /// Bytes the image takes in the chosen format.

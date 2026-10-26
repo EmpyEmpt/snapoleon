@@ -127,11 +127,41 @@ pub fn decode(bytes: &[u8]) -> Result<RgbaImage> {
 }
 
 pub fn load(path: &Path) -> Result<RgbaImage> {
-    let bytes = std::fs::read(path).map_err(|e| match e.kind() {
+    decode(&read(path)?)
+}
+
+/// [`load`], plus the pixels per point the file records, if it does (a PNG's pHYs chunk, relative to 72 dpi: the
+/// system's own Retina screenshots say 144 dpi, that is 2).
+pub fn load_with_scale(path: &Path) -> Result<(RgbaImage, Option<f32>)> {
+    let bytes = read(path)?;
+    Ok((decode(&bytes)?, png_scale(&bytes)))
+}
+
+fn read(path: &Path) -> Result<Vec<u8>> {
+    std::fs::read(path).map_err(|e| match e.kind() {
         std::io::ErrorKind::NotFound => Error::NotFound(tf("image.error.no_file", &[("path", &path.display().to_string())])),
         _ => Error::Io(e),
-    })?;
-    decode(&bytes)
+    })
+}
+
+/// The density in a PNG's pHYs chunk as pixels per 72-dpi point, never below 1. The chunk must come before the image
+/// data, so the walk stops there.
+fn png_scale(bytes: &[u8]) -> Option<f32> {
+    let mut rest = bytes.strip_prefix(b"\x89PNG\r\n\x1a\n")?;
+    while let [l0, l1, l2, l3, k0, k1, k2, k3, ..] = *rest {
+        let len = u32::from_be_bytes([l0, l1, l2, l3]) as usize;
+        match &[k0, k1, k2, k3] {
+            // Unit 1 is the metre; unit 0 only gives the aspect ratio.
+            b"pHYs" => {
+                let data = rest.get(8..8 + len).filter(|d| d.len() == 9 && d[8] == 1)?;
+                let per_metre = u32::from_be_bytes([data[0], data[1], data[2], data[3]]);
+                return (per_metre > 0).then(|| (per_metre as f32 * 0.0254 / 72.0).max(1.0));
+            }
+            b"IDAT" | b"IEND" => return None,
+            _ => rest = rest.get(len.checked_add(12)?..)?,
+        }
+    }
+    None
 }
 
 /// Writes atomically (temp file + rename) and returns the number of bytes written.

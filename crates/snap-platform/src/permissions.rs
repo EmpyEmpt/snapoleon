@@ -5,6 +5,11 @@
 //! dismissed or ignored) they return silently. [`status`] tells the states apart so the UI can offer the action that
 //! still does something: [`request`] while undecided, [`open_settings`] after that.
 
+use std::sync::atomic::{AtomicBool, Ordering};
+
+/// This process showed the Screen Recording prompt or opened its System Settings page.
+static SCREEN_SENT_TO_GRANT: AtomicBool = AtomicBool::new(false);
+
 /// A permission the app may need.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum Perm {
@@ -54,12 +59,28 @@ pub fn request(p: Perm) {
     tracing::info!("requesting permission {p:?}");
     imp::request(p);
     imp::set_asked(p, true);
+    sent_to_grant(p);
 }
 
 /// Open the OS settings page where the user can grant the permission.
 pub fn open_settings(p: Perm) {
     tracing::info!("opening system settings for {p:?}");
     imp::open_settings(p);
+    sent_to_grant(p);
+}
+
+fn sent_to_grant(p: Perm) {
+    if p == Perm::ScreenRecording {
+        SCREEN_SENT_TO_GRANT.store(true, Ordering::Relaxed);
+    }
+}
+
+/// Whether a relaunch is probably what stands between the user and a working Screen Recording grant: this process
+/// asked for it or opened its System Settings page, and still cannot use it. macOS applies a grant only to processes
+/// started after it and offers no way to see a pending one, so this is a heuristic: it is also true when the user
+/// left the switch off. After a relaunch it is false until the app asks again, so acting on it cannot loop.
+pub fn needs_relaunch() -> bool {
+    SCREEN_SENT_TO_GRANT.load(Ordering::Relaxed) && !imp::granted(Perm::ScreenRecording)
 }
 
 /// Whether [`reset`] can work: macOS, running from an app bundle with a bundle identifier.

@@ -73,6 +73,8 @@ pub struct Props<'a> {
     pub file_ok: bool,
     pub now_ms: i64,
     pub recognizing: bool,
+    /// Text recognition is still being prepared ([`snap_ocr::warming_up`]).
+    pub ocr_warming: bool,
     pub uploading: bool,
 }
 
@@ -393,8 +395,11 @@ fn text_block(ui: &mut Ui, p: &Palette, props: &Props, out: &mut Vec<Out>) {
         None if props.recognizing => {
             ui.horizontal(|ui| {
                 spinner(ui);
-                ui.label(text::dim(t("library.text.recognizing")));
+                ui.label(text::dim(t(if props.ocr_warming { "ocr.warmup.label" } else { "library.text.recognizing" })));
             });
+            if props.ocr_warming {
+                ui.label(text::caption(t("ocr.warmup.hint")));
+            }
         }
         None => {
             ui.label(text::caption(t("library.text.none")));

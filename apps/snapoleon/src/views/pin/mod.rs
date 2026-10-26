@@ -255,8 +255,8 @@ impl PinView {
     fn apply(&mut self, cx: &mut ViewCx, action: PinAction) {
         match action {
             PinAction::Copy => {
-                let image = self.image.clone();
-                cx.spawn(move || PinMsg::Copied(snap_platform::clipboard::set_image(&image)));
+                let (image, scale) = (self.image.clone(), self.scale);
+                cx.spawn(move || PinMsg::Copied(snap_platform::clipboard::set_image_scaled(&image, scale)));
             }
             PinAction::SaveAs => self.save_as(cx),
             PinAction::Edit => {

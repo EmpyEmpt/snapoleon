@@ -290,7 +290,8 @@ impl App {
             if entry.kind == CaptureKind::Recording {
                 snap_platform::clipboard::set_files(&[file])
             } else {
-                snap_platform::clipboard::set_image(&snap_image::encode::load(&file)?)
+                let (image, scale) = snap_engine::load_saved_image(&file, entry.context.monitor_name.as_deref())?;
+                snap_platform::clipboard::set_image_scaled(&image, scale)
             }
         });
     }

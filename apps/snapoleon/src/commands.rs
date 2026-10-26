@@ -106,9 +106,9 @@ pub enum Command {
         pipeline: Option<String>,
     },
     StartStepCapture,
-    /// Empty `images` opens the tool with its own "add images" state.
+    /// Empty `images` opens the tool with its own "add images" state. Each image comes with its pixels per point.
     OpenCombine {
-        images: Vec<RgbaImage>,
+        images: Vec<(RgbaImage, f32)>,
     },
     /// `None` for an image leaves that side for the tool's own picker (tray: "Compare images"; a view that has the
     /// two images, like a two-card selection in the Library, passes them).

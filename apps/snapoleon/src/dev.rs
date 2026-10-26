@@ -154,7 +154,7 @@ impl App {
             "about" => self.open_windows(sh, views::about::open),
             "steps" => self.open_windows(sh, views::steps::open),
             "combine" => {
-                let images: Vec<RgbaImage> = (0..3).filter_map(&crop).collect();
+                let images: Vec<(RgbaImage, f32)> = (0..3).filter_map(&crop).map(|image| (image, 1.0)).collect();
                 self.open_windows(sh, |cx| views::combine::open(cx, images))
             }
             "diff" => {

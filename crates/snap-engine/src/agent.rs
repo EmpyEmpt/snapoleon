@@ -78,6 +78,7 @@ pub fn permissions() -> Permissions {
         accessibility: permissions::granted(Perm::Accessibility),
         input_monitoring: permissions::granted(Perm::InputMonitoring),
         microphone: permissions::granted(Perm::Microphone),
+        needs_relaunch: permissions::needs_relaunch(),
     }
 }
 

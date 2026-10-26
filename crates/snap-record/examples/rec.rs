@@ -28,6 +28,7 @@ fn options(target: RecordTarget, format: VideoFormat, fps: u32, output: PathBuf)
         output,
         ffmpeg: None,
         exclude_windows: Vec::new(),
+        hide_desktop_icons: false,
     }
 }
 
