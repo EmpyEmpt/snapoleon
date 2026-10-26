@@ -217,7 +217,11 @@ fn preview(ui: &mut Ui, p: &Palette, props: &Props, width: f32, out: &mut Vec<Ou
     let close_resp = ui.interact(close, resp.id.with("close"), Sense::CLICK);
     let h = util::hover_anim(ui, &close_resp);
     ui.painter().circle_filled(close.center(), 13.0, Color32::from_black_alpha((110.0 + 60.0 * h) as u8));
-    util::paint_icon(ui, close.center(), icon::X, 13.0, Color32::WHITE);
+    // Drawn as two strokes rather than the icon glyph, which did not show on the dark disc over the preview.
+    let (c, arm) = (close.center(), 4.5);
+    for d in [Vec2::new(arm, arm), Vec2::new(arm, -arm)] {
+        ui.painter().line_segment([c - d, c + d], Stroke::new(1.6, Color32::WHITE));
+    }
     if tooltip(close_resp, &t("library.drawer.close"), Some("Esc")).clicked() {
         out.push(Out::Close);
     }

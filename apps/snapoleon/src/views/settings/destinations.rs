@@ -93,6 +93,21 @@ impl State {
         None
     }
 
+    /// Which drill-in view is on screen, for the window's scroll position; `None` is the list.
+    pub fn view_key(&self) -> Option<String> {
+        if self.adding { Some("+".to_owned()) } else { self.selected.clone() }
+    }
+
+    /// Back to the list, forgetting what was typed into the editor. A test or sign-in still running reports later.
+    pub fn reset(&mut self) {
+        self.selected = None;
+        self.adding = false;
+        self.secret.reset();
+        self.client_secret.clear();
+        self.client_id.clear();
+        self.test = None;
+    }
+
     /// Open a destination's editor and look up what is already stored for it.
     fn select(&mut self, cx: &mut ViewCx, set: &Settings, id: &str) {
         self.selected = Some(id.to_owned());

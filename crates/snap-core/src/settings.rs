@@ -157,12 +157,22 @@ pub struct General {
     /// price of about 100 MB of memory with the OpenGL renderer (about 200 MB with wgpu). Off: covers are opened per
     /// session and closed after it.
     pub instant_overlay: bool,
+    /// Size of the interface in app windows, 1.0 = 100 %. Read it through [`General::interface_scale`].
+    pub ui_scale: f32,
 }
 
 impl General {
+    /// The smallest and largest interface scale offered.
+    pub const UI_SCALE_RANGE: std::ops::RangeInclusive<f32> = 0.8..=1.5;
+
     /// The user's accent override, if set and valid.
     pub fn accent_color(&self) -> Option<[u8; 3]> {
         parse_hex_color(&self.accent).map(|c| [c[0], c[1], c[2]])
+    }
+
+    /// The interface scale, kept to the offered range (a hand-edited file may hold anything).
+    pub fn interface_scale(&self) -> f32 {
+        if self.ui_scale.is_finite() { self.ui_scale.clamp(*Self::UI_SCALE_RANGE.start(), *Self::UI_SCALE_RANGE.end()) } else { 1.0 }
     }
 }
 
@@ -179,6 +189,7 @@ impl Default for General {
             first_run_done: false,
             reduce_motion: false,
             instant_overlay: true,
+            ui_scale: 1.0,
         }
     }
 }

@@ -46,3 +46,6 @@ uploading = "Uploading"
 copy_link = "Copy link"
 copy_link_tip = "Copy the link again"
 link_copied = "Link copied"
+
+[macos.video.result]
+show = "Show in Finder"

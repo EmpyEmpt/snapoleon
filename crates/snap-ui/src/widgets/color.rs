@@ -136,6 +136,27 @@ fn custom_well(ui: &mut Ui, color: &mut [u8; 4], selected: bool, alpha: bool, p:
         focus_ring(ui, &resp, Rect::from_center_size(rect.center(), Vec2::splat(SWATCH + 4.0)), (SWATCH + 4.0) / 2.0);
     }
 
+    picker_popup(ui, &resp, color, alpha, p)
+}
+
+/// One solid swatch showing `color` that opens the custom-color popover; for a setting that holds a single color.
+pub fn color_well(ui: &mut Ui, color: &mut [u8; 4], alpha: bool) -> Response {
+    let p = Palette::of(ui);
+    let (rect, mut resp) = ui.allocate_exact_size(Vec2::splat(CELL), Sense::click());
+    resp.widget_info(|| egui::WidgetInfo::labeled(egui::Role::Button, ui.is_enabled(), hex_string(*color, alpha)));
+    let open = Popup::is_id_open(ui.ctx(), Popup::default_response_id(&resp));
+    if ui.is_rect_visible(rect) {
+        paint_swatch(ui, rect.center(), *color, open, hover_anim(ui, &resp), &p);
+        focus_ring(ui, &resp, Rect::from_center_size(rect.center(), Vec2::splat(SWATCH + 4.0)), (SWATCH + 4.0) / 2.0);
+    }
+    if picker_popup(ui, &resp, color, alpha, &p) {
+        resp.mark_changed();
+    }
+    resp.on_hover_text(hex_string(*color, alpha))
+}
+
+/// The HSV picker popover that `resp` toggles; returns true when the color changed.
+fn picker_popup(ui: &Ui, resp: &Response, color: &mut [u8; 4], alpha: bool, p: &Palette) -> bool {
     let mut changed = false;
     let frame = Frame::new()
         .fill(p.elevated)
@@ -144,13 +165,17 @@ fn custom_well(ui: &mut Ui, color: &mut [u8; 4], selected: bool, alpha: bool, p:
         .inner_margin(Margin::same(12))
         .shadow(p.shadow());
     let style = ui.style().clone();
-    Popup::from_toggle_button_response(&resp)
+    // The picker's natural height: field, hue and opacity bars, hex row, and the frame.
+    let want = 132.0 + 3.0 * 40.0 + 2.0 * 12.0 + 2.0;
+    let (popup, max_h) = super::popup::fitted(Popup::from_toggle_button_response(resp), 6.0, want);
+    popup
         .close_behavior(PopupCloseBehavior::CloseOnClickOutside)
         .frame(frame)
-        .gap(6.0)
         .style(move |s: &mut egui::Style| *s = (*style).clone())
         .show(|ui| {
-            changed = color_picker(ui, color, alpha).changed();
+            super::popup::scroll_body(ui, max_h - 2.0 * 12.0 - 2.0, |ui| {
+                changed = color_picker(ui, color, alpha).changed();
+            });
         });
     changed
 }

@@ -16,6 +16,7 @@ const PRESETS: &[S3Preset] = &[
     S3Preset { name: "Yandex Object Storage", endpoint: "https://storage.yandexcloud.net", region: "ru-central1", path_style: false },
     S3Preset { name: "Selectel", endpoint: "https://s3.ru-1.storage.selcloud.ru", region: "ru-1", path_style: true },
     S3Preset { name: "VK Cloud", endpoint: "https://hb.ru-msk.vkcloud-solutions.ru", region: "ru-msk", path_style: true },
+    S3Preset { name: "Cloud.ru", endpoint: "https://s3.cloud.ru", region: "ru-central-1", path_style: true },
     S3Preset { name: "MinIO", endpoint: "http://localhost:9000", region: "us-east-1", path_style: true },
     S3Preset { name: "Backblaze B2", endpoint: "https://s3.us-west-004.backblazeb2.com", region: "us-west-004", path_style: false },
     S3Preset { name: "Wasabi", endpoint: "https://s3.wasabisys.com", region: "us-east-1", path_style: false },

@@ -64,6 +64,7 @@ fill = "Заливка"
 rounded = "Скругление"
 shadow = "Тень"
 size = "Размер"
+outline = "Обводка"
 
 [editor.arrow]
 solid = "Полная"
@@ -200,3 +201,6 @@ project = "Проект Snapoleon"
 png = "Изображение PNG"
 jpg = "Изображение JPEG"
 webp = "Изображение WebP"
+
+[editor.canvas]
+outside = "Всё, что за краем картинки, не сохранится"

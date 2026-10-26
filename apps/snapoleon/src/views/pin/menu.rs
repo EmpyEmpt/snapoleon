@@ -6,7 +6,7 @@ use snap_core::{Point, t};
 use snap_shell::WindowSpec;
 use snap_ui::{
     icon, palette, text,
-    widgets::{accel_parts, segmented, util},
+    widgets::{accel_text, segmented, util},
 };
 
 use super::{PinAction, native};
@@ -89,8 +89,8 @@ impl View for MenuView {
             egui::CentralPanel::default().frame(Frame::new().fill(p.elevated).inner_margin(Margin::same(MARGIN as i8))).show(ui, |ui| {
                 ui.spacing_mut().item_spacing = Vec2::ZERO;
                 let items = [
-                    (icon::COPY, t("pin.menu.copy"), Some("Ctrl+C"), PinAction::Copy),
-                    (icon::FLOPPY_DISK, t("pin.menu.save"), Some("Ctrl+S"), PinAction::SaveAs),
+                    (icon::COPY, t("pin.menu.copy"), Some("CmdOrCtrl+C"), PinAction::Copy),
+                    (icon::FLOPPY_DISK, t("pin.menu.save"), Some("CmdOrCtrl+S"), PinAction::SaveAs),
                     (icon::PENCIL_SIMPLE, t("pin.menu.edit"), Some("Enter"), PinAction::Edit),
                 ];
                 for (glyph, label, accel, action) in items {
@@ -99,7 +99,7 @@ impl View for MenuView {
                     }
                 }
                 separator(ui);
-                if row(ui, icon::MAGNIFYING_GLASS, &t("pin.menu.zoom_reset"), Some("Ctrl+0"), false).clicked() {
+                if row(ui, icon::MAGNIFYING_GLASS, &t("pin.menu.zoom_reset"), Some("CmdOrCtrl+0"), false).clicked() {
                     picked = Some(PinAction::ResetZoom);
                 }
                 if native::SUPPORTED {
@@ -152,7 +152,7 @@ fn row(ui: &mut Ui, icon: &str, label: &str, accel: Option<&str>, on: bool) -> e
             util::paint_icon(ui, Pos2::new(rect.right() - 16.0, rect.center().y), icon::CHECK, 15.0, p.accent);
         }
         if let Some(accel) = accel {
-            let shown = if cfg!(target_os = "macos") { accel_parts(accel).concat() } else { accel_parts(accel).join("+") };
+            let shown = accel_text(accel);
             let galley = ui.painter().layout_no_wrap(shown, text::mono().resolve(ui.style()), p.text_faint);
             let pos = Pos2::new(rect.right() - 12.0 - galley.size().x, rect.center().y - galley.size().y / 2.0);
             ui.painter().galley(util::snap(ui, pos), galley, p.text_faint);

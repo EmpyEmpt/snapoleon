@@ -1,6 +1,6 @@
 //! Pipelines: the list, the visual step editor and the beautify presets the Beautify step uses.
 
-use egui::{Align, Layout, Ui, Widget};
+use egui::{Align, Color32, Layout, Mesh, Pos2, Sense, Stroke, StrokeKind, Ui, Widget, vec2};
 use snap_core::{
     Settings,
     pipeline::{Pipeline, Step},
@@ -8,7 +8,7 @@ use snap_core::{
     tf,
 };
 use snap_ui::{
-    Tone, icon, space, text,
+    Palette, Tone, icon, space, text,
     widgets::{self, ButtonKind, badge, card_frame},
 };
 
@@ -23,6 +23,20 @@ pub struct State {
     adding: bool,
     /// The expanded beautify preset.
     preset_open: Option<usize>,
+}
+
+impl State {
+    /// Which drill-in view is on screen, for the window's scroll position; `None` is the list.
+    pub fn view_key(&self) -> Option<String> {
+        self.selected.clone()
+    }
+
+    /// Back to the top-level list with everything folded.
+    pub fn reset(&mut self) {
+        self.selected = None;
+        self.adding = false;
+        self.preset_open = None;
+    }
 }
 
 /// Every step kind in the order the palette offers them.
@@ -584,7 +598,7 @@ fn presets(ui: &mut Ui, cx: &mut ViewCx, st: &mut State, set: &mut Settings) {
         card_frame(ui, 16).show(ui, |ui| {
             ui.set_width(ui.available_width());
             ui.horizontal(|ui| {
-                ui.label(text::dim(icon::PALETTE.to_string()));
+                preset_chip(ui, &preset.background);
                 ui.label(text::body_strong(preset.name.as_str()));
                 ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
                     let chevron = if open { icon::CARET_UP } else { icon::CARET_DOWN };
@@ -638,6 +652,31 @@ fn presets(ui: &mut Ui, cx: &mut ViewCx, st: &mut State, set: &mut Settings) {
         st.preset_open = Some(set.beautify_presets.len() - 1);
     }
     ui.add_space(space::XL);
+}
+
+/// A small preview of a preset's background: its color or gradient, or an icon for the kinds without one.
+fn preset_chip(ui: &mut Ui, background: &Background) {
+    let p = Palette::of(ui);
+    let rgb = |hex: &str| snap_core::settings::parse_hex_color(hex).map(|c| Color32::from_rgb(c[0], c[1], c[2]));
+    let fill = match background {
+        Background::Solid { color } => rgb(color).map(|c| (c, c)),
+        Background::Gradient { from, to, .. } => rgb(from).zip(rgb(to)),
+        Background::Transparent | Background::BlurredCapture | Background::Image { .. } => None,
+    };
+    let Some((left, right)) = fill else {
+        ui.label(text::dim(icon::PALETTE.to_string()));
+        return;
+    };
+    let (rect, _) = ui.allocate_exact_size(vec2(20.0, 20.0), Sense::hover());
+    let mut mesh = Mesh::default();
+    mesh.colored_vertex(rect.left_top(), left);
+    mesh.colored_vertex(rect.right_top(), right);
+    mesh.colored_vertex(rect.right_bottom(), right);
+    mesh.colored_vertex(Pos2::new(rect.left(), rect.bottom()), left);
+    mesh.add_triangle(0, 1, 2);
+    mesh.add_triangle(0, 2, 3);
+    ui.painter().add(mesh);
+    ui.painter().rect_stroke(rect, 0.0, Stroke::new(1.0, p.border_strong()), StrokeKind::Inside);
 }
 
 fn preset_summary(p: &BeautifyPreset) -> String {

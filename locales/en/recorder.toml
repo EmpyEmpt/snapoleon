@@ -30,3 +30,6 @@ copied = "Recording saved and copied to the clipboard"
 title = "Recording could not start"
 open_system_settings = "Open system settings"
 open_settings = "Open recording settings"
+
+[macos.recorder.hidden]
+body = "The controls are hidden so they stay out of the video. Stop with {accel} or from the menu bar icon."

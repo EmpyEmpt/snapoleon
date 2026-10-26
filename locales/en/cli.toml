@@ -104,3 +104,6 @@ json = "Print pipelines as JSON"
 id = "Pipeline id"
 image = "Image file to process"
 json = "Print the outcome as JSON"
+
+[macos.cli.arg]
+background = "Start in the menu bar without showing a window"

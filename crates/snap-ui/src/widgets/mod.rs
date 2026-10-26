@@ -6,6 +6,7 @@ mod color;
 mod hotkey;
 mod input;
 mod layout;
+pub mod popup;
 mod stroke;
 mod title_bar;
 mod toggle;
@@ -14,8 +15,8 @@ mod tooltip;
 pub mod util;
 
 pub use button::{Button, ButtonKind, danger_button, ghost_button, icon_button, primary_button, secondary_button, tool_button};
-pub use chips::{accel_parts, badge, chip, chip_with_icon, kbd};
-pub use color::{ColorSwatches, DEFAULT_PALETTE, color_picker, color_swatches, hex_string, parse_color};
+pub use chips::{accel_parts, accel_text, badge, chip, chip_with_icon, kbd};
+pub use color::{ColorSwatches, DEFAULT_PALETTE, color_picker, color_swatches, color_well, hex_string, parse_color};
 pub use hotkey::{RecorderState, hotkey_recorder};
 pub use input::{Slider, TextField, dropdown, number_field, number_field_with, search_field, slider, text_field};
 pub use layout::{

@@ -181,3 +181,9 @@ b = "{n} Б"
 kb = "{n} КБ"
 mb = "{n} МБ"
 gb = "{n} ГБ"
+
+[macos.library.action]
+reveal = "Показать в Finder"
+
+[macos.library.empty]
+body_nokey = "Сделайте первый снимок через значок в строке меню."

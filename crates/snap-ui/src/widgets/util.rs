@@ -2,7 +2,10 @@
 
 use std::sync::Arc;
 
-use egui::{Align2, Color32, Context, FontId, Galley, Id, Pos2, Rect, Response, Stroke, StrokeKind, TextStyle, Ui, emath::easing};
+use egui::{
+    Align2, Color32, Context, FontId, Galley, Id, Mesh, Painter, Pos2, Rect, Response, Shape, Stroke, StrokeKind, TextStyle, Ui,
+    emath::easing,
+};
 
 use crate::theme::Palette;
 
@@ -83,4 +86,19 @@ pub fn snap(ui: &Ui, p: Pos2) -> Pos2 {
 /// Draws an icon glyph centered on `center`.
 pub fn paint_icon(ui: &Ui, center: Pos2, icon: &str, size: f32, color: Color32) {
     ui.painter().text(snap(ui, center), Align2::CENTER_CENTER, icon, FontId::proportional(size), color);
+}
+
+/// A fade from `color` at the top or bottom edge of `rect` to clear: the hint that a list goes on past that edge.
+pub fn scroll_fade(painter: &Painter, rect: Rect, color: Color32, bottom: bool) {
+    let clear = Color32::from_rgba_unmultiplied(color.r(), color.g(), color.b(), 0);
+    let depth = 28.0_f32.min(rect.height() / 2.0);
+    let (y_solid, y_clear) = if bottom { (rect.bottom(), rect.bottom() - depth) } else { (rect.top(), rect.top() + depth) };
+    let mut mesh = Mesh::default();
+    mesh.colored_vertex(Pos2::new(rect.left(), y_solid), color);
+    mesh.colored_vertex(Pos2::new(rect.right(), y_solid), color);
+    mesh.colored_vertex(Pos2::new(rect.right(), y_clear), clear);
+    mesh.colored_vertex(Pos2::new(rect.left(), y_clear), clear);
+    mesh.add_triangle(0, 1, 2);
+    mesh.add_triangle(0, 2, 3);
+    painter.add(Shape::mesh(mesh));
 }

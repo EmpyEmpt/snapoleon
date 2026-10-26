@@ -56,6 +56,9 @@ notifications, in errors shown to the user, or in tray menus.
   test a translation without rebuilding.
 - Keys are stable identifiers (`capture.toolbar.copy`), not sentences. Use placeholders for dynamic values
   instead of concatenating translated fragments.
+- Where macOS has its own words for a thing ("menu bar" for the tray, "Finder", "Keychain"), add the variant under
+  a `macos.` prefix, for example `[macos.settings.general.tray_click]`, in `en` and `ru`. On macOS it replaces the
+  plain key; the code keeps asking for the plain key.
 
 ### Adding a language
 

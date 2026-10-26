@@ -35,11 +35,13 @@ pub struct Slot {
     /// Whether app-level notices and the progress pill may appear in this window.
     toast_host: bool,
     theme_gen: u64,
+    /// The zoom factor last given to this window's context.
+    zoom: f32,
 }
 
 impl Slot {
     pub fn new(view: Box<dyn View>, toast_host: bool) -> Self {
-        Self { view: Some(view), toasts: Toasts::new(), toast_host, theme_gen: theme::generation() }
+        Self { view: Some(view), toasts: Toasts::new(), toast_host, theme_gen: theme::generation(), zoom: 1.0 }
     }
 }
 
@@ -387,6 +389,13 @@ impl ShellApp<AppEvent> for App {
             }
         }
         theme::sync(ctx, &mut slot.theme_gen);
+        if let Some(scale) = sync_zoom(slot, ctx, self.settings.general.interface_scale()) {
+            // Cmd+= / Cmd+- in an app window: make it the setting, so every window follows and it outlives a restart.
+            match self.engine.update_settings(|s| s.general.ui_scale = scale) {
+                Ok(()) => sh.proxy().send(AppEvent::SettingsChanged),
+                Err(e) => tracing::warn!("saving the interface scale failed: {e}"),
+            }
+        }
 
         self.with_view(sh, win, |view, cx| view.ui(cx, ctx));
 
@@ -462,4 +471,33 @@ impl App {
             self.deliver(sh, win, Box::new(HistoryChanged));
         }
     }
+}
+
+/// Apply the interface scale (Settings, General) to an app window. Covers, pins and HUDs stay at 1:1 so they line
+/// up with the screen, and the keyboard zoom is off there. Returns a scale the user just picked with the keyboard.
+fn sync_zoom(slot: &mut Slot, ctx: &Context, scale: f32) -> Option<f32> {
+    if !slot.toast_host {
+        ctx.options_mut(|o| o.zoom_with_keyboard = false);
+        if slot.zoom != 1.0 {
+            ctx.set_zoom_factor(1.0);
+            slot.zoom = 1.0;
+        }
+        return None;
+    }
+    let now = ctx.zoom_factor();
+    if (now - slot.zoom).abs() > 0.001 {
+        let range = snap_core::settings::General::UI_SCALE_RANGE;
+        let picked = now.clamp(*range.start(), *range.end());
+        slot.zoom = now;
+        if picked != now {
+            ctx.set_zoom_factor(picked);
+            slot.zoom = picked;
+        }
+        return Some(picked);
+    }
+    if (scale - slot.zoom).abs() > 0.001 {
+        ctx.set_zoom_factor(scale);
+        slot.zoom = scale;
+    }
+    None
 }

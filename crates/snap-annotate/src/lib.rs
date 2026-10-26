@@ -21,6 +21,7 @@ mod shapes;
 mod stamps;
 
 pub use interact::{Handle, bounds, drag, handles, hit_test};
+pub use math::contrasting;
 pub use model::{ArrowHead, DocMeta, Document, Shape, ShapeKind, Stamp, Style, TextBg, Undo};
 pub use project::{load_project, save_project};
 pub use render::{RenderOptions, View, render, render_view};

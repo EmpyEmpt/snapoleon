@@ -1033,8 +1033,8 @@ default_destination = "Назначение по умолчанию"
 [settings.advanced.portable]
 label = "Переносной режим"
 desc = "Переносная копия хранит настройки и данные рядом с программой."
-yes = "Переносная"
-no = "Установленная"
+yes = "Включён"
+no = "Выключен"
 
 [settings.advanced.path.settings]
 label = "Файл настроек"
@@ -1081,3 +1081,84 @@ label = "Сбросить все настройки"
 desc = "Вернуть значения по умолчанию. Назначения и сохранённые секреты остаются."
 button = "Сбросить…"
 confirm = "Сбросить все настройки"
+
+# Добавлено: формулировки для macOS, масштаб интерфейса и названия языков OCR.
+
+[settings.general.ui_scale]
+label = "Размер интерфейса"
+desc = "Масштабирует все окна Snapoleon. Также меняется сочетаниями Ctrl+= и Ctrl+-."
+
+[settings.text_ai.lang]
+yue = "Кантонский"
+th = "Тайский"
+vi = "Вьетнамский"
+ar = "Арабский"
+ars = "Арабский (неджд)"
+id = "Индонезийский"
+ms = "Малайский"
+cs = "Чешский"
+sk = "Словацкий"
+da = "Датский"
+nl = "Нидерландский"
+no = "Норвежский"
+nb = "Норвежский (букмол)"
+nn = "Норвежский (нюнорск)"
+sv = "Шведский"
+fi = "Финский"
+ro = "Румынский"
+hu = "Венгерский"
+el = "Греческий"
+he = "Иврит"
+hi = "Хинди"
+bg = "Болгарский"
+sr = "Сербский"
+hr = "Хорватский"
+sl = "Словенский"
+lt = "Литовский"
+lv = "Латышский"
+et = "Эстонский"
+ca = "Каталанский"
+fa = "Персидский"
+
+[macos.settings.secret]
+stored = "Сохранено в связке ключей"
+
+[macos.settings.general.ui_scale]
+desc = "Масштабирует все окна Snapoleon. Также меняется сочетаниями ⌘= и ⌘-."
+
+[macos.settings.general.launch_at_login]
+desc = "Запускаться в строке меню при входе в систему."
+
+[macos.settings.general.tray_click]
+label = "Щелчок по значку в строке меню"
+desc = "Что делает щелчок по значку Snapoleon в строке меню."
+
+[macos.settings.destinations.f.s3_secret]
+desc = "Хранится в связке ключей."
+
+[macos.settings.destinations.f.password]
+desc = "Хранится в связке ключей."
+
+[macos.settings.destinations.f.bot_token]
+desc = "Выдаётся @BotFather. Хранится в связке ключей."
+
+[macos.settings.destinations.f.server_token]
+desc = "Создаётся на странице учётной записи сервера. Хранится в связке ключей."
+
+[macos.settings.destinations.f.oauth_account]
+desc = "Вход выполняется в браузере. Токены хранятся в связке ключей."
+
+[macos.settings.destinations.f.custom_secret]
+desc = "Доступен запросу как {secret}. Хранится в связке ключей."
+
+[macos.settings.links.shortener_secret_yourls]
+desc = "Со страницы инструментов YOURLS. Хранится в связке ключей."
+
+[macos.settings.links.shortener_secret_shlink]
+desc = "Хранится в связке ключей."
+
+[macos.settings.text_ai.translate_key]
+desc = "Хранится в связке ключей."
+
+[macos.settings.text_ai.ai_key]
+desc = "Для локальных серверов не нужен. Хранится в связке ключей."

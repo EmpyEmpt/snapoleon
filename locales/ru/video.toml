@@ -46,3 +46,6 @@ uploading = "Загрузка"
 copy_link = "Копировать ссылку"
 copy_link_tip = "Скопировать ссылку ещё раз"
 link_copied = "Ссылка скопирована"
+
+[macos.video.result]
+show = "Показать в Finder"
