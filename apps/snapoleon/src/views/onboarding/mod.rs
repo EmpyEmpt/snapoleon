@@ -1,14 +1,10 @@
 //! First run: three cards (the hotkey, where files go, permissions), brand mark, progress dots and Skip.
 
-use std::{
-    any::Any,
-    path::PathBuf,
-    time::{Duration, Instant},
-};
+use std::{any::Any, path::PathBuf, time::Instant};
 
 use egui::{Align, Context, Layout, Panel, Pos2, Rect, ScrollArea, Sense, Stroke, StrokeKind, Ui, UiBuilder, Widget, vec2};
 use snap_core::{Settings, paths, pipeline::Pipeline, t};
-use snap_platform::permissions::{self, Perm};
+use snap_platform::permissions::{Perm, Status};
 use snap_ui::{
     Palette, Tone, icon, logo, palette, radius, space, text,
     widgets::{self, Button, ButtonKind, RecorderState, badge, card_frame, hotkey_recorder, toolbar_pill},
@@ -16,10 +12,14 @@ use snap_ui::{
 
 use super::{
     Chrome, OpenCx, View, ViewCx,
-    settings::{pipeline_label, step_label},
+    settings::{ensure_save_dir, pipeline_label, step_label},
     window_spec,
 };
 use crate::commands::Command;
+
+pub mod perms;
+
+use perms::Live;
 
 pub const TAG: &str = "onboarding";
 
@@ -29,8 +29,6 @@ const FADE: f32 = 0.18;
 const MOCK_GLYPHS: [&str; 5] = [icon::COPY, icon::FLOPPY_DISK, icon::PENCIL_SIMPLE, icon::PUSH_PIN, icon::CLOUD_ARROW_UP];
 const MOCK_BUTTON: f32 = 32.0;
 const MOCK_PILL_CHROME: f32 = 14.0;
-/// How often the permission status is read again while the last card is open.
-const PERMISSION_POLL: Duration = Duration::from_millis(900);
 
 pub fn open(cx: &mut OpenCx) {
     if cx.focus_tagged(TAG) {
@@ -73,8 +71,7 @@ struct Onboarding {
     accel: String,
     recorder: RecorderState,
     recorder_focus: bool,
-    granted: [bool; 3],
-    polled: Instant,
+    live: Live,
     done: bool,
 }
 
@@ -83,28 +80,38 @@ const PERMISSIONS: [Perm; 3] = [Perm::ScreenRecording, Perm::Accessibility, Perm
 
 impl Onboarding {
     fn new(settings: &Settings) -> Self {
+        let live = Live::read();
         Self {
-            card: Card::Hotkey,
+            card: resume_card(settings, &live),
             shown_since: Instant::now(),
             accel: capture_accel(settings),
             recorder: RecorderState::default(),
             recorder_focus: false,
-            granted: PERMISSIONS.map(permissions::granted),
-            polled: Instant::now(),
+            live,
             done: false,
         }
     }
 
-    fn go(&mut self, card: Card) {
-        if self.card != card {
-            self.card = card;
-            self.shown_since = Instant::now();
+    fn go(&mut self, cx: &mut ViewCx, card: Card) {
+        if self.card == card {
+            return;
+        }
+        self.card = card;
+        self.shown_since = Instant::now();
+        if !cx.settings.general.first_run_done {
+            let index = card.index() as u8;
+            cx.update_settings(move |s| s.general.onboarding_card = index);
         }
     }
 
-    fn step(&mut self, delta: isize) {
+    fn step(&mut self, cx: &mut ViewCx, delta: isize) {
         let next = (self.card.index() as isize + delta).clamp(0, Card::ALL.len() as isize - 1);
-        self.go(Card::ALL[next as usize]);
+        self.go(cx, Card::ALL[next as usize]);
+    }
+
+    /// Whether captures can work: Screen Recording is granted, or not needed on this OS.
+    fn can_capture(&self) -> bool {
+        !wants_permissions() || self.live.get(Perm::ScreenRecording) == Status::Granted
     }
 
     /// Mark the first run as done, once, and optionally close the window.
@@ -136,6 +143,19 @@ fn capture_accel(settings: &Settings) -> String {
     settings.hotkeys.iter().find(|b| b.action == snap_core::hotkey::Action::CaptureRegion).map(|b| b.accel.clone()).unwrap_or_default()
 }
 
+/// Where the first run picks up: the card it was on when the app quit (macOS has the app relaunched after a Screen
+/// Recording grant), or the permissions card while Screen Recording was asked for and is still off. A visit after the
+/// first run starts over.
+fn resume_card(settings: &Settings, live: &Live) -> Card {
+    if settings.general.first_run_done {
+        return Card::Hotkey;
+    }
+    if wants_permissions() && live.get(Perm::ScreenRecording) == Status::Denied {
+        return Card::Permissions;
+    }
+    Card::ALL[usize::from(settings.general.onboarding_card).min(Card::ALL.len() - 1)]
+}
+
 /// Only macOS gates screen capture, input and the microphone behind per-app permissions.
 fn wants_permissions() -> bool {
     cfg!(target_os = "macos")
@@ -143,12 +163,8 @@ fn wants_permissions() -> bool {
 
 impl View for Onboarding {
     fn ui(&mut self, cx: &mut ViewCx, ctx: &Context) {
-        if self.polled.elapsed() >= PERMISSION_POLL {
-            self.polled = Instant::now();
-            self.granted = PERMISSIONS.map(permissions::granted);
-        }
         if self.card == Card::Permissions && wants_permissions() {
-            ctx.request_repaint_after(PERMISSION_POLL);
+            self.live.refresh(ctx);
         }
         if !self.recorder_focus {
             self.accel = capture_accel(cx.settings);
@@ -167,8 +183,14 @@ impl View for Onboarding {
         });
     }
 
-    fn closed(&mut self, cx: &mut ViewCx) {
+    /// The user closed the window: that ends the first run like Skip. Quitting the app closes it without asking, and
+    /// then the first run resumes at the next start.
+    fn close_requested(&mut self, cx: &mut ViewCx) -> bool {
         self.finish(cx, false);
+        true
+    }
+
+    fn closed(&mut self, cx: &mut ViewCx) {
         if self.recorder_focus {
             cx.push(Command::PauseHotkeys(false));
         }
@@ -195,12 +217,12 @@ impl Onboarding {
             )
         });
         if back {
-            self.step(-1);
+            self.step(cx, -1);
         } else if next {
             if self.card == Card::Permissions {
                 self.finish(cx, true);
             } else {
-                self.step(1);
+                self.step(cx, 1);
             }
         }
     }
@@ -287,7 +309,7 @@ impl Onboarding {
     // -----------------------------------------------------------------------------------------------------------------
     // Card 3: permissions
 
-    fn permissions_card(&self, ui: &mut Ui, cx: &mut ViewCx) {
+    fn permissions_card(&mut self, ui: &mut Ui, cx: &mut ViewCx) {
         if !wants_permissions() {
             let portable = paths::is_portable();
             let mut launch = cx.settings.general.launch_at_login && !portable;
@@ -311,10 +333,16 @@ impl Onboarding {
             if i > 0 {
                 ui.add_space(space::SM);
             }
-            permission_row(ui, perm, self.granted[i]);
+            permission_row(ui, cx, perm, self.live.get(perm));
         }
         ui.add_space(space::SM);
-        ui.label(text::caption(t("onboarding.permissions.restart")));
+        match self.live.get(Perm::ScreenRecording) {
+            Status::Denied => perms::relaunch_hint(ui, cx, true),
+            Status::NotDetermined => {
+                ui.add(egui::Label::new(text::caption(t("onboarding.permissions.restart"))).wrap());
+            }
+            Status::Granted => {}
+        }
     }
 
     // -----------------------------------------------------------------------------------------------------------------
@@ -349,7 +377,7 @@ impl Onboarding {
             };
             ui.painter().rect_filled(dot, 3.0, color);
             if resp.clicked() {
-                self.go(card);
+                self.go(cx, card);
             }
             x += width + gap;
         }
@@ -357,18 +385,28 @@ impl Onboarding {
         let last = self.card == Card::Permissions;
         let mut left = ui.new_child(UiBuilder::new().max_rect(side(true)).layout(Layout::left_to_right(Align::Center)));
         if !last && Button::new(&t("onboarding.skip")).kind(ButtonKind::Ghost).ui(&mut left).clicked() {
-            self.finish(cx, true);
+            // Skipping the permissions would leave an app that cannot capture and does not say why.
+            if self.can_capture() {
+                self.finish(cx, true);
+            } else {
+                self.go(cx, Card::Permissions);
+            }
         }
         let mut right = ui.new_child(UiBuilder::new().max_rect(side(false)).layout(Layout::right_to_left(Align::Center)));
         if last {
-            if Button::new(&t("onboarding.finish")).kind(ButtonKind::Primary).icon(icon::ROCKET_LAUNCH).ui(&mut right).clicked() {
+            let finish = if self.can_capture() {
+                Button::new(&t("onboarding.finish")).kind(ButtonKind::Primary).icon(icon::ROCKET_LAUNCH).ui(&mut right)
+            } else {
+                Button::new(&t("onboarding.finish_without")).kind(ButtonKind::Secondary).ui(&mut right)
+            };
+            if finish.clicked() {
                 self.finish(cx, true);
             }
         } else if Button::new(&t("onboarding.next")).kind(ButtonKind::Primary).min_width(88.0).ui(&mut right).clicked() {
-            self.step(1);
+            self.step(cx, 1);
         }
         if self.card != Card::Hotkey && Button::new(&t("onboarding.back")).kind(ButtonKind::Ghost).ui(&mut right).clicked() {
-            self.step(-1);
+            self.step(cx, -1);
         }
     }
 }
@@ -403,8 +441,17 @@ fn files_card(ui: &mut Ui, cx: &mut ViewCx) {
                 ui.add(egui::Label::new(text::mono_text(folder.display().to_string())).truncate());
             });
         if widgets::secondary_button(ui, &t("onboarding.files.choose")).clicked() {
-            let start = folder.clone();
-            cx.spawn(move || Picked(rfd::FileDialog::new().set_directory(start).pick_folder()));
+            let configured = cx.settings.capture.save_dir.clone();
+            let title = t("onboarding.files.choose_title").into_owned();
+            cx.spawn(move || {
+                // The folder appears with the first save; until it exists the chooser would open in Documents.
+                let start = ensure_save_dir(&configured);
+                let mut dialog = rfd::FileDialog::new().set_title(title);
+                if let Some(dir) = start.ancestors().find(|p| p.is_dir()) {
+                    dialog = dialog.set_directory(dir);
+                }
+                Picked(dialog.pick_folder())
+            });
         }
     });
     ui.add_space(space::MD);
@@ -467,14 +514,9 @@ fn choice_row(ui: &mut Ui, selected: bool, title: &str, subtitle: &str) -> egui:
 // ---------------------------------------------------------------------------------------------------------------------
 // Card 3 rows
 
-fn permission_row(ui: &mut Ui, perm: Perm, granted: bool) {
+fn permission_row(ui: &mut Ui, cx: &ViewCx, perm: Perm, status: Status) {
     let p = Palette::of(ui);
-    let (key, glyph) = match perm {
-        Perm::ScreenRecording => ("screen", icon::MONITOR),
-        Perm::Accessibility => ("accessibility", icon::CURSOR),
-        Perm::InputMonitoring => ("input", icon::KEYBOARD),
-        Perm::Microphone => ("microphone", icon::MICROPHONE),
-    };
+    let (key, glyph) = perms::row_texts(perm);
     let required = perm == Perm::ScreenRecording;
     egui::Frame::new().fill(p.surface_2).stroke(Stroke::new(1.0, p.border)).corner_radius(radius::CARD).inner_margin(12).show(ui, |ui| {
         ui.set_width(ui.available_width());
@@ -483,7 +525,8 @@ fn permission_row(ui: &mut Ui, perm: Perm, granted: bool) {
             ui.painter().rect_filled(tile, 8.0, p.accent_soft);
             widgets::util::paint_icon(ui, tile.center(), glyph, 18.0, p.accent);
             ui.vertical(|ui| {
-                ui.set_width((ui.available_width() - 130.0).max(120.0));
+                // Room on the right for the widest action, "Open System Settings" with its icon.
+                ui.set_width((ui.available_width() - 200.0).max(120.0));
                 ui.horizontal(|ui| {
                     ui.label(text::body_strong(t(&format!("onboarding.permissions.{key}.title"))));
                     if required {
@@ -492,19 +535,7 @@ fn permission_row(ui: &mut Ui, perm: Perm, granted: bool) {
                 });
                 ui.add(egui::Label::new(text::caption(t(&format!("onboarding.permissions.{key}.body")))).wrap());
             });
-            ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
-                if granted {
-                    badge(ui, &t("onboarding.permissions.granted"), Tone::Success);
-                } else {
-                    if widgets::icon_button(ui, icon::ARROW_SQUARE_OUT, &t("onboarding.permissions.open_settings"), None).clicked() {
-                        permissions::open_settings(perm);
-                    }
-                    let kind = if required { ButtonKind::Primary } else { ButtonKind::Secondary };
-                    if Button::new(&t("onboarding.permissions.allow")).kind(kind).ui(ui).clicked() {
-                        permissions::request(perm);
-                    }
-                }
-            });
+            ui.with_layout(Layout::right_to_left(Align::Center), |ui| perms::actions(ui, &cx.proxy, perm, status, required, false));
         });
     });
 }

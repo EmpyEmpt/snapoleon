@@ -31,6 +31,7 @@ mod privacy;
 mod recording;
 mod text_ai;
 
+pub use kit::ensure_save_dir;
 use kit::{Env, Msg, Pick, Probe, Rows};
 
 pub const TAG: &str = "settings";
@@ -317,7 +318,7 @@ fn show_page(ui: &mut Ui, rc: &mut Rows, page: SettingsPage, pages: &mut Pages, 
         SettingsPage::Links => links::show(ui, rc, &mut pages.links, cx, &mut draft.links),
         SettingsPage::Recording => recording::show(ui, rc, cx, &mut draft.recording),
         SettingsPage::TextAi => text_ai::show(ui, rc, &mut pages.text_ai, cx, draft),
-        SettingsPage::Privacy => privacy::show(ui, rc, &mut draft.privacy),
+        SettingsPage::Privacy => privacy::show(ui, rc, cx, draft),
         SettingsPage::History => history::show(ui, rc, &mut pages.history, cx, &mut draft.history),
         SettingsPage::Pins => pins::show(ui, rc, &mut draft.pins),
         SettingsPage::Advanced => advanced::show(ui, rc, &mut pages.advanced, cx, draft),

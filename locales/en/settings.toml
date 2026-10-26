@@ -1106,3 +1106,6 @@ button = "Open Login Items"
 label = "Notifications are off"
 desc = "Snapoleon is not allowed to show notifications. Turn them on in System Settings, Notifications."
 button = "Open Notifications"
+
+[settings.privacy.permissions]
+section = "Permissions"

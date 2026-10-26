@@ -169,6 +169,9 @@ pub struct General {
     pub play_sounds: bool,
     pub tray_click: crate::hotkey::Action,
     pub first_run_done: bool,
+    /// The onboarding card the first run is on, so it resumes there after a relaunch (macOS asks for one after a
+    /// Screen Recording grant).
+    pub onboarding_card: u8,
     /// Disable UI animations regardless of the OS preference.
     pub reduce_motion: bool,
     /// Keep the capture overlay's cover windows open (hidden) in the background so it appears at once, at the
@@ -195,6 +198,7 @@ impl Default for General {
             play_sounds: false,
             tray_click: crate::hotkey::Action::CaptureRegion,
             first_run_done: false,
+            onboarding_card: 0,
             reduce_motion: false,
             instant_overlay: true,
         }

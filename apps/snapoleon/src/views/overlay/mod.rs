@@ -187,6 +187,15 @@ pub fn open_frozen(cx: &mut OpenCx, request: OverlayRequest) {
     let frozen = match frozen {
         Ok(frozen) => frozen,
         Err(e) => {
+            // Without Screen Recording no capture can work. The first time, the system prompt (which also lists the app
+            // in System Settings); every time, Settings > Privacy with the status and the way to fix it.
+            #[cfg(target_os = "macos")]
+            if matches!(e, snap_core::Error::Permission(_)) {
+                snap_platform::permissions::request(snap_platform::permissions::Perm::ScreenRecording);
+                cx.proxy.send(crate::events::AppEvent::Command(crate::commands::Command::OpenSettings {
+                    page: Some(super::settings::SettingsPage::Privacy),
+                }));
+            }
             cx.notify(Notice {
                 kind: NoticeKind::Error,
                 title: t("app.error.capture").into_owned(),
