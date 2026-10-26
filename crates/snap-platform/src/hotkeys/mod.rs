@@ -26,11 +26,12 @@ use global_hotkey::hotkey::HotKey;
 use global_hotkey::{GlobalHotKeyEvent, GlobalHotKeyManager, HotKeyState};
 use parking_lot::Mutex;
 use snap_core::hotkey::HotkeyBinding;
-use snap_core::{Error, Result, tf};
+use snap_core::{Error, Result, t, tf};
 
 mod accel;
 #[cfg(all(target_os = "linux", feature = "wayland-portal"))]
 mod portal;
+mod system;
 
 use accel::Accel;
 
@@ -50,6 +51,25 @@ pub fn validate(accel: &str) -> Result<()> {
 /// Unparseable input is returned unchanged.
 pub fn display(accel: &str) -> String {
     Accel::parse(accel).map(Accel::label).unwrap_or_else(|_| accel.trim().to_string())
+}
+
+/// A shortcut the operating system already uses for itself.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct SystemConflict {
+    /// What the OS does with the shortcut and where to turn that off, as a sentence for the user.
+    pub message: String,
+    /// Label for a button that opens [`settings_url`](Self::settings_url).
+    pub open_label: String,
+    /// The OS settings page where the system shortcut can be turned off.
+    pub settings_url: &'static str,
+}
+
+/// The OS feature already bound to `accel`, if any: on macOS an enabled system keyboard shortcut (Shift+Cmd+4 for
+/// screenshots, ...), on Windows a bare Print Screen while it opens Snipping Tool. The OS does not refuse such a
+/// registration, so [`HotkeyManager::register`] cannot report it; both the OS and Snapoleon react to the key. The OS
+/// state is re-read every few seconds, so a system shortcut turned off meanwhile stops counting soon after.
+pub fn system_conflict(accel: &str) -> Option<SystemConflict> {
+    system::conflict(Accel::parse(accel).ok()?)
 }
 
 /// Accelerator string for an egui key press, for the hotkey recorder widget.
@@ -198,10 +218,11 @@ impl HotkeyManager {
             match Accel::parse(&b.accel) {
                 Err(e) => results.push((i, Err(e))),
                 Ok(a) => match seen.insert(a.hotkey().id(), i) {
-                    Some(first) => results.push((
-                        i,
-                        Err(Error::invalid(tf("platform.hotkey.duplicate", &[("accel", &a.label()), ("n", &(first + 1).to_string())]))),
-                    )),
+                    Some(first) => {
+                        let other = t(&format!("action.{}", bindings[first].action.key()));
+                        let message = tf("platform.hotkey.duplicate", &[("accel", &a.label()), ("action", &other)]);
+                        results.push((i, Err(Error::invalid(message))));
+                    }
                     None => parsed.push((i, a)),
                 },
             }

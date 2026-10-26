@@ -44,8 +44,8 @@ someone = "Кто-то"
 
 [app.hotkey]
 conflict_title = "Не удалось назначить сочетание клавиш"
-conflict_body = "{accel}: {reason}"
 unavailable = "Глобальные сочетания клавиш недоступны"
+system_title = "Сочетание клавиш занято системой"
 
 [app.recording]
 disabled = "Запись экрана отключена администратором"

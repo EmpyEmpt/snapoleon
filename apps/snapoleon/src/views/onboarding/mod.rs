@@ -262,6 +262,7 @@ impl Onboarding {
             }
         });
         ui.add(egui::Label::new(text::caption(t("onboarding.hotkey.change"))).wrap());
+        crate::views::settings::hotkeys::system_warning(ui, cx, &self.accel);
         ui.add_space(space::MD);
         ui.separator();
         ui.add_space(space::MD);

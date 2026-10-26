@@ -1081,3 +1081,11 @@ label = "Reset all settings"
 desc = "Back to the defaults. Destinations and saved secrets are kept."
 button = "Reset…"
 confirm = "Reset all settings"
+
+# --- Hotkeys: conflicts ------------------------------------------------------------------------------------------
+
+[settings.hotkeys.conflicts]
+taken = "{accel} is already used by “{action}”. Replace moves it here."
+replace = "Replace"
+system = "System"
+system_line = "“{action}”: {message}"

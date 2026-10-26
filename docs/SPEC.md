@@ -322,7 +322,9 @@ pub mod hotkeys {
     impl HotkeyManager { pub fn new(on_event: impl Fn(HotkeyEvent) + Send + 'static) -> Result<Self>;
         pub fn register(&mut self, b: &[HotkeyBinding]) -> Vec<(usize, Result<()>)>;   // conflicts reported per binding
         pub fn unregister_all(&mut self); pub fn pause(&mut self, paused: bool); }       // pause while the hotkey recorder is focused
-    pub fn validate(accel: &str) -> Result<()>;  pub fn display(accel: &str) -> String;   // "⌘⇧4" on mac, "Ctrl+Shift+4" elsewhere
+    pub fn validate(accel: &str) -> Result<()>;  pub fn display(accel: &str) -> String;   // "⇧⌘4" on mac, "Ctrl+Shift+4" elsewhere
+    pub struct SystemConflict { pub message: String, pub open_label: String, pub settings_url: &'static str }
+    pub fn system_conflict(accel: &str) -> Option<SystemConflict>;   // enabled macOS system shortcut / Print Screen -> Snipping Tool
     pub fn from_egui(mods: egui::Modifiers, key: egui::Key) -> Option<String>; // feature "egui"
 }
 pub mod tray {
