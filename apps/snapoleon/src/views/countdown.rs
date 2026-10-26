@@ -1,7 +1,8 @@
 //! The count-down tile: a small ring with the seconds left, shown while the app waits (the delay of a delayed
 //! capture, the 3-2-1 before a recording). It is click-through, hidden from captures and does not take the
 //! keyboard focus, so whatever the user prepared on screen (an open menu) stays as it is. A delayed capture is cancelled
-//! with Escape (grabbed globally while the tile is up, see `App::sync_escape`) or by pressing its hotkey again.
+//! by running it again (its hotkey or the tray item), and with Escape where the OS lets the app grab it globally while
+//! the tile is up (see `App::sync_escape`; not on the Wayland portal, nor without global hotkeys).
 
 use std::{
     f32::consts::TAU,
@@ -111,18 +112,20 @@ impl View for DelayView {
             return;
         }
         paint(ctx, (self.secs as f32 - elapsed).ceil() as u32, elapsed.fract());
-        // In the band under the ring.
-        let p = palette(ctx);
-        let tile = ctx.content_rect();
-        let caption = ctx.layer_painter(egui::LayerId::new(Order::Foreground, egui::Id::unique("countdown-caption")));
-        let font = text::caption_style().resolve(&ctx.global_style());
-        caption.text(
-            Pos2::new(tile.center().x, tile.bottom() - 9.0),
-            Align2::CENTER_CENTER,
-            t("app.countdown_hint.cancel"),
-            font,
-            p.text_dim,
-        );
+        // In the band under the ring; only while Escape really reaches the app, since the tile never has the focus.
+        if crate::hotkeys::escape_held() {
+            let p = palette(ctx);
+            let tile = ctx.content_rect();
+            let caption = ctx.layer_painter(egui::LayerId::new(Order::Foreground, egui::Id::unique("countdown-caption")));
+            let font = text::caption_style().resolve(&ctx.global_style());
+            caption.text(
+                Pos2::new(tile.center().x, tile.bottom() - 9.0),
+                Align2::CENTER_CENTER,
+                t("app.countdown_hint.cancel"),
+                font,
+                p.text_dim,
+            );
+        }
         ctx.request_repaint_after(Duration::from_millis(16));
     }
 }

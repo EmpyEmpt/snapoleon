@@ -17,6 +17,8 @@ pub enum AppEvent {
     /// Index into `settings.hotkeys` as registered.
     Hotkey(usize),
     Tray(TrayEvent),
+    /// The latest capture's quick actions ran out (see `App::arm_tray_expiry`): rebuild the tray menu.
+    RefreshTray,
     /// A request from the CLI, a second instance or a `snapoleon://` URL. The
     /// sender is answered exactly once, possibly after a job has finished.
     Ipc(Request, Sender<Response>),

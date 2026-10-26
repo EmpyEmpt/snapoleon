@@ -42,7 +42,11 @@ pub fn fitted(popup: Popup<'_>, gap: f32, want_h: f32) -> (Popup<'_>, f32) {
     (popup.align(align).align_alternatives(&[]), max_h)
 }
 
-/// A popup body that scrolls once it is taller than `max_h`.
+/// A popup body that scrolls once it is taller than `max_h`. The scrolled minimum equals the maximum: a popup's area
+/// is only as tall as it was last frame (or egui's 400 pt default on the sizing pass of each opening), and a scroll
+/// area never grows past what is left of it, so the body would keep that height even with room for more. Shorter
+/// content still shrinks the body to fit.
 pub fn scroll_body<R>(ui: &mut Ui, max_h: f32, add: impl FnOnce(&mut Ui) -> R) -> R {
-    ScrollArea::vertical().max_height(max_h.max(0.0)).auto_shrink([false, true]).show(ui, add).inner
+    let max_h = max_h.max(0.0);
+    ScrollArea::vertical().max_height(max_h).min_scrolled_height(max_h).auto_shrink([false, true]).show(ui, add).inner
 }

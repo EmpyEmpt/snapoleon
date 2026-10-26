@@ -59,7 +59,7 @@ pub fn active() -> bool {
 }
 
 /// End the running session as if Escape was pressed in it. For the ways out that do not go through a cover's own
-/// keyboard input: the global Escape and a second press of a capture hotkey.
+/// keyboard input: the global Escape and a second press of a hotkey that opens it.
 pub fn cancel(cx: &mut OpenCx) {
     for win in cx.shell.windows_with_tag(TAG) {
         cx.post(win, Cancel);

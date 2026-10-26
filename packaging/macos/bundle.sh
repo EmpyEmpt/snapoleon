@@ -106,6 +106,10 @@ if [[ "$reset" == 1 ]]; then
   for service in ScreenCapture Accessibility ListenEvent Microphone; do
     tccutil reset "$service" app.snapoleon >/dev/null 2>&1 || true
   done
+  # The app remembers that it asked (TCC cannot say so); without this it offers System Settings instead of Allow.
+  for key in SnapoleonAskedScreenRecording SnapoleonAskedAccessibility; do
+    defaults delete app.snapoleon "$key" >/dev/null 2>&1 || true
+  done
   echo "reset Screen Recording, Accessibility, Input Monitoring and Microphone for app.snapoleon"
 fi
 

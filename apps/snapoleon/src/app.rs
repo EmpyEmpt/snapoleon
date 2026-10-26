@@ -13,7 +13,7 @@ use egui::Context;
 use snap_core::{Settings, paths, policy::Policy, t, tf};
 use snap_engine::{Engine, Notice, NoticeKind};
 use snap_platform::tray::Tray;
-use snap_shell::{OsRequest, Shell, ShellApp, WindowKey};
+use snap_shell::{OsRequest, Proxy, Shell, ShellApp, WindowKey};
 use snap_ui::Toasts;
 
 use crate::{
@@ -96,6 +96,10 @@ pub struct App {
     crashed: Vec<WindowKey>,
     pub(crate) hotkeys: Option<Hotkeys>,
     pub(crate) tray: Option<Tray>,
+    /// For the timer that rebuilds the tray menu when the latest capture's quick actions run out.
+    pub(crate) tray_proxy: Option<Proxy<AppEvent>>,
+    /// When that timer fires (Unix ms); `None` while none is waiting.
+    pub(crate) tray_expiry: Option<i64>,
     pub(crate) ipc: Option<snap_platform::ipc::Server>,
     pub(crate) recording: bool,
     pub(crate) quit_pending: bool,
@@ -122,6 +126,8 @@ impl App {
             crashed: Vec::new(),
             hotkeys: None,
             tray: None,
+            tray_proxy: None,
+            tray_expiry: None,
             ipc: None,
             recording: false,
             quit_pending: false,
@@ -185,6 +191,7 @@ impl App {
 
     /// Process queued commands until none are left.
     pub(crate) fn flush(&mut self, sh: &mut Shell<AppEvent>) {
+        logging::settle();
         for _ in 0..16 {
             let cmds = std::mem::take(&mut self.cmds);
             if cmds.is_empty() {
@@ -407,6 +414,7 @@ impl ShellApp<AppEvent> for App {
         match event {
             AppEvent::Hotkey(index) => self.on_hotkey(sh, index),
             AppEvent::Tray(event) => self.on_tray(sh, event),
+            AppEvent::RefreshTray => self.refresh_tray(),
             AppEvent::Ipc(request, reply) => self.handle_request(sh, request, Some(reply)),
             AppEvent::Command(command) => self.cmds.push(command),
             AppEvent::JobProgress { label, frac } => {
