@@ -160,7 +160,8 @@ vocabulary; the "view must send back" column is what the receiving view owes the
 | `PinFile(path)` | loads on a thread, then `OpenPin` | (no view) |
 | `OpenLibrary` | `library::open` (singleton) | |
 | `OpenSettings { page }` | `settings::open` (singleton); an open window gets `on_msg(Box<SettingsPage>)` | switch to the page. Pages: General, Capture, Hotkeys, Pipelines, Destinations, Links, Recording, TextAi, Privacy, History, Advanced. |
-| `OpenOnboarding` | `onboarding::open` (singleton) | set `general.first_run_done = true` via `cx.update_settings` when finished. |
+| `OpenOnboarding` | `onboarding::open` (singleton) | set `general.first_run_done = true` via `cx.update_settings` when finished, and push `FirstRunDone` when that ends the very first run. |
+| `FirstRunDone` | `App::first_run_hint`: a notification that the app now lives in the menu bar (the tray elsewhere) with the capture hotkey, and the menu bar icon blinks (`Tray::flash`) | (no view) |
 | `OpenAbout` | `about::open` (singleton) | |
 | `ShowText { title, text }` | `text::open` | |
 | `ShowCodes { title, text, codes }` | `text::open_with_codes` | decoded QR codes and barcodes (`PipelineUi::show_codes`, i.e. a `DecodeCodes { copy: false }` step). |
@@ -175,6 +176,7 @@ vocabulary; the "view must send back" column is what the receiving view owes the
 | `OpenColorTool(ColorToolInput)` | `colors::open` (singleton); a sample or measurement reaches an open window as `on_msg(Box<ColorSample>)` / `Box<Measurement>` | keep a history of picks and measurements. `ColorToolInput::Open` (tray: "Colors and measurements") just shows the history. |
 | `PauseHotkeys(bool)` | hotkey manager | the Settings hotkey recorder sends `true` on focus and `false` on blur. |
 | `CopyText`, `Reveal`, `OpenPath`, `OpenUrl` | platform helpers (errors become a notice) | |
+| `FixPermission(Perm)` | `notices::fix_permission`: the system prompt while the permission is undecided, its System Settings page after that | the button of a notice whose `permission` is set (toast and macOS notification). |
 | `Open(closure)` | runs the closure with an `OpenCx` | see "Opening windows". |
 | `Quit` | stops a running recording first, closes windows, exits | |
 
@@ -245,9 +247,13 @@ side panel) do not use a job: `cx.spawn` it and handle the typed result in `on_m
 - **View-local feedback** ("Copied", "Saved as ..."): `cx.toast(ToastKind::Success, t("editor.copied"))`.
   A toast with a button: `cx.toast_action(kind, text, label, Command::Reveal(path))`.
 - **Results that matter even when no window is focused** (job results, hotkey conflicts, background
-  failures): `cx.notify(Notice { kind, title, body, url, file, image })`. The app shows an in-app
+  failures): `cx.notify(Notice { kind, title, body, url, file, image, permission })`. The app shows an in-app
   toast (with "Copy link" / "Show in folder") when an app window is focused and an OS notification
   otherwise (respecting `general.show_notifications`; errors are always shown).
+- **A missing privacy permission** (macOS): set `Notice::permission` to `notices::missing_permission(&err)`. The toast
+  and the notification then carry "Open System Settings" (`Command::FixPermission`). Jobs, the overlay, scrolling
+  capture and element snapping already do this for `Error::Permission`; while Screen Recording is off the tray menu
+  starts with "Allow Screen Recording…", which opens Settings > Privacy.
 - Errors: `cx.toast_error(&err)` uses the localised message for known error types.
 
 ## Settings

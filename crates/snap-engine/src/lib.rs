@@ -98,6 +98,8 @@ pub struct Notice {
     pub url: Option<String>,
     /// Offered as "Show in folder".
     pub file: Option<PathBuf>,
+    /// A missing privacy permission the notice is about (macOS), offered as "Open System Settings".
+    pub permission: Option<snap_platform::permissions::Perm>,
 }
 
 /// Interactive hooks a pipeline may need. Called from worker threads; the GUI

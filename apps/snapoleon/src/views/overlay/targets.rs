@@ -30,6 +30,8 @@ pub struct Target {
 /// The answer of one accessibility query, delivered to a window's `on_msg`.
 pub struct ElementsReply {
     chain: Vec<ElementInfo>,
+    /// The query was refused for a missing permission (Accessibility, on macOS).
+    denied: Option<snap_core::Error>,
 }
 
 #[derive(Default)]
@@ -41,6 +43,8 @@ pub struct Targets {
     leaf: Option<PxRect>,
     asked: Option<(Instant, Point)>,
     wheel: f32,
+    /// A refused query was reported; once per session is enough.
+    reported: bool,
 }
 
 impl Targets {
@@ -78,13 +82,17 @@ impl Targets {
         }
     }
 
-    pub fn apply(&mut self, reply: ElementsReply) {
+    /// Take the answer in. Returns the permission error the first time a query is refused, for the caller to report.
+    pub fn apply(&mut self, reply: ElementsReply) -> Option<snap_core::Error> {
         let leaf = reply.chain.first().map(|e| e.rect);
         if leaf != self.leaf {
             self.level = 0;
         }
         self.leaf = leaf;
         self.chain = reply.chain;
+        let denied = reply.denied.filter(|_| !self.reported);
+        self.reported |= denied.is_some();
+        denied
     }
 
     /// Mouse wheel over the overlay: up selects the parent element, down goes back towards the child.
@@ -113,8 +121,12 @@ fn worker() -> &'static Sender<(Point, ViewHandle)> {
                 while let Ok(newer) = rx.try_recv() {
                     (at, handle) = newer;
                 }
-                let chain = snap_capture::elements_at(at).unwrap_or_default();
-                handle.send(ElementsReply { chain });
+                let reply = match snap_capture::elements_at(at) {
+                    Ok(chain) => ElementsReply { chain, denied: None },
+                    Err(e @ snap_core::Error::Permission(_)) => ElementsReply { chain: Vec::new(), denied: Some(e) },
+                    Err(_) => ElementsReply { chain: Vec::new(), denied: None },
+                };
+                handle.send(reply);
             }
         });
         if let Err(e) = spawned {

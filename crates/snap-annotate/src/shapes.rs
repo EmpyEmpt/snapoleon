@@ -10,7 +10,7 @@ use crate::effects::{pixel_rect, preview_patch};
 use crate::font::{self, Face};
 use crate::geometry::{
     ArrowGeom, TextBox, arrow_geom, bubble_path, build, callout_box, magnifier_geom, measure_geom, norm_rect, polygon_path, polyline_path,
-    rounded_rect_path, smooth_path, text_box,
+    rounded_rect_path, smooth_path, text_box, text_outline_width,
 };
 use crate::math::{Scale, V, badge_ink, contrasting};
 use crate::model::{Shape, ShapeKind, Style, TextBg};
@@ -153,7 +153,7 @@ fn draw_text(cv: &mut Canvas, tb: &TextBox, ink: [u8; 4], halo: Option<[u8; 4]>)
     });
     if let Some(p) = path {
         if let Some(halo) = halo {
-            cv.stroke(&p, halo, &StrokeSpec::round((tb.layout.size * 0.16).max(1.5)));
+            cv.stroke(&p, halo, &StrokeSpec::round(text_outline_width(tb.layout.size)));
         }
         cv.fill(&p, ink);
     }

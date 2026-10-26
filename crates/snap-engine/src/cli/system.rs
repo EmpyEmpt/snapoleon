@@ -219,15 +219,10 @@ pub fn install_cli(dir: Option<&Path>) -> Result<PathBuf> {
     if cfg!(windows) {
         return Err(Error::unsupported(t("cli.install.windows")));
     }
-    // An AppImage runs from a mount that is gone after it exits; the image itself is what to call.
-    let exe = match std::env::var_os("APPIMAGE") {
-        Some(image) => PathBuf::from(image),
-        None => std::env::current_exe().and_then(std::fs::canonicalize)?,
-    };
+    let exe = this_installation()?;
     let dir = match dir {
         Some(dir) => dir.to_path_buf(),
-        None if cfg!(target_os = "macos") => PathBuf::from("/usr/local/bin"),
-        None => PathBuf::from(std::env::var_os("HOME").ok_or_else(|| Error::NotFound("HOME".into()))?).join(".local/bin"),
+        None => default_dir()?,
     };
     let target = dir.join("snapoleon");
     // A symlink is replaced (that is the broken kind), a script of ours is rewritten, anything else is left alone.
@@ -250,6 +245,46 @@ pub fn install_cli(dir: Option<&Path>) -> Result<PathBuf> {
         eprintln!("{}", tf("cli.install.not_on_path", &[("dir", &dir.display().to_string())]));
     }
     Ok(target)
+}
+
+/// The `snapoleon` command that runs this installation, if there is one: the script [`install_cli`] writes, a package
+/// manager's wrapper (the Homebrew cask's) or the executable itself, in a folder on PATH or in [`install_cli`]'s default
+/// folder. That folder counts because an app the system started sees only the system's PATH, not the shell's.
+pub fn installed_cli() -> Option<PathBuf> {
+    let exe = this_installation().ok()?;
+    let name = if cfg!(windows) { "snapoleon.exe" } else { "snapoleon" };
+    let mut dirs: Vec<PathBuf> = std::env::var_os("PATH").map(|p| std::env::split_paths(&p).collect()).unwrap_or_default();
+    if !cfg!(windows) {
+        dirs.extend(default_dir().ok());
+    }
+    if cfg!(target_os = "macos") {
+        // Where Homebrew puts its commands on Apple silicon (the cask's wrapper among them).
+        dirs.push(PathBuf::from("/opt/homebrew/bin"));
+    }
+    let target = exe.display().to_string();
+    dirs.into_iter().map(|dir| dir.join(name)).find(|candidate| {
+        let runs_exe = std::fs::canonicalize(candidate).is_ok_and(|real| real == exe);
+        // A wrapper script is a few lines that name the executable; anything bigger is some other program.
+        let small = std::fs::metadata(candidate).is_ok_and(|m| m.is_file() && m.len() < 4096);
+        runs_exe || (small && std::fs::read_to_string(candidate).is_ok_and(|script| script.contains(&target)))
+    })
+}
+
+/// What a `snapoleon` command should run: this executable, resolved. An AppImage runs from a mount that is gone after
+/// it exits; the image itself is what to call.
+fn this_installation() -> Result<PathBuf> {
+    match std::env::var_os("APPIMAGE") {
+        Some(image) => Ok(PathBuf::from(image)),
+        None => Ok(std::env::current_exe().and_then(std::fs::canonicalize)?),
+    }
+}
+
+/// Where [`install_cli`] puts the command unless told otherwise: `/usr/local/bin` on macOS, `~/.local/bin` on Linux.
+fn default_dir() -> Result<PathBuf> {
+    if cfg!(target_os = "macos") {
+        return Ok(PathBuf::from("/usr/local/bin"));
+    }
+    Ok(PathBuf::from(std::env::var_os("HOME").ok_or_else(|| Error::NotFound("HOME".into()))?).join(".local/bin"))
 }
 
 fn is_shim(path: &Path) -> bool {

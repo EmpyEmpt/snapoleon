@@ -75,6 +75,8 @@ pub enum Command {
         page: Option<SettingsPage>,
     },
     OpenOnboarding,
+    /// The first run just ended and its window is closing: say where the app went (the menu bar or the tray).
+    FirstRunDone,
     OpenAbout,
     /// Recognised or translated text.
     ShowText {
@@ -124,6 +126,8 @@ pub enum Command {
     Shutter,
     /// Show a link as a QR code to scan with a phone.
     ShowQr(String),
+    /// A notice's "Open System Settings": the system prompt while the permission is undecided, else its settings page.
+    FixPermission(snap_platform::permissions::Perm),
     CopyText(String),
     Reveal(PathBuf),
     OpenPath(PathBuf),

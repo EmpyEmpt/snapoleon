@@ -14,6 +14,8 @@ use std::path::PathBuf;
 use image::RgbaImage;
 use snap_core::Result;
 
+use crate::permissions::Perm;
+
 /// What an OS notification shows, and what it is about.
 #[derive(Debug, Clone, Default)]
 pub struct OsNotice {
@@ -25,6 +27,8 @@ pub struct OsNotice {
     pub file: Option<PathBuf>,
     /// A link the notice carries: buttons copy or open it (macOS).
     pub url: Option<String>,
+    /// A privacy permission the notice is about: a click, or its button, leads to where it is granted (macOS).
+    pub permission: Option<Perm>,
 }
 
 impl OsNotice {
@@ -46,6 +50,8 @@ pub enum NotifyAction {
     Reveal(PathBuf),
     CopyLink(String),
     OpenLink(String),
+    /// A notification about a missing permission, or its "Open System Settings" button.
+    Permission(Perm),
 }
 
 /// Button titles for notifications, in the UI language.
@@ -55,6 +61,8 @@ pub struct ActionLabels {
     pub reveal: String,
     pub copy_link: String,
     pub open_link: String,
+    /// The button of a notice about a missing permission ("Open System Settings").
+    pub permission: String,
 }
 
 /// Route notification clicks to `on_action`. Call once, on the main thread, while the app finishes launching: a click
@@ -183,14 +191,31 @@ mod imp {
     use snap_core::{Result, paths};
 
     use super::{ActionLabels, NotifyAction, OsNotice};
+    use crate::permissions::Perm;
 
     const CATEGORY_FILE: &str = "snap.file";
     const CATEGORY_LINK: &str = "snap.link";
     const CATEGORY_BOTH: &str = "snap.both";
+    const CATEGORY_PERMISSION: &str = "snap.permission";
     const ACTION_OPEN: &str = "open";
     const ACTION_REVEAL: &str = "reveal";
     const ACTION_COPY_LINK: &str = "copy_link";
     const ACTION_OPEN_LINK: &str = "open_link";
+    const ACTION_PERMISSION: &str = "permission";
+
+    /// How a permission is written into a notification's `userInfo`, which must survive a relaunch of the app.
+    fn permission_key(p: Perm) -> &'static str {
+        match p {
+            Perm::ScreenRecording => "screen_recording",
+            Perm::Accessibility => "accessibility",
+            Perm::InputMonitoring => "input_monitoring",
+            Perm::Microphone => "microphone",
+        }
+    }
+
+    fn permission_of(key: &str) -> Option<Perm> {
+        Perm::ALL.into_iter().find(|p| permission_key(*p) == key)
+    }
 
     const STATUS_UNKNOWN: u8 = 0;
     const STATUS_ALLOWED: u8 = 1;
@@ -258,9 +283,14 @@ mod imp {
         };
         let file = get(ns_string!("file")).map(PathBuf::from);
         let url = get(ns_string!("url"));
+        let permission = get(ns_string!("permission")).and_then(|key| permission_of(&key));
         let id = response.actionIdentifier().to_string();
         // SAFETY: a constant NSString exported by the framework.
         let default = unsafe { UNNotificationDefaultActionIdentifier }.to_string();
+        // The notice and its only button lead to the same place.
+        if let Some(permission) = permission.filter(|_| id == ACTION_PERMISSION || id == default) {
+            return Some(NotifyAction::Permission(permission));
+        }
         match id.as_str() {
             ACTION_REVEAL => file.map(NotifyAction::Reveal),
             ACTION_COPY_LINK => url.map(NotifyAction::CopyLink),
@@ -317,6 +347,8 @@ mod imp {
         let reveal = action(ACTION_REVEAL, &labels.reveal, UNNotificationActionOptions::empty());
         let copy_link = action(ACTION_COPY_LINK, &labels.copy_link, UNNotificationActionOptions::empty());
         let open_link = action(ACTION_OPEN_LINK, &labels.open_link, UNNotificationActionOptions::empty());
+        // System Settings comes to the front by itself.
+        let permission = action(ACTION_PERMISSION, &labels.permission, UNNotificationActionOptions::empty());
         let category = |id: &str, actions: &[&UNNotificationAction]| {
             UNNotificationCategory::categoryWithIdentifier_actions_intentIdentifiers_options(
                 &NSString::from_str(id),
@@ -328,7 +360,13 @@ mod imp {
         let file = category(CATEGORY_FILE, &[&open, &reveal]);
         let link = category(CATEGORY_LINK, &[&copy_link, &open_link]);
         let both = category(CATEGORY_BOTH, &[&copy_link, &open_link, &open, &reveal]);
-        UNUserNotificationCenter::currentNotificationCenter().setNotificationCategories(&NSSet::from_slice(&[&*file, &*link, &*both]));
+        let permission = category(CATEGORY_PERMISSION, &[&permission]);
+        UNUserNotificationCenter::currentNotificationCenter().setNotificationCategories(&NSSet::from_slice(&[
+            &*file,
+            &*link,
+            &*both,
+            &*permission,
+        ]));
     }
 
     /// A process-unique identifier for requests and attachment copies.
@@ -374,7 +412,9 @@ mod imp {
         content.setSound(None);
         let file = notice.file.as_ref().map(|f| NSString::from_str(&f.to_string_lossy()));
         let url = notice.url.as_deref().filter(|u| !u.is_empty()).map(NSString::from_str);
+        let permission = notice.permission.map(|p| NSString::from_str(permission_key(p)));
         let category = match (&file, &url) {
+            _ if permission.is_some() => Some(CATEGORY_PERMISSION),
             (Some(_), Some(_)) => Some(CATEGORY_BOTH),
             (Some(_), None) => Some(CATEGORY_FILE),
             (None, Some(_)) => Some(CATEGORY_LINK),
@@ -392,6 +432,10 @@ mod imp {
         if let Some(url) = &url {
             keys.push(ns_string!("url"));
             values.push(url);
+        }
+        if let Some(permission) = &permission {
+            keys.push(ns_string!("permission"));
+            values.push(permission);
         }
         let info: Retained<NSDictionary<NSString, NSString>> = NSDictionary::from_slices(&keys, &values);
         // SAFETY: string keys and string values are property-list types, which is what userInfo must hold.

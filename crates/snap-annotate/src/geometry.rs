@@ -347,6 +347,11 @@ pub(crate) fn text_box(pos: PointF, text: &str, size: f32, bold: bool, bg: TextB
     TextBox { layout, face, origin, outer, radius, tip, base_w }
 }
 
+/// Width of the outline around plain text that has a fill colour (half of it lies outside the glyphs).
+pub(crate) fn text_outline_width(size: f32) -> f32 {
+    (size * 0.16).max(1.5)
+}
+
 /// Text inside a callout rectangle: wrapped to the padded width and centred vertically.
 pub(crate) fn callout_box(rect: RectF, tail: PointF, text: &str, size: f32, sc: Scale) -> TextBox {
     let size = sc.text(size);

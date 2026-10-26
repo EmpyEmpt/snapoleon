@@ -190,6 +190,7 @@ pub fn open_frozen(cx: &mut OpenCx, request: OverlayRequest) {
                 kind: NoticeKind::Error,
                 title: t("app.error.capture").into_owned(),
                 body: crate::notices::error_text(&e),
+                permission: crate::notices::missing_permission(&e),
                 ..Notice::default()
             });
             return;
@@ -598,7 +599,17 @@ impl View for OverlayView {
         }
         if let Ok(reply) = msg.downcast::<ElementsReply>() {
             let mut s = seat.session.borrow_mut();
-            s.targets.apply(*reply);
+            if let Some(e) = s.targets.apply(*reply) {
+                // No prompt while the covers are up: they would hide it. The notice's button asks, or leads to
+                // System Settings.
+                cx.notify(Notice {
+                    kind: NoticeKind::Warning,
+                    title: t("app.permission.elements").into_owned(),
+                    body: crate::notices::error_text(&e),
+                    permission: crate::notices::missing_permission(&e),
+                    ..Notice::default()
+                });
+            }
             for &win in &s.windows {
                 cx.shell.repaint(win);
             }

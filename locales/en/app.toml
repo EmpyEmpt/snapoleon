@@ -84,3 +84,18 @@ show_in_folder = "Show in Finder"
 
 [app.countdown_hint]
 cancel = "Esc to cancel"
+
+[app.permission]
+open_settings = "Open System Settings"
+allow_screen_recording = "Allow Screen Recording…"
+elements = "UI elements cannot be selected"
+
+[app.ready]
+title = "Snapoleon is now in the tray"
+body = "Press {accel} to capture. Everything else is in the menu of its tray icon."
+body_no_key = "Captures, recordings and settings are in the menu of its tray icon."
+
+[macos.app.ready]
+title = "Snapoleon is now in the menu bar"
+body = "Press {accel} to capture. Everything else is in the menu of its icon in the menu bar."
+body_no_key = "Captures, recordings and settings are in the menu of its icon in the menu bar."

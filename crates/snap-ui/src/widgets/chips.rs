@@ -53,13 +53,29 @@ fn chip_impl(ui: &mut Ui, icon: Option<&str>, label: &str, selected: bool) -> Re
 
 /// Splits an accelerator like `Ctrl+Shift+4` into display labels, using symbols on macOS.
 /// Write `CmdOrCtrl` for shortcuts handled with `Modifiers::COMMAND`: it reads ⌘ on macOS and Ctrl elsewhere.
+/// macOS shows the modifiers in its own order, ⌃⌥⇧⌘, whatever order the string has them in.
 pub fn accel_parts(accel: &str) -> Vec<String> {
     let mut keys: Vec<&str> = accel.split('+').map(str::trim).filter(|k| !k.is_empty()).collect();
     // `Ctrl++` names the plus key itself, which the split drops.
     if accel.trim_end().ends_with('+') {
         keys.push("+");
     }
+    if cfg!(target_os = "macos") {
+        // Stable, so the key stays after the modifiers and keys keep their order among themselves.
+        keys.sort_by_key(|k| mac_modifier_rank(k));
+    }
     keys.into_iter().map(key_label).collect()
+}
+
+/// Where a modifier goes in Apple's order (Control, Option, Shift, Command); anything else comes after them.
+fn mac_modifier_rank(key: &str) -> u8 {
+    match key.to_ascii_lowercase().as_str() {
+        "ctrl" | "control" => 0,
+        "alt" | "option" => 1,
+        "shift" => 2,
+        "cmdorctrl" | "commandorcontrol" | "cmd" | "command" | "super" | "win" | "meta" => 3,
+        _ => 4,
+    }
 }
 
 /// An accelerator as one short label, for menus: `⌘⇧Z` on macOS, `Ctrl+Shift+Z` elsewhere.

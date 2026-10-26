@@ -13,7 +13,6 @@ use snap_shell::Proxy;
 use crate::{
     commands::{Command, Work},
     events::{AppEvent, JobDone},
-    notices::error_text,
     views::editor::EditorInput,
 };
 
@@ -86,10 +85,9 @@ pub fn spawn(
             // A panic inside the engine ends this job, not the app, and must not leave the progress pill spinning.
             let ran = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| run(&ui)));
             let result = match ran.unwrap_or_else(|_| Err(Error::Other(anyhow::anyhow!(t("app.error.job"))))) {
-                Ok(outcome) => Ok(outcome),
                 // The user dismissed an interactive step: not an error.
                 Err(Error::Cancelled) => Ok(Outcome { cancelled: true, ..Outcome::default() }),
-                Err(e) => Err(error_text(&e)),
+                result => result,
             };
             let text_shown = ui.text_shown.load(Ordering::Relaxed);
             proxy.send(AppEvent::JobDone(JobDone { label, result, show_text, text_shown, reply }));
