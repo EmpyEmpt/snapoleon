@@ -61,7 +61,11 @@ fn report(label: &str, path: &std::path::Path) -> snap_core::Result<edit::VideoI
 /// An edit must keep the source's audio track.
 fn check_audio(label: &str, source: &edit::VideoInfo, edited: &edit::VideoInfo) -> snap_core::Result<()> {
     if source.has_audio != edited.has_audio {
-        return Err(snap_core::Error::Other(anyhow::anyhow!("{label}: audio={} but the source has audio={}", edited.has_audio, source.has_audio)));
+        return Err(snap_core::Error::Other(anyhow::anyhow!(
+            "{label}: audio={} but the source has audio={}",
+            edited.has_audio,
+            source.has_audio
+        )));
     }
     Ok(())
 }

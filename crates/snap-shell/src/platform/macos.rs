@@ -170,7 +170,8 @@ thread_local! {
 
 pub(crate) fn remember_frontmost() {
     let Some(mtm) = MainThreadMarker::new() else { return };
-    let before = if NSApplication::sharedApplication(mtm).isActive() { None } else { NSWorkspace::sharedWorkspace().frontmostApplication() };
+    let before =
+        if NSApplication::sharedApplication(mtm).isActive() { None } else { NSWorkspace::sharedWorkspace().frontmostApplication() };
     FRONTMOST.set(before);
 }
 

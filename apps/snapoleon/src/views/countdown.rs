@@ -116,7 +116,13 @@ impl View for DelayView {
         let tile = ctx.content_rect();
         let caption = ctx.layer_painter(egui::LayerId::new(Order::Foreground, egui::Id::unique("countdown-caption")));
         let font = text::caption_style().resolve(&ctx.global_style());
-        caption.text(Pos2::new(tile.center().x, tile.bottom() - 9.0), Align2::CENTER_CENTER, t("app.countdown.cancel"), font, p.text_dim);
+        caption.text(
+            Pos2::new(tile.center().x, tile.bottom() - 9.0),
+            Align2::CENTER_CENTER,
+            t("app.countdown_hint.cancel"),
+            font,
+            p.text_dim,
+        );
         ctx.request_repaint_after(Duration::from_millis(16));
     }
 }

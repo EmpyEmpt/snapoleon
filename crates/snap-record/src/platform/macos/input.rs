@@ -164,9 +164,11 @@ fn convert(kind: CGEventType, ev: &CGEvent) -> Option<InputEvent> {
         }
         CGEventType::LeftMouseDown => down(Button::Left),
         CGEventType::RightMouseDown => down(Button::Right),
-        CGEventType::OtherMouseDown => {
-            down(if CGEvent::integer_value_field(Some(ev), CGEventField::MouseEventButtonNumber) == 2 { Button::Middle } else { Button::Other })
-        }
+        CGEventType::OtherMouseDown => down(if CGEvent::integer_value_field(Some(ev), CGEventField::MouseEventButtonNumber) == 2 {
+            Button::Middle
+        } else {
+            Button::Other
+        }),
         CGEventType::LeftMouseUp | CGEventType::RightMouseUp | CGEventType::OtherMouseUp => Some(InputEvent::ButtonUp),
         CGEventType::KeyDown => {
             if CGEvent::integer_value_field(Some(ev), CGEventField::KeyboardEventAutorepeat) != 0 {

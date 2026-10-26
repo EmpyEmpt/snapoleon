@@ -82,5 +82,5 @@ body = "Отчёт сохранён. Откройте его, чтобы узн�
 [macos.app.notice]
 show_in_folder = "Показать в Finder"
 
-[app.countdown]
+[app.countdown_hint]
 cancel = "Esc — отмена"

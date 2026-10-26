@@ -271,7 +271,8 @@ fn alert_raised(s: &mut Session, ctx: &Context) -> bool {
 /// ours that wants the keyboard (pins and the recorder and scroll HUDs do not). The editor, the text and code windows
 /// and the color tool keep it here.
 fn hands_focus_back(commands: &[Command], settings: &Settings) -> bool {
-    let shows_window = |step: &Step| matches!(step, Step::Annotate | Step::Ocr { copy: false, .. } | Step::Translate { .. } | Step::DecodeCodes { .. });
+    let shows_window =
+        |step: &Step| matches!(step, Step::Annotate | Step::Ocr { copy: false, .. } | Step::Translate { .. } | Step::DecodeCodes { .. });
     commands.iter().all(|command| match command {
         Command::Shutter | Command::OpenPin { .. } | Command::StartRecording { .. } | Command::StartScrolling { .. } => true,
         Command::RunSteps { steps, .. } => !steps.iter().any(shows_window),
