@@ -8,8 +8,7 @@ use dispatch2::{DispatchQueue, DispatchRetained};
 use objc2::{AllocAnyThread, DefinedClass, define_class, msg_send, rc::Retained, runtime::ProtocolObject};
 use objc2_core_foundation::{CGPoint, CGRect, CGSize};
 use objc2_core_graphics::{
-    CGDirectDisplayID, CGDisplayBounds, CGDisplayCopyDisplayMode, CGDisplayMode, CGMainDisplayID, CGPreflightScreenCaptureAccess,
-    kCGColorSpaceSRGB,
+    CGDirectDisplayID, CGDisplayBounds, CGDisplayCopyDisplayMode, CGDisplayMode, CGPreflightScreenCaptureAccess, kCGColorSpaceSRGB,
 };
 use objc2_core_media::{CMSampleBuffer, CMTime};
 use objc2_core_video::{
@@ -21,7 +20,7 @@ use objc2_screen_capture_kit::{
     SCContentFilter, SCDisplay, SCShareableContent, SCStream, SCStreamConfiguration, SCStreamOutput, SCStreamOutputType, SCWindow,
 };
 use parking_lot::Mutex;
-use snap_core::{Error, Point, Rect, Result, t, tf};
+use snap_core::{Error, Point, Result, geom::PointLayout, t, tf};
 
 use crate::{
     RecordTarget,
@@ -209,17 +208,14 @@ pub(crate) fn open_source(spec: &SourceSpec, slot: Arc<FrameSlot>) -> Result<Box
     // SAFETY: reading immutable properties of SCK objects.
     let (displays, windows) = unsafe { (content.displays(), content.windows()) };
 
-    // The main display first, then by position: the order `snap_capture::monitors()` uses, so
-    // `RecordTarget::Monitor(i)` is the monitor the overlay showed as number i.
-    let main = CGMainDisplayID();
+    // The order of the shared point layout `snap_capture::monitors()` numbers (main first, then by pixel position), so
+    // `RecordTarget::Monitor(i)` is the monitor the overlay showed as number i. Mirrors are not in the layout and go last.
+    let layout = PointLayout::current();
     let mut ordered: Vec<Retained<SCDisplay>> = displays.iter().collect();
-    ordered.sort_by(|a, b| {
-        let key = |d: &SCDisplay| {
-            // SAFETY: reading the display id and frame.
-            let (id, f) = unsafe { (d.displayID(), d.frame()) };
-            (id != main, f.origin.x, f.origin.y)
-        };
-        key(a).partial_cmp(&key(b)).unwrap_or(std::cmp::Ordering::Equal)
+    ordered.sort_by_key(|d| {
+        // SAFETY: reading the display id.
+        let id = unsafe { d.displayID() };
+        layout.displays.iter().position(|p| p.id == id).unwrap_or(usize::MAX)
     });
 
     // Our own windows (the HUD) and, when asked, Finder's desktop icons; display filters drop them from the picture.
@@ -252,28 +248,22 @@ pub(crate) fn open_source(spec: &SourceSpec, slot: Arc<FrameSlot>) -> Result<Box
             if r.is_empty() {
                 return Err(Error::invalid(t("record.error.region_empty")));
             }
-            // Rectangles arrive in pixels; find the display under the region's centre.
-            let centre = (r.x as f64 + r.w as f64 / 2.0, r.y as f64 + r.h as f64 / 2.0);
-            let hit = ordered.iter().find_map(|d| {
-                // SAFETY: display properties.
-                let (id, f) = unsafe { (d.displayID(), d.frame()) };
-                let s = display_scale(id);
-                let (px, py) = (f.origin.x * s, f.origin.y * s);
-                (centre.0 >= px && centre.0 < px + f.size.width * s && centre.1 >= py && centre.1 < py + f.size.height * s)
-                    .then(|| (d.clone(), s, f))
-            });
-            let (display, s, f) = hit.ok_or_else(|| Error::invalid(t("record.error.region_outside")))?;
-            scale = s;
-            let rect_pts = Rect::new(r.x, r.y, r.w, r.h);
-            let local = CGRect::new(
-                CGPoint::new(rect_pts.x as f64 / s - f.origin.x, rect_pts.y as f64 / s - f.origin.y),
-                CGSize::new(rect_pts.w as f64 / s, rect_pts.h as f64 / s),
-            );
+            // Rectangles arrive in the layout's virtual-desktop pixels; find the display under the region's centre.
+            let outside = || Error::invalid(t("record.error.region_outside"));
+            let centre = Point::new(r.x + (r.w / 2) as i32, r.y + (r.h / 2) as i32);
+            let pd = layout.displays.iter().find(|d| d.rect.contains(centre)).ok_or_else(outside)?;
+            // SAFETY: reading the display id.
+            let display = ordered.iter().find(|d| unsafe { d.displayID() } == pd.id).ok_or_else(outside)?;
+            scale = pd.scale;
+            // The region's top-left in global points.
+            let (gx, gy) = pd.to_points(r.x as f64, r.y as f64);
+            let local = CGRect::new(CGPoint::new(gx - pd.origin.0, gy - pd.origin.1), CGSize::new(r.w as f64 / scale, r.h as f64 / scale));
             // SAFETY: filter construction.
-            filter = unsafe { SCContentFilter::initWithDisplay_excludingWindows(SCContentFilter::alloc(), &display, &exclude) };
+            filter = unsafe { SCContentFilter::initWithDisplay_excludingWindows(SCContentFilter::alloc(), display, &exclude) };
             source_rect = Some(local);
             size_px = (even(r.w), even(r.h));
-            origin_px = r.origin();
+            // Input events and the cursor arrive in global points, drawn at `points * scale - origin`.
+            origin_px = Point::new((gx * scale).round() as i32, (gy * scale).round() as i32);
         }
         RecordTarget::Window(id) => {
             let window = windows

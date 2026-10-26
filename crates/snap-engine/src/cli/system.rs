@@ -222,6 +222,10 @@ pub fn install_cli(dir: Option<&Path>) -> Result<PathBuf> {
         return Err(Error::unsupported(t("cli.install.windows")));
     }
     let exe = this_installation()?;
+    #[cfg(target_os = "macos")]
+    if on_temporary_mount(&exe) {
+        return Err(Error::invalid(t("cli.install.temporary")));
+    }
     let dir = match dir {
         Some(dir) => dir.to_path_buf(),
         None => default_dir()?,
@@ -287,6 +291,22 @@ fn default_dir() -> Result<PathBuf> {
         return Ok(PathBuf::from("/usr/local/bin"));
     }
     Ok(PathBuf::from(std::env::var_os("HOME").ok_or_else(|| Error::NotFound("HOME".into()))?).join(".local/bin"))
+}
+
+/// A disk image and App Translocation's copy (an app opened from Downloads without being moved) are read-only mounts
+/// that are gone after an eject or a restart, so a shim that execs into them stops working.
+#[cfg(target_os = "macos")]
+fn on_temporary_mount(path: &Path) -> bool {
+    use std::os::unix::ffi::OsStrExt;
+    if path.to_string_lossy().contains("/AppTranslocation/") {
+        return true;
+    }
+    let Ok(c) = std::ffi::CString::new(path.as_os_str().as_bytes()) else {
+        return false;
+    };
+    // SAFETY: a NUL-terminated path and a zeroed out-struct that statfs fills in.
+    let mut fs: libc::statfs = unsafe { std::mem::zeroed() };
+    unsafe { libc::statfs(c.as_ptr(), &mut fs) == 0 && fs.f_flags & libc::MNT_RDONLY as u32 != 0 }
 }
 
 fn is_shim(path: &Path) -> bool {

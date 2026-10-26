@@ -10,6 +10,7 @@ use std::{
 
 use anyhow::anyhow;
 use block2::RcBlock;
+use crossbeam_channel::RecvTimeoutError;
 use objc2::{AllocAnyThread, rc::Retained, runtime::AnyObject};
 use objc2_av_foundation::{
     AVAssetWriter, AVAssetWriterInput, AVAssetWriterInputPixelBufferAdaptor, AVAssetWriterStatus, AVFileTypeMPEG4, AVMediaTypeAudio,
@@ -379,7 +380,20 @@ impl Sink for AvSink {
                 let _ = tx.send(());
             });
             self.writer.finishWritingWithCompletionHandler(&done);
-            rx.recv_timeout(Duration::from_secs(60)).map_err(|_| av("finish writing", "timed out"))?;
+            // Fast start copies the whole movie behind a new moov here, so finishing takes time in proportion to the
+            // file (seconds per GB, far more on slow volumes): wait as long as the writer is still at it.
+            loop {
+                match rx.recv_timeout(Duration::from_secs(1)) {
+                    Ok(()) => break,
+                    Err(RecvTimeoutError::Timeout) if self.writer.status() == AVAssetWriterStatus::Writing => {}
+                    // The writer left Writing: its handler is about to run, or it failed (reported below).
+                    Err(RecvTimeoutError::Timeout) => {
+                        let _ = rx.recv_timeout(Duration::from_secs(5));
+                        break;
+                    }
+                    Err(RecvTimeoutError::Disconnected) => return Err(av("finish writing", "completion handler dropped")),
+                }
+            }
         }
         match self.failed() {
             Some(e) => Err(e),

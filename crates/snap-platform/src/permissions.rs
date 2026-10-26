@@ -62,6 +62,15 @@ pub fn request(p: Perm) {
     sent_to_grant(p);
 }
 
+/// Show the Screen Recording prompt for this process's responsible app (the terminal, for a command run there), without
+/// the app's "asked" bookkeeping: that flag describes the app's own prompt, not the host's. macOS prompts at most once
+/// per responsible app and adds it to the list in System Settings either way.
+pub fn request_screen_recording_for_host() {
+    if !imp::granted(Perm::ScreenRecording) {
+        imp::request(Perm::ScreenRecording);
+    }
+}
+
 /// Open the OS settings page where the user can grant the permission.
 pub fn open_settings(p: Perm) {
     tracing::info!("opening system settings for {p:?}");

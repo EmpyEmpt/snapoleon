@@ -142,7 +142,7 @@ pub(crate) fn can_read_screen() -> bool {
 }
 
 #[cfg(target_os = "macos")]
-pub use mac::{app_bundle, start_app};
+pub use mac::{AppStart, app_bundle, start_app};
 #[cfg(target_os = "macos")]
 pub(crate) use mac::{host_app, host_permission_error};
 
@@ -186,7 +186,7 @@ mod mac {
 
     /// Let the running app (started now if need be) grab the pixels, and read them back from the file it wrote.
     pub(super) fn through_app(engine: &Engine, target: GrabTarget) -> Result<Capture> {
-        if !snap_platform::ipc::instance_running() && !start_app() {
+        if !snap_platform::ipc::instance_running() && !matches!(start_app(), AppStart::Answered) {
             return Err(host_permission_error());
         }
         let out = std::env::temp_dir().join(format!("snapoleon-grab-{}.png", CaptureId::new()));
@@ -219,27 +219,37 @@ mod mac {
         (macos.file_name()? == "MacOS" && contents.file_name()? == "Contents" && bundle.extension()? == "app").then(|| bundle.to_path_buf())
     }
 
+    /// How [`start_app`] went.
+    pub enum AppStart {
+        /// The app answers on its IPC endpoint.
+        Answered,
+        /// Nothing was started: no bundle, or `open` failed.
+        NotOpened,
+        /// LaunchServices started the app, but it did not answer in time (it may still be starting).
+        NoAnswer,
+    }
+
     /// Start this installation's app in the tray through LaunchServices, so it is its own responsible process, and
     /// wait until it answers on its IPC endpoint. Only an app bundle can be started this way.
-    pub fn start_app() -> bool {
+    pub fn start_app() -> AppStart {
         let Some(bundle) = app_bundle() else {
-            return false;
+            return AppStart::NotOpened;
         };
         let opened =
             Command::new("open").args(["-g", "-a"]).arg(&bundle).args(["--args", snap_platform::autostart::BACKGROUND_ARG]).status();
         if !matches!(opened, Ok(status) if status.success()) {
             tracing::warn!("could not start {}: {opened:?}", bundle.display());
-            return false;
+            return AppStart::NotOpened;
         }
         let deadline = Instant::now() + APP_START_TIMEOUT;
         while Instant::now() < deadline {
             if snap_platform::ipc::instance_running() {
-                return true;
+                return AppStart::Answered;
             }
             std::thread::sleep(APP_START_POLL);
         }
         tracing::warn!("{} did not answer within {APP_START_TIMEOUT:?}", bundle.display());
-        false
+        AppStart::NoAnswer
     }
 
     /// The permission error for a process outside the app, naming the app macOS actually asks.
