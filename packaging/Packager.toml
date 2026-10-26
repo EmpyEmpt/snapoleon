@@ -9,7 +9,7 @@
 name = "snapoleon"
 product-name = "Snapoleon"
 identifier = "app.snapoleon"
-version = "0.1.0" # the release workflow writes the Cargo.toml version here, after checking it matches the tag
+version = "0.2.0" # the release workflow writes the Cargo.toml version here, after checking it matches the tag
 description = "Screenshots, screen recording, OCR and sharing in one small Rust app"
 long-description = """
 Snapoleon is a screenshot, screen recording, OCR and sharing tool written entirely in Rust.

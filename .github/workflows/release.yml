@@ -1,6 +1,6 @@
 name: Release
 
-# Push a tag like v0.1.0 to build, package, (optionally) sign and publish a GitHub release. The tag must match the
+# Push a tag like v0.2.0 to build, package, (optionally) sign and publish a GitHub release. The tag must match the
 # version in Cargo.toml ([workspace.package]), which the binary, `snapoleon --version` and the MCP server report:
 # bump it there (and commit Cargo.lock) before tagging.
 # Signing steps run only when the corresponding secrets exist:
@@ -328,11 +328,21 @@ jobs:
           echo "$MINISIGN_SECRET_KEY" > "$RUNNER_TEMP/minisign.key"
           printf '%s\n' "$MINISIGN_PASSWORD" | minisign -S -s "$RUNNER_TEMP/minisign.key" -m SHA256SUMS -x SHA256SUMS.minisig
           rm "$RUNNER_TEMP/minisign.key"
+      - name: Release notes from CHANGELOG.md
+        if: github.event_name == 'push'
+        run: |
+          # The section of CHANGELOG.md for this version, without its heading; empty when there is none.
+          v="${VERSION#v}"
+          awk -v v="$v" '$0 ~ "^## \\[" v "\\]" {on=1; next} on && /^## \[/ {exit} on' CHANGELOG.md > release-notes.md
+          printf '\n**Checksums:** `SHA256SUMS`. Install help: [docs/INSTALL.md](https://github.com/%s/blob/%s/docs/INSTALL.md)\n' \
+            "${{ github.repository }}" "${{ github.ref_name }}" >> release-notes.md
+          cat release-notes.md
       - name: Create GitHub release
         if: github.event_name == 'push'
         uses: softprops/action-gh-release@v2
         with:
           files: dist/*
+          body_path: release-notes.md
           generate_release_notes: true
           draft: false
           prerelease: ${{ contains(github.ref_name, '-') }}

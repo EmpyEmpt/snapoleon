@@ -1,8 +1,7 @@
 # Installing Snapoleon
 
-No release has been published yet; until then, build from source (see the end of this page). The sections below
-describe the packages the release workflow produces. Release files will be on the
-[releases page](https://github.com/EmpyEmpt/snapoleon/releases). Each release includes
+Download the file for your system from the [latest release](https://github.com/EmpyEmpt/snapoleon/releases/latest),
+or build from source (see the end of this page). Each release includes
 `SHA256SUMS` (and `SHA256SUMS.minisig` when the release was signed with minisign). Verify a download with:
 
 ```sh
@@ -27,8 +26,8 @@ for each release by `packaging/render-manifests.py`, but none have been submitte
 Silent install:
 
 ```powershell
-.\Snapoleon-0.1.0-windows-x64-setup.exe /S
-msiexec /i Snapoleon-0.1.0-windows-x64.msi /qn
+.\Snapoleon-0.2.0-windows-x64-setup.exe /S
+msiexec /i Snapoleon-0.2.0-windows-x64.msi /qn
 ```
 
 Unsigned builds show a SmartScreen warning ("More info", then "Run anyway"). Signed releases use Azure Trusted
@@ -194,7 +193,7 @@ cargo build --release -p snapoleon
 cargo packager --config packaging/Packager.toml --release --formats nsis,wix   # Windows
 cargo packager --config packaging/Packager.toml --release --formats app,dmg    # macOS
 cargo packager --config packaging/Packager.toml --release --formats deb,appimage  # Linux
-pwsh packaging/windows/make-portable.ps1 -Exe target/release/snapoleon.exe -Version 0.1.0   # portable zip
+pwsh packaging/windows/make-portable.ps1 -Exe target/release/snapoleon.exe -Version 0.2.0   # portable zip
 ```
 
 On a Mac, `packaging/macos/bundle.sh` builds a signed `Snapoleon.app` for your own use without cargo-packager; see
@@ -204,6 +203,6 @@ On a Mac, `packaging/macos/bundle.sh` builds a signed `Snapoleon.app` for your o
 
 Uninstall with the system tool (Settings, Apps; drag the app to the trash;
 `apt remove snapoleon`). User data is left in place; delete the data folders listed above to remove history and
-settings. On macOS also turn off Launch at login first, or delete `~/Library/LaunchAgents/app.snapoleon.plist`
-afterwards, and remove `/usr/local/bin/snapoleon` if you installed the command line tool. For the Homebrew cask,
+settings. On macOS also turn off Launch at login first (or remove Snapoleon under System Settings > General > Login
+Items afterwards), and remove `/usr/local/bin/snapoleon` if you installed the command line tool. For the Homebrew cask,
 `brew uninstall --zap snapoleon` removes the app, its command, the login item and the data folders. Secrets saved in the OS keyring (Credential Manager, Keychain, Secret Service) are not in those folders; remove them with your OS credential tool.

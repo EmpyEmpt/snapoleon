@@ -259,8 +259,12 @@ fn overlay_mode(name: Option<&str>) -> OverlayMode {
     }
 }
 
-/// A real screenshot of the primary monitor.
+/// A real screenshot of the primary monitor, or the picture `SNAPOLEON_DEV_SCREEN` names: README and store screenshots
+/// must not carry whatever happens to be on the developer's screen, and a fixed picture makes them reproducible.
 fn demo_screenshot() -> Option<RgbaImage> {
+    if let Some(path) = std::env::var_os("SNAPOLEON_DEV_SCREEN") {
+        return image::open(&path).map(|i| i.to_rgba8()).map_err(|e| tracing::warn!("SNAPOLEON_DEV_SCREEN: {e}")).ok();
+    }
     let monitors = snap_capture::monitors().ok()?;
     let primary = monitors.iter().find(|m| m.is_primary).or(monitors.first())?;
     snap_capture::capture_monitor(primary.index, &CaptureOptions::default()).ok().map(|c| c.image)
