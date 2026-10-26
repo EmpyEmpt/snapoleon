@@ -7,6 +7,7 @@ use std::{
     any::Any,
     collections::{HashMap, HashSet},
     panic::AssertUnwindSafe,
+    time::Instant,
 };
 
 use egui::Context;
@@ -102,6 +103,9 @@ pub struct App {
     pub(crate) tray_expiry: Option<i64>,
     pub(crate) ipc: Option<snap_platform::ipc::Server>,
     pub(crate) recording: bool,
+    /// When the user last clicked an OS notification; a reopen close to it came with the click (see
+    /// `ipc::defer_reopen`).
+    pub(crate) notified: Option<Instant>,
     pub(crate) quit_pending: bool,
     /// No tray to live in (dev harness, tray failed): the app ends with its last window.
     pub(crate) quit_when_empty: bool,
@@ -130,6 +134,7 @@ impl App {
             tray_expiry: None,
             ipc: None,
             recording: false,
+            notified: None,
             quit_pending: false,
             quit_when_empty: false,
             dev: startup.dev.clone(),
@@ -305,7 +310,7 @@ impl App {
         // notification that launched the app is delivered.
         snap_platform::notify::init({
             let proxy = proxy.clone();
-            move |action| proxy.send(AppEvent::Command(notices::notify_command(action)))
+            move |action| proxy.send(AppEvent::Notified(action))
         });
         snap_platform::notify::set_action_labels(&notices::action_labels());
         self.quit_when_empty = dev;
@@ -417,6 +422,11 @@ impl ShellApp<AppEvent> for App {
             AppEvent::RefreshTray => self.refresh_tray(),
             AppEvent::Ipc(request, reply) => self.handle_request(sh, request, Some(reply)),
             AppEvent::Command(command) => self.cmds.push(command),
+            AppEvent::Notified(action) => {
+                self.notified = Some(Instant::now());
+                self.cmds.push(notices::notify_command(action));
+            }
+            AppEvent::Reopen(at) => self.reopen(at),
             AppEvent::JobProgress { label, frac } => {
                 self.on_job_progress(label, frac);
                 if let Some(host) = self.host {

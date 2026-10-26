@@ -46,12 +46,15 @@ impl Backend {
     pub fn new(tooltip: &str, icon: &RgbaImage, items: Vec<TrayItem>, on_event: Callback) -> Result<Self> {
         install_handlers();
         *current().lock() = Some(on_event);
+        let menu = build_menu(&items)?;
+        #[cfg(target_os = "macos")]
+        let status_menu = ns_menu(&menu);
         let builder = TrayIconBuilder::new()
             .with_tooltip(tooltip)
-            .with_menu(Box::new(build_menu(&items)?))
-            // Windows: left click reports `Click`, right click opens the menu.
-            // macOS convention: any click opens the menu.
-            .with_menu_on_left_click(cfg!(target_os = "macos"));
+            // The tray keeps the menu alive: its items call back into it.
+            .with_menu(Box::new(menu))
+            // Windows: left click reports `Click`, right click opens the menu. macOS: see `attach_menu`.
+            .with_menu_on_left_click(false);
         // A template follows the menu bar's own colour, which on macOS 26+ follows the wallpaper rather than the
         // app's light or dark appearance.
         #[cfg(target_os = "macos")]
@@ -64,13 +67,20 @@ impl Backend {
             // Without a label VoiceOver and UI automation see an unnamed button.
             use objc2_app_kit::NSAccessibility;
             button.setAccessibilityLabel(Some(&objc2_foundation::NSString::from_str(snap_core::APP_NAME)));
+            attach_menu(&tray, &button, status_menu.as_deref());
         }
         Ok(Self { tray })
     }
 
     pub fn set_items(&mut self, items: Vec<TrayItem>) {
         match build_menu(&items) {
-            Ok(menu) => self.tray.set_menu(Some(Box::new(menu))),
+            Ok(menu) => {
+                #[cfg(target_os = "macos")]
+                if let Some(item) = self.tray.ns_status_item() {
+                    item.setMenu(ns_menu(&menu).as_deref());
+                }
+                self.tray.set_menu(Some(Box::new(menu)));
+            }
             Err(e) => tracing::warn!("tray menu: {e}"),
         }
     }
@@ -140,6 +150,36 @@ impl Drop for Backend {
 fn status_button(tray: &TrayIcon) -> Option<objc2::rc::Retained<objc2_app_kit::NSStatusBarButton>> {
     let mtm = objc2::MainThreadMarker::new()?;
     tray.ns_status_item()?.button(mtm)
+}
+
+/// Make the menu the status item's own, as a standard menu bar extra has it: AppKit then opens it on any click, and
+/// on the button's AXPress, so VoiceOver and UI automation can open it too.
+///
+/// `tray-icon` 0.26 instead lays a view of its own (`TaoTrayTarget`) over the button that opens the menu from
+/// `mouseDown:` only, and clears the status item's menu after each click. That view goes, so the button gets the
+/// clicks itself; `tray-icon` then reports no click events, which macOS has no use for: any click opens the menu.
+#[cfg(target_os = "macos")]
+fn attach_menu(tray: &TrayIcon, button: &objc2_app_kit::NSStatusBarButton, menu: Option<&objc2_app_kit::NSMenu>) {
+    let Some(item) = tray.ns_status_item() else { return };
+    item.setMenu(menu);
+    let mut detached = false;
+    for view in button.subviews() {
+        if view.class().name() == c"TaoTrayTarget" {
+            view.removeFromSuperview();
+            detached = true;
+        }
+    }
+    if !detached {
+        tracing::warn!("tray: tray-icon's click view not found; the status menu may not open on click");
+    }
+}
+
+/// The `NSMenu` behind `menu`, retained so it outlives the borrow.
+#[cfg(target_os = "macos")]
+fn ns_menu(menu: &Menu) -> Option<objc2::rc::Retained<objc2_app_kit::NSMenu>> {
+    use tray_icon::menu::ContextMenu;
+    // SAFETY: muda hands out the pointer of the `NSMenu` it owns, valid for as long as `menu` is, which spans the call.
+    unsafe { objc2::rc::Retained::retain(menu.ns_menu().cast::<objc2_app_kit::NSMenu>()) }
 }
 
 fn to_icon(img: &RgbaImage) -> Result<Icon> {
