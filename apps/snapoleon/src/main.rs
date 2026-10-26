@@ -14,6 +14,8 @@ mod events;
 mod hotkeys;
 mod ipc;
 mod jobs;
+#[cfg(target_os = "macos")]
+mod launch;
 mod logging;
 mod notices;
 mod routing;
@@ -75,6 +77,12 @@ fn run_gui(request: Option<snap_core::ipc::Request>, background: bool, mut setti
     // Nothing runs that could be told to quit: do not start the app only to end it.
     if dev.is_none() && request == Some(snap_core::ipc::Request::Quit) {
         return ExitCode::SUCCESS;
+    }
+    #[cfg(target_os = "macos")]
+    if dev.is_none()
+        && let Some(code) = launch::relaunch(request.as_ref(), background)
+    {
+        return code;
     }
     init_logging(logging::Sink::Application);
 

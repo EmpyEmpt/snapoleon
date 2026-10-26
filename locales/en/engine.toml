@@ -84,6 +84,18 @@ no_file = "The image file for {id} is gone."
 no_history = "History is turned off."
 unknown_capture = "No capture with the id {id}."
 no_table = "No table was found in the image."
+file_exists = "{path} already exists. Choose a new file name."
 
 [mcp.ocr]
 no_text = "No text found."
+
+[engine.agent]
+host_permission = "macOS checks Screen Recording for the app that started this command ({host}), not for Snapoleon. Open Snapoleon so captures go through it, or turn on {host} in System Settings > Privacy & Security > Screen & System Audio Recording."
+unknown_host = "your terminal or agent app"
+app_failed = "The Snapoleon app could not take the screenshot."
+
+[mcp.windows]
+no_titles = "Window titles are empty because the app that started this server ({host}) does not have Screen Recording. capture_window with a title still works: captures go through the Snapoleon app."
+
+[mcp.permissions]
+hint = "On macOS this server has the permissions of the app that started it (server_host_app). Captures go through the Snapoleon app whenever the server may not read the screen, so the app's Screen Recording is the one that counts. Grant it in System Settings > Privacy & Security > Screen & System Audio Recording."

@@ -54,12 +54,17 @@ Exact paths come from the `directories` crate and may differ slightly; Settings,
 
 ## macOS
 
-Requires macOS 12.3 (Monterey) or newer, for ScreenCaptureKit. The `.dmg` contains a universal binary that runs
-on Apple Silicon and Intel Macs.
+Requires macOS 14 (Sonoma) or newer: screenshots use ScreenCaptureKit's screenshot API, which arrived in macOS 14.
+The `.dmg` contains a universal binary that runs on Apple Silicon and Intel Macs.
 
 Open the `.dmg` and drag Snapoleon to Applications. (A Homebrew cask template is in `packaging/homebrew/`; it is
 not in a tap yet.) Snapoleon is a menu bar app: it has no Dock icon
 (`LSUIElement`), and its controls are in the menu bar icon.
+
+To use the command line, run `/Applications/Snapoleon.app/Contents/MacOS/snapoleon install-cli` once, or use
+Settings > Advanced > Command line tool. It puts a small `snapoleon` script in `/usr/local/bin` that runs the app's
+own binary. A symlink to the binary would not work properly: macOS would not see it as part of Snapoleon.app. See
+[CLI.md](CLI.md#macos) for how terminal commands and the MCP server get their permissions.
 
 ### Permissions
 
@@ -69,13 +74,15 @@ macOS asks for permissions the first time they are needed. Grant them in System 
 |---|---|
 | Screen Recording | Any screenshot or recording. Snapoleon cannot capture other apps' windows without it. After granting, macOS asks you to quit and reopen the app. |
 | Microphone | Voice narration while recording (only if you turn it on). |
-| Accessibility | UI element snapping and window titles. Optional. |
+| Accessibility | Snapping to buttons, fields and other UI elements. Optional. (Window titles come with Screen Recording.) |
 | Input Monitoring | Keystroke overlay in recordings. Optional. |
 
 If you rebuild or replace an unsigned copy of the app, macOS may treat it as a new app and ask again; remove the
 old Snapoleon entry from the list with the minus button first.
 
-Unsigned or un-notarized builds are blocked by Gatekeeper. Control-click the app, choose Open, and confirm. Or:
+Builds that are not notarized are blocked by Gatekeeper the first time. Open the app once, then go to System
+Settings > Privacy & Security, scroll down to the message about Snapoleon and click Open Anyway (macOS 15 and newer
+no longer offer Control-click > Open for this). Or remove the quarantine flag:
 `xattr -dr com.apple.quarantine /Applications/Snapoleon.app`.
 
 Data lives in `~/Library/Application Support/app.Snapoleon.Snapoleon/`. Policy: configuration profile
@@ -122,7 +129,7 @@ sudo pacman -S tesseract tesseract-data-eng ffmpeg           # Arch
 ### Building on Linux
 
 Tested on Ubuntu 24.04 (x86_64). Ubuntu 22.04 is too old: its PipeWire is 0.3.48 and the capture backend (`xcap`)
-needs 1.0 or newer. Install Rust 1.90+ (`rustup`) and these packages:
+needs 1.0 or newer. Install Rust 1.95 or newer (`rustup update stable`) and these packages:
 
 ```sh
 sudo apt install build-essential pkg-config clang nasm \
@@ -190,8 +197,13 @@ cargo packager --config packaging/Packager.toml --release --formats deb,appimage
 pwsh packaging/windows/make-portable.ps1 -Exe target/release/snapoleon.exe -Version 0.1.0   # portable zip
 ```
 
+On a Mac, `packaging/macos/bundle.sh` builds a signed `Snapoleon.app` for your own use without cargo-packager; see
+[MACOS.md](MACOS.md).
+
 ## Uninstalling
 
 Uninstall with the system tool (Settings, Apps; drag the app to the trash;
 `apt remove snapoleon`). User data is left in place; delete the data folders listed above to remove history and
-settings. Secrets saved in the OS keyring (Credential Manager, Keychain, Secret Service) are not in those folders; remove them with your OS credential tool.
+settings. On macOS also turn off Launch at login first, or delete `~/Library/LaunchAgents/app.snapoleon.plist`
+afterwards, and remove `/usr/local/bin/snapoleon` if you installed the command line tool. For the Homebrew cask,
+`brew uninstall --zap snapoleon` removes the app, its command, the login item and the data folders. Secrets saved in the OS keyring (Credential Manager, Keychain, Secret Service) are not in those folders; remove them with your OS credential tool.

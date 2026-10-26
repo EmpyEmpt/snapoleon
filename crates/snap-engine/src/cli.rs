@@ -19,14 +19,16 @@ use snap_core::{
 };
 
 mod headless;
+mod system;
 
 pub use headless::run;
+pub use system::install_cli;
 
 #[derive(Debug, Parser)]
 #[command(name = "snapoleon", version, about = "Screenshots, recording, OCR and sharing")]
 pub struct Cli {
     /// Start in the tray without showing a window (used by autostart).
-    #[arg(long, global = true)]
+    #[arg(long)]
     pub background: bool,
     #[command(subcommand)]
     pub command: Option<Command>,
@@ -70,6 +72,24 @@ pub enum Command {
         #[command(subcommand)]
         action: PipelineCommand,
     },
+    /// List monitors or windows, with the indexes, ids and rectangles the capture options take.
+    List {
+        #[command(subcommand)]
+        what: ListCommand,
+    },
+    /// Check the installation: version, paths, the running app and the privacy permissions.
+    #[command(alias = "permissions")]
+    Doctor {
+        /// Print the report as JSON.
+        #[arg(long)]
+        json: bool,
+    },
+    /// Put a `snapoleon` command on PATH that runs this installation (macOS and Linux).
+    InstallCli {
+        /// Folder to put it in (default: /usr/local/bin on macOS, ~/.local/bin on Linux).
+        #[arg(long, value_name = "DIR")]
+        dir: Option<PathBuf>,
+    },
 }
 
 #[derive(Debug, Clone, Default, Args)]
@@ -108,6 +128,9 @@ pub struct CaptureArgs {
     /// Include the mouse cursor.
     #[arg(long)]
     pub cursor: bool,
+    /// Print the outcome as JSON.
+    #[arg(long)]
+    pub json: bool,
 }
 
 #[derive(Debug, Clone, Default, Args)]
@@ -217,6 +240,22 @@ pub enum PipelineCommand {
     },
 }
 
+#[derive(Debug, Clone, Subcommand)]
+pub enum ListCommand {
+    /// The connected displays: index, name, rectangle in physical pixels, scale factor.
+    Monitors {
+        /// Print monitors as JSON.
+        #[arg(long)]
+        json: bool,
+    },
+    /// The top-level windows, front to back: id, app, title, rectangle in physical pixels.
+    Windows {
+        /// Print windows as JSON.
+        #[arg(long)]
+        json: bool,
+    },
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq, ValueEnum)]
 pub enum ImageFormatArg {
     Png,
@@ -290,23 +329,36 @@ pub fn dispatch(cli: &Cli) -> Dispatch {
     match &cli.command {
         None => Dispatch::Gui(None),
         Some(Command::Url { url }) => parse_url(url).map_or(Dispatch::RefusedLink, |request| Dispatch::Gui(Some(request))),
-        Some(Command::Edit { path }) => Dispatch::Gui(Some(Request::Edit { path: path.clone() })),
-        Some(Command::Pin { path }) => Dispatch::Gui(Some(Request::Pin { path: path.clone() })),
+        Some(Command::Edit { path }) => Dispatch::Gui(Some(Request::Edit { path: absolute(path) })),
+        Some(Command::Pin { path }) => Dispatch::Gui(Some(Request::Pin { path: absolute(path) })),
         Some(Command::Settings) => Dispatch::Gui(Some(Request::ShowWindow { window: AppWindow::Settings })),
         Some(Command::Quit) => Dispatch::Gui(Some(Request::Quit)),
         Some(Command::Capture(a)) => capture_dispatch(a),
         Some(Command::Record(a)) => record_dispatch(a),
         Some(
-            Command::Mcp | Command::Ocr(_) | Command::Qr { .. } | Command::Upload(_) | Command::History { .. } | Command::Pipeline { .. },
+            Command::Mcp
+            | Command::Ocr(_)
+            | Command::Qr { .. }
+            | Command::Upload(_)
+            | Command::History { .. }
+            | Command::Pipeline { .. }
+            | Command::List { .. }
+            | Command::Doctor { .. }
+            | Command::InstallCli { .. },
         ) => Dispatch::Headless,
     }
 }
 
+/// The running app has its own working directory, so a relative path from this command line means nothing to it.
+fn absolute(path: &str) -> String {
+    std::path::absolute(path).map_or_else(|_| path.to_owned(), |p| p.display().to_string())
+}
+
 /// A capture runs headless when it names its target and no pipeline (so there is nothing interactive left to do),
-/// or when it only makes sense headless (`--out`, `--copy`, `--format`). Everything else is the app's job.
+/// or when it only makes sense headless (`--out`, `--copy`, `--format`, `--json`). Everything else is the app's job.
 fn capture_dispatch(a: &CaptureArgs) -> Dispatch {
     let explicit = a.region.is_some() || a.window.is_some() || a.monitor.is_some() || a.all || a.element;
-    let headless_flags = a.out.is_some() || a.copy || a.format.is_some();
+    let headless_flags = a.out.is_some() || a.copy || a.format.is_some() || a.json;
     if a.pipeline.is_none() && (explicit || headless_flags) {
         return Dispatch::Headless;
     }
@@ -350,6 +402,10 @@ pub fn command() -> clap::Command {
     let cmd = Cli::command();
     let cmd = match lookup("cli.about") {
         Some(about) => cmd.about(about),
+        None => cmd,
+    };
+    let cmd = match lookup("cli.after_help") {
+        Some(text) => cmd.after_help(text),
         None => cmd,
     };
     localize(cmd, "")

@@ -1,7 +1,10 @@
 //! Single-instance IPC: serving requests from the CLI, `snapoleon://` URLs and second launches,
 //! and forwarding this process's own request to the instance that already runs.
 
-use std::{path::PathBuf, time::Duration};
+use std::{
+    path::{Path, PathBuf},
+    time::Duration,
+};
 
 use crossbeam_channel::Sender;
 use snap_core::{
@@ -153,6 +156,12 @@ impl App {
                 answer(reply, Response::ok());
                 self.cmds.push(Command::Quit);
             }
+            // A headless `snapoleon capture` or `snapoleon mcp` that may not read the screen itself (snap_engine::agent).
+            Request::Grab { target, cursor, out } => {
+                let engine = self.engine.clone();
+                std::thread::spawn(move || answer(reply, snap_engine::agent::grab(&engine, target, cursor, Path::new(&out))));
+            }
+            Request::Status => answer(reply, snap_engine::agent::status()),
         }
     }
 

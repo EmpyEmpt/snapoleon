@@ -61,10 +61,10 @@ package-manager listings. Build from source for now. See the platform table belo
 
 **Automation**
 - Pipelines: ordered steps run after a capture (annotate, redact, OCR, upload, copy, and so on), bound to hotkeys.
-- Command line: `snapoleon capture`, `record`, `ocr`, `qr`, `upload`, `pin`, `edit`, `history`, `pipeline`.
-  See [docs/CLI.md](docs/CLI.md).
+- Command line: `snapoleon capture`, `record`, `ocr`, `qr`, `upload`, `pin`, `edit`, `history`, `pipeline`,
+  `list`, `doctor`, with `--json` output and stable exit codes. See [docs/CLI.md](docs/CLI.md).
 - MCP server over stdio (`snapoleon mcp`) so AI assistants can list monitors and windows, capture, run OCR,
-  decode codes and search history.
+  decode codes, search history and check permissions.
 - `snapoleon://` URL scheme.
 
 **Team server**
@@ -83,7 +83,7 @@ package-manager listings. Build from source for now. See the platform table belo
 | Platform | Status |
 |---|---|
 | Windows 10 1809+ and Windows 11 (x64, arm64) | Primary target. Developed and tested on Windows 11 x64 (single monitor). The arm64 build compiles and packages in CI but has not been run. |
-| macOS 12.3+ (Apple Silicon and Intel, universal build) | Implemented. Builds and packages in CI; not yet run on a real Mac. Expect rough edges. |
+| macOS 14 Sonoma or newer (Apple Silicon and Intel, universal build) | Implemented. Run and polished on macOS 27 on Apple Silicon; Intel Macs and macOS 14 to 26 have not been tried. Expect rough edges. |
 | Linux (X11 and Wayland; x86_64, aarch64) | Implemented. Run under Xvfb and WSL only; not yet tested on a real desktop session. Expect rough edges. |
 
 Linux notes: Wayland capture and global shortcuts depend on the XDG desktop portals and on your compositor.
@@ -109,7 +109,7 @@ Full instructions are in [docs/INSTALL.md](docs/INSTALL.md).
 
 ## Build from source
 
-Requirements: Rust 1.90 or newer (edition 2024) and a C toolchain.
+Requirements: Rust 1.95 or newer (edition 2024; `rustup update stable`) and a C toolchain.
 
 ```sh
 git clone https://github.com/EmpyEmpt/snapoleon
@@ -126,7 +126,8 @@ sudo apt install libxcb1-dev libxcb-randr0-dev libxcb-shm0-dev libxkbcommon-dev 
 ```
 
 Windows needs the MSVC build tools and `nasm` on PATH. macOS needs the Xcode command line tools and `nasm`
-(`brew install nasm`).
+(`brew install nasm`). On a Mac, `cargo run` is fine for UI work, but screen capture, permissions and notifications
+need the app bundle: `packaging/macos/bundle.sh --debug --install`. See [docs/MACOS.md](docs/MACOS.md).
 
 The team server builds with `cargo build --release -p snapoleon-server`, or run the container:
 `docker build -f server/snapoleon-server/deploy/Dockerfile -t snapoleon-server .`
@@ -161,14 +162,14 @@ cargo packager --config packaging/Packager.toml --release --formats nsis   # or 
 | `server/snapoleon-server` | Self-hosted team server |
 | `locales/` | Translations, one folder per language |
 | `packaging/` | Installers, package-manager manifests, policy templates |
-| `docs/` | Spec, design system, install, policy and CLI documentation |
+| `docs/` | Spec, design system, install, policy, CLI and macOS development documentation |
 
 See [docs/SPEC.md](docs/SPEC.md) for the architecture and [docs/DESIGN.md](docs/DESIGN.md) for the design system.
 
 ## Contributing
 
 Bug reports, platform testing on macOS and Linux, and translations are especially welcome. Start with
-[CONTRIBUTING.md](CONTRIBUTING.md).
+[CONTRIBUTING.md](CONTRIBUTING.md). Coding agents start with [AGENTS.md](AGENTS.md).
 
 ## License
 

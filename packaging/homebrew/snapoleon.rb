@@ -13,14 +13,28 @@ cask "snapoleon" do
   end
 
   auto_updates false
-  depends_on macos: ">= :monterey"
+  depends_on macos: ">= :sonoma"
 
   app "Snapoleon.app"
-  binary "#{appdir}/Snapoleon.app/Contents/MacOS/snapoleon"
+  # A shim script, not a symlink to the executable: macOS knows an app by the path it was started from, and a
+  # symlinked executable runs without its bundle (no bundle id, no Info.plist, privacy grants that never apply).
+  shimscript = "#{staged_path}/snapoleon.wrapper.sh"
+  binary shimscript, target: "snapoleon"
+
+  preflight do
+    File.write shimscript, <<~EOS
+      #!/bin/sh
+      exec '#{appdir}/Snapoleon.app/Contents/MacOS/snapoleon' "$@"
+    EOS
+  end
+
+  uninstall quit:      "app.snapoleon",
+            launchctl: "app.snapoleon"
 
   zap trash: [
     "~/Library/Application Support/app.Snapoleon.Snapoleon",
     "~/Library/Caches/app.Snapoleon.Snapoleon",
+    "~/Library/LaunchAgents/app.snapoleon.plist",
     "~/Library/Preferences/app.snapoleon.plist",
   ]
 end

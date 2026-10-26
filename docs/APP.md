@@ -23,6 +23,7 @@ apps/snapoleon/
   src/jobs.rs         worker threads, GuiPipelineUi (the engine's PipelineUi)
   src/tray.rs         tray icon and menu       src/hotkeys.rs  global hotkeys
   src/ipc.rs          single instance, CLI/URL requests
+  src/launch.rs       macOS: a start from a terminal relaunches through LaunchServices
   src/theme.rs        active theme shared by all windows
   src/logging.rs      stderr + %APPDATA%/.../logs/snapoleon.log
   src/dev.rs          dev harness (SNAPOLEON_DEV=...)
@@ -183,6 +184,9 @@ vocabulary; the "view must send back" column is what the receiving view owes the
   path, link or text back when the job finishes.
   A `snapoleon://` URL becomes `Request::Link { action }`, which carries nothing but the action: it runs as
   the interactive form (overlay, picker), never with a target, pipeline or path from the URL.
+  `Request::Grab` (a headless CLI or MCP capture that may not read the screen itself, see
+  `snap_engine::agent` and `docs/CLI.md#macos`) is answered on a worker thread with the image in a PNG file;
+  `Request::Status` answers the app's version and privacy permissions for `snapoleon doctor`.
 - `actions::start_action` is the single table from `Action` to flow:
   CaptureRegion/Window/Element/Scrolling -> overlay; CaptureMonitor/AllMonitors/LastRegion ->
   immediate job; CaptureDelayed -> the count-down tile (`views::countdown`), then the region overlay; RecordRegion/Gif
@@ -288,7 +292,9 @@ SNAPOLEON_DEV=library SNAPOLEON_DEV_SHOT=$TEMP/library.png cargo run -p snapoleo
 | `SNAPOLEON_DEV_VIDEO` | video file for the `video` view (default: a generated slideshow) |
 | `SNAPOLEON_DEV_THEME` | `light` or `dark` |
 | `SNAPOLEON_DEV_LANG` | `en` or `ru` |
-| `SNAPOLEON_DEV_SHOT=<path.png>` | after `SNAPOLEON_DEV_SHOT_DELAY_MS` (default 1500) screenshot the view's first window via `snap_capture::capture_window` on its native id (falls back to cropping the screen at its outer rect), print the path, quit. Windows that hide themselves from captures (recorder and scroll HUDs) are un-hidden for the shot. |
+| `SNAPOLEON_DEV_SHOT=<path.png>` | after `SNAPOLEON_DEV_SHOT_DELAY_MS` (default 1500) screenshot the view's first window via `snap_capture::capture_window` on its native id (falls back to cropping the screen at its outer rect), print the path, quit. Windows that hide themselves from captures (recorder and scroll HUDs) are un-hidden for the shot. On macOS this runs with the terminal's Screen Recording permission and goes through the capture code under test; screenshot the window with peekaboo instead (below). |
+| `SNAPOLEON_DEV_DEMO` | `1`: demo content where a view would otherwise wait for real input: the steps HUD records a simulated session, the scroll view "scrolls" the screen below its area, the colors tool starts with sample picks. `guide`: the steps view opens the guide editor on a finished demo guide. |
+| `SNAPOLEON_DEV_EDITOR_*` | editor state for screenshots (`views/editor/demo.rs`): `_DEMO=1` sample shapes, `_TOOL=<id>` active tool, `_SELECT=last\|all`, `_TAB=beautify\|text\|export`, `_PANEL=0` hides the side panel, `_BEAUTIFY=1`, `_EDIT_TEXT=1`, `_RUN=ocr\|redact`, `_OPEN=<file.snap>`, `_PII=1` a page with personal data instead of the screenshot. |
 | `SNAPOLEON_DEV_SHARED_DATA` | use the real settings, history and logs instead of the private ones |
 | `SNAPOLEON_RENDERER` | not a dev-only variable: `wgpu` or `glow` forces that renderer (and `glow` never falls back); `glow-fail` makes OpenGL context creation fail on purpose, to test the fallback. The log line `snap-shell renderer` says what is in use. See "Renderer" below. |
 
@@ -300,6 +306,22 @@ sample; `settings` opens the requested page; `video` generates a slideshow MP4 w
 Dev runs use **portable data** (`<exe dir>/data`, which sits in your private `CARGO_TARGET_DIR`), so
 they never touch the installed app's settings or history. The log is in `data/logs/snapoleon.log`.
 Read your screenshots (the Read tool shows PNGs) and fix what looks off before you report.
+
+### On macOS
+
+`cargo run` starts the app as part of the terminal, which is fine for the harness. For capture, permissions,
+notifications, hotkeys and links use the signed bundle (`packaging/macos/bundle.sh --debug --install`, see
+`docs/MACOS.md`). To look at a window, use peekaboo, which reads windows without focusing them, even when covered:
+
+```
+peekaboo window list --app snapoleon --json               # ids, titles, frames
+peekaboo see --window-id <id> --no-elements --path out.png
+```
+
+Window lists also show an untitled, invisible 500x500 window owned by Snapoleon at the bottom-left of the main screen.
+It is not ours: it is `TUINSWindow`, the text input system's cursor accessory (input source and Caps Lock indicator),
+which macOS creates for every app whose window has a text field. Leave it alone (suppressing the text input context
+would break IME in text fields); `snapoleon list windows` and the MCP `list_windows` filter it out.
 
 ## Renderer
 
@@ -324,7 +346,9 @@ of the help) -> `cli::parse` (localised help; a bare `snapoleon://` URL or an ex
 means `url` / `edit`, which is how desktop entries and file associations call the app) -> logging (headless
 commands: warnings on stderr only, never stdout, so `snapoleon mcp` stays clean; the app: stderr plus the log file)
 -> headless subcommands run in-process; GUI ones forward to a running instance
-(`ipc::instance_running`) or start the shell. In `App::init` (first callback, after the event
+(`ipc::instance_running`) or start the shell. On macOS a GUI start that LaunchServices did not make (the parent is not
+launchd: a terminal, the PATH script) from inside an app bundle is handed to a copy started with `open`
+(`launch.rs`), so the app is its own responsible process for the privacy permissions. In `App::init` (first callback, after the event
 loop started): serve IPC (a lost race forwards and exits), register hotkeys (conflicts become
 notices), create the tray, sync autostart, set the toast icon, purge history by retention on a
 thread, make sure the URL scheme points at this executable, and on first run open onboarding; a plain non-background launch

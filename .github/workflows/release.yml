@@ -1,11 +1,15 @@
 name: Release
 
-# Push a tag like v0.1.0 to build, package, (optionally) sign and publish a GitHub release.
+# Push a tag like v0.1.0 to build, package, (optionally) sign and publish a GitHub release. The tag must match the
+# version in Cargo.toml ([workspace.package]), which the binary, `snapoleon --version` and the MCP server report:
+# bump it there (and commit Cargo.lock) before tagging.
 # Signing steps run only when the corresponding secrets exist:
 #   Windows (Azure Trusted Signing): AZURE_TENANT_ID, AZURE_CLIENT_ID, AZURE_CLIENT_SECRET,
 #     AZURE_TS_ENDPOINT, AZURE_TS_ACCOUNT, AZURE_TS_PROFILE
-#   macOS: APPLE_CERTIFICATE (base64 .p12), APPLE_CERTIFICATE_PASSWORD, APPLE_SIGNING_IDENTITY,
-#     APPLE_ID, APPLE_APP_PASSWORD, APPLE_TEAM_ID
+#   macOS: APPLE_CERTIFICATE (base64 .p12), APPLE_CERTIFICATE_PASSWORD, APPLE_SIGNING_IDENTITY (Developer ID
+#     Application), plus APPLE_ID, APPLE_APP_PASSWORD, APPLE_TEAM_ID to notarize. Without a certificate the app is
+#     signed ad-hoc, which still binds its Info.plist and the identifier app.snapoleon (needed for privacy grants),
+#     but Gatekeeper asks users to approve it once.
 #   Checksums: SHA256SUMS always; MINISIGN_SECRET_KEY (+ optional MINISIGN_PASSWORD) adds SHA256SUMS.minisig
 
 on:
@@ -57,7 +61,12 @@ jobs:
       - name: Set version
         shell: bash
         run: |
-          v="${VERSION#v}"
+          # Cargo.toml is the source of truth; the workflow cannot bump it without breaking --locked.
+          v="$(sed -n 's/^version = "\(.*\)"/\1/p' Cargo.toml | head -1)"
+          if [ "$v" != "${VERSION#v}" ]; then
+            echo "::error::the release is ${VERSION#v} but Cargo.toml says $v; bump [workspace.package] version first"
+            exit 1
+          fi
           echo "V=$v" >> "$GITHUB_ENV"
           sed -i "s/^version = \".*\"/version = \"$v\"/" packaging/Packager.toml
       - name: Build
@@ -128,12 +137,11 @@ jobs:
     name: macos-universal
     runs-on: macos-14
     env:
-      APPLE_CERTIFICATE: ${{ secrets.APPLE_CERTIFICATE }}
-      APPLE_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
-      APPLE_SIGNING_IDENTITY: ${{ secrets.APPLE_SIGNING_IDENTITY }}
-      APPLE_ID: ${{ secrets.APPLE_ID }}
-      APPLE_PASSWORD: ${{ secrets.APPLE_APP_PASSWORD }}
-      APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+      # The same floor as LSMinimumSystemVersion (packaging/macos/Info.plist, packaging/Packager.toml).
+      MACOSX_DEPLOYMENT_TARGET: "14.0"
+      # Only whether there is a certificate. The secrets go to the steps that use them: cargo-packager counts a
+      # variable that is set but empty as present, and would then try to import or notarize with it.
+      HAS_APPLE_CERT: ${{ secrets.APPLE_CERTIFICATE != '' }}
     steps:
       - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@stable
@@ -145,7 +153,12 @@ jobs:
       - run: brew install nasm
       - name: Set version
         run: |
-          v="${VERSION#v}"
+          # Cargo.toml is the source of truth; the workflow cannot bump it without breaking --locked.
+          v="$(sed -n 's/^version = "\(.*\)"/\1/p' Cargo.toml | head -1)"
+          if [ "$v" != "${VERSION#v}" ]; then
+            echo "::error::the release is ${VERSION#v} but Cargo.toml says $v; bump [workspace.package] version first"
+            exit 1
+          fi
           echo "V=$v" >> "$GITHUB_ENV"
           sed -i '' "s/^version = \".*\"/version = \"$v\"/" packaging/Packager.toml
       - name: Build both architectures and lipo
@@ -157,31 +170,59 @@ jobs:
             target/aarch64-apple-darwin/release/snapoleon \
             target/x86_64-apple-darwin/release/snapoleon
           lipo -info target/release/snapoleon
-      - name: Import signing certificate
-        if: env.APPLE_CERTIFICATE != ''
-        run: |
-          echo "$APPLE_CERTIFICATE" | base64 --decode > "$RUNNER_TEMP/cert.p12"
-          security create-keychain -p ci "$RUNNER_TEMP/build.keychain"
-          security set-keychain-settings -lut 21600 "$RUNNER_TEMP/build.keychain"
-          security unlock-keychain -p ci "$RUNNER_TEMP/build.keychain"
-          security import "$RUNNER_TEMP/cert.p12" -k "$RUNNER_TEMP/build.keychain" -P "$APPLE_CERTIFICATE_PASSWORD" -T /usr/bin/codesign
-          security set-key-partition-list -S apple-tool:,apple:,codesign: -s -k ci "$RUNNER_TEMP/build.keychain"
-          security list-keychains -d user -s "$RUNNER_TEMP/build.keychain" login.keychain
       - name: Install cargo-packager
         run: cargo install cargo-packager --locked --version "$CARGO_PACKAGER_VERSION"
-      # cargo-packager signs the .app with APPLE_SIGNING_IDENTITY when it is set, and notarizes with
-      # APPLE_ID / APPLE_PASSWORD / APPLE_TEAM_ID when those are set.
-      - name: Package (.app + DMG)
-        run: cargo packager --config packaging/Packager.toml --release --formats app,dmg
+      # cargo-packager 0.11 signs only when its config has macos.signing-identity (it does not read
+      # APPLE_SIGNING_IDENTITY), with the hardened runtime and packaging/macos/entitlements.plist, and signs the DMG
+      # with the same identity. It imports APPLE_CERTIFICATE into a keychain of its own, and notarizes the app when
+      # APPLE_ID, APPLE_PASSWORD and APPLE_TEAM_ID are set.
+      - name: Package (.app + DMG), Developer ID
+        if: env.HAS_APPLE_CERT == 'true'
+        env:
+          APPLE_CERTIFICATE: ${{ secrets.APPLE_CERTIFICATE }}
+          APPLE_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
+          APPLE_SIGNING_IDENTITY: ${{ secrets.APPLE_SIGNING_IDENTITY }}
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_PASSWORD: ${{ secrets.APPLE_APP_PASSWORD }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+        run: |
+          [ -n "$APPLE_ID" ] || unset APPLE_ID APPLE_PASSWORD APPLE_TEAM_ID
+          IDENT="$APPLE_SIGNING_IDENTITY" perl -pi -e 's/^\[macos\]$/[macos]\nsigning-identity = "$ENV{IDENT}"/' packaging/Packager.toml
+          grep -q '^signing-identity = ' packaging/Packager.toml
+          cargo packager --config packaging/Packager.toml --release --formats app,dmg
+      - name: Package (.app + DMG), ad-hoc signature
+        if: env.HAS_APPLE_CERT != 'true'
+        run: |
+          perl -pi -e 's/^\[macos\]$/[macos]\nsigning-identity = "-"/' packaging/Packager.toml
+          grep -q '^signing-identity = "-"' packaging/Packager.toml
+          cargo packager --config packaging/Packager.toml --release --formats app,dmg
+      # TCC attributes privacy grants by the signature: it must name app.snapoleon and cover the Info.plist.
+      - name: Verify the app signature
+        run: |
+          app=target/packager/Snapoleon.app
+          codesign --verify --strict --deep --verbose=2 "$app"
+          codesign -dv "$app" 2>&1 | tee "$RUNNER_TEMP/codesign.txt"
+          grep -q '^Identifier=app.snapoleon$' "$RUNNER_TEMP/codesign.txt"
+          grep -q '^Info.plist entries=' "$RUNNER_TEMP/codesign.txt"
+          test "$(/usr/libexec/PlistBuddy -c 'Print :LSMinimumSystemVersion' "$app/Contents/Info.plist")" = 14.0
+          test "$(/usr/libexec/PlistBuddy -c 'Print :CFBundleShortVersionString' "$app/Contents/Info.plist")" = "$V"
+          test "$("$app/Contents/MacOS/snapoleon" --version)" = "snapoleon $V"
       - name: Collect
         run: |
           mkdir -p dist
           cp target/packager/*.dmg "dist/Snapoleon-$V-macos-universal.dmg"
-      - name: Sign and notarize DMG
-        if: env.APPLE_CERTIFICATE != '' && env.APPLE_ID != ''
+      - name: Notarize and staple the DMG
+        if: env.HAS_APPLE_CERT == 'true'
+        env:
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_PASSWORD: ${{ secrets.APPLE_APP_PASSWORD }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
         run: |
+          if [ -z "$APPLE_ID" ]; then
+            echo "::warning::APPLE_ID is not set: the DMG is signed but not notarized"
+            exit 0
+          fi
           dmg="dist/Snapoleon-$V-macos-universal.dmg"
-          codesign --force --sign "$APPLE_SIGNING_IDENTITY" --timestamp "$dmg"
           xcrun notarytool submit "$dmg" --apple-id "$APPLE_ID" --password "$APPLE_PASSWORD" --team-id "$APPLE_TEAM_ID" --wait
           xcrun stapler staple "$dmg"
       - uses: actions/upload-artifact@v4
@@ -218,7 +259,12 @@ jobs:
           key: release-${{ matrix.target }}
       - name: Set version
         run: |
-          v="${VERSION#v}"
+          # Cargo.toml is the source of truth; the workflow cannot bump it without breaking --locked.
+          v="$(sed -n 's/^version = "\(.*\)"/\1/p' Cargo.toml | head -1)"
+          if [ "$v" != "${VERSION#v}" ]; then
+            echo "::error::the release is ${VERSION#v} but Cargo.toml says $v; bump [workspace.package] version first"
+            exit 1
+          fi
           echo "V=$v" >> "$GITHUB_ENV"
           sed -i "s/^version = \".*\"/version = \"$v\"/" packaging/Packager.toml
       - name: Build

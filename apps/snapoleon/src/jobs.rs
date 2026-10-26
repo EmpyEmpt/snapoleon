@@ -119,5 +119,6 @@ pub fn response(outcome: &Outcome) -> Response {
         path: outcome.file.as_ref().map(|p| p.display().to_string()),
         url: outcome.link.as_ref().map(|l| l.best().to_string()),
         text: outcome.text.clone(),
+        ..Response::default()
     }
 }
