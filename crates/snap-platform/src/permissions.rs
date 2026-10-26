@@ -50,10 +50,11 @@ pub fn status(p: Perm) -> Status {
     imp::undecided_status(p)
 }
 
-/// Show the system prompt, but only while the permission is undecided (the call would do nothing otherwise).
+/// Show the system prompt while the permission is undecided. Once decided the call does nothing visible; it is made
+/// anyway because a reset made outside the app (`tccutil`, the minus button in System Settings) makes it undecided
+/// again without clearing the remembered "asked" that [`status`] goes by.
 pub fn request(p: Perm) {
-    if status(p) != Status::NotDetermined {
-        tracing::info!("permission {p:?} already decided; not prompting");
+    if imp::granted(p) {
         return;
     }
     tracing::info!("requesting permission {p:?}");
@@ -65,6 +66,11 @@ pub fn request(p: Perm) {
 /// Open the OS settings page where the user can grant the permission.
 pub fn open_settings(p: Perm) {
     tracing::info!("opening system settings for {p:?}");
+    // Screen Recording and Accessibility list only apps that asked. Asking again does nothing visible once decided,
+    // but after a reset made outside the app it puts Snapoleon back in the list the user is sent to.
+    if matches!(p, Perm::ScreenRecording | Perm::Accessibility) && !imp::granted(p) {
+        imp::request(p);
+    }
     imp::open_settings(p);
     sent_to_grant(p);
 }

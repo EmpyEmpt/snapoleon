@@ -334,6 +334,11 @@ impl HotkeyManager {
         self.routes.escape.store(on, Ordering::SeqCst);
         Ok(())
     }
+
+    /// Whether the OS holds plain Escape for us right now: never on the Wayland portal, nor after a refused grab.
+    pub fn escape_grabbed(&self) -> bool {
+        self.routes.escape.load(Ordering::SeqCst)
+    }
 }
 
 impl Drop for HotkeyManager {

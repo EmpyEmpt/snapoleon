@@ -199,6 +199,9 @@ struct SettingsView {
     drill: Option<String>,
     /// A text field had the keyboard last frame (egui has already taken it away when Escape arrives).
     typing: bool,
+    /// A sidebar pick (`Some(page)`) or a step back (`None`), applied after the content pass: a secret field is stored
+    /// only when it loses the focus, which it can report only while it is still drawn.
+    leave: Option<Option<SettingsPage>>,
 }
 
 impl SettingsView {
@@ -218,6 +221,7 @@ impl SettingsView {
             scroll_top: false,
             drill: None,
             typing: false,
+            leave: None,
         }
     }
 
@@ -238,8 +242,13 @@ impl SettingsView {
         let back = ctx.input_mut(|i| i.consume_key(Modifiers::COMMAND, Key::OpenBracket))
             || (!self.typing && !egui::Popup::is_any_open(ctx) && ctx.input_mut(|i| i.consume_key(Modifiers::NONE, Key::Escape)));
         if back {
-            self.pages.reset_drill();
-            self.scroll_top = true;
+            // Take the keyboard away, so a field still drawn this frame stores what was typed into it.
+            ctx.memory_mut(|m| {
+                if let Some(id) = m.focused() {
+                    m.surrender_focus(id);
+                }
+            });
+            self.leave = Some(None);
         }
     }
 
@@ -335,7 +344,8 @@ impl SettingsView {
             picked
         });
         if let Some(page) = out.inner {
-            self.go(page);
+            // The click takes the focus from a text field, which stores what was typed in the content pass.
+            self.leave = Some(Some(page));
         }
         // In a short window the list scrolls; fade the cut edges so it does not look like it simply ends.
         let (rect, offset) = (out.inner_rect, out.state.clamped_offset().y);
@@ -498,6 +508,18 @@ impl View for SettingsView {
             egui::Panel::left("settings-nav").exact_size(200.0).resizable(false).frame(sidebar).show(ui, |ui| self.nav(ui));
             egui::CentralPanel::default().frame(Frame::new().fill(p.bg)).show(ui, |ui| self.content(ui, cx));
         });
+        match self.leave.take() {
+            Some(Some(page)) => {
+                self.go(page);
+                ctx.request_repaint();
+            }
+            Some(None) => {
+                self.pages.reset_drill();
+                self.scroll_top = true;
+                ctx.request_repaint();
+            }
+            None => {}
+        }
 
         self.commit(cx, ctx);
         self.typing = ctx.text_edit_focused();

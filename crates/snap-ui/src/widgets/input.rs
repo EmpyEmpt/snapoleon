@@ -403,11 +403,14 @@ fn dropdown_inner<T: PartialEq + Clone>(ui: &mut Ui, value: &mut T, options: &[(
     let style = text::body_style();
     let height = control_height(ui);
     let widest = options.iter().map(|(_, l)| util::layout(ui, l, &style, p.text).size().x).fold(0.0_f32, f32::max);
-    // One long option must not make the control push its neighbours out; the open list shows it in full.
+    // One long option must not make the control push its neighbours out; the open list widens to it, up to the
+    // window's width.
     let combo = ui.spacing().combo_width;
     let width = (widest + 12.0 + 34.0).max(combo).min(MAX_CLOSED_WIDTH.max(combo));
 
     let (rect, resp) = ui.allocate_exact_size(Vec2::new(width, height), Sense::click());
+    // An egui popup moves left to stay inside the window, so a list wider than the control still fits.
+    let list_w = (widest + 12.0 + 34.0).max(rect.width()).min(popup::popup_bounds(ui.ctx(), rect).width().max(rect.width()));
     let selected = options.iter().position(|(v, _)| v == value);
     let name = util::control_name(ui);
     resp.widget_info(|| util::valued_info(name.as_deref(), Role::ComboBox, ui.is_enabled(), selected.map_or("", |i| options[i].1)));
@@ -462,13 +465,13 @@ fn dropdown_inner<T: PartialEq + Clone>(ui: &mut Ui, value: &mut T, options: &[(
     popup
         .close_behavior(PopupCloseBehavior::CloseOnClickOutside)
         .frame(frame)
-        .width(rect.width())
+        .width(list_w)
         .style(move |s: &mut egui::Style| {
             *s = (*popup_style).clone();
             s.spacing.item_spacing.y = 2.0;
         })
         .show(|ui| {
-            ui.set_min_width(rect.width() - 8.0);
+            ui.set_min_width(list_w - 8.0);
             let reveal = !ui.is_sizing_pass() && !ui.data(|d| d.get_temp::<bool>(revealed_id).unwrap_or(false));
             popup::scroll_body(ui, max_h - chrome, |ui| {
                 for (i, (opt, label)) in options.iter().enumerate() {
@@ -508,7 +511,11 @@ fn menu_row(ui: &mut Ui, label: &str, selected: bool) -> Response {
         let painter = ui.painter();
         painter.rect_filled(rect, 6.0, p.hover().gamma_multiply(hover.max(highlight)));
         let fg = if selected { p.accent } else { p.text };
-        let galley = util::layout(ui, label, &text::body_style(), fg);
+        // Ellipsized to stay inside the list (only an option wider than the window gets cut) and clear of the check.
+        let mut job = LayoutJob::simple_singleline(label.to_owned(), util::font_id(ui, &text::body_style()), fg);
+        job.wrap =
+            TextWrapping { max_width: rect.width() - 10.0 - 28.0, max_rows: 1, break_anywhere: true, overflow_character: Some('…') };
+        let galley = ui.painter().layout_job(job);
         let pos = Pos2::new(rect.left() + 10.0, rect.center().y - galley.size().y / 2.0);
         ui.painter().galley(util::snap(ui, pos), galley, fg);
         if selected {

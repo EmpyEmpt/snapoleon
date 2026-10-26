@@ -174,6 +174,8 @@ fn picker_popup(ui: &Ui, resp: &Response, color: &mut [u8; 4], alpha: bool, p: &
         .frame(frame)
         .style(move |s: &mut egui::Style| *s = (*style).clone())
         .show(|ui| {
+            // The scroll area takes all the width it is given, and a popup opening has egui's 600 pt default.
+            ui.set_max_width(PICKER_W);
             super::popup::scroll_body(ui, max_h - 2.0 * 12.0 - 2.0, |ui| {
                 changed = color_picker(ui, color, alpha).changed();
             });

@@ -377,8 +377,9 @@ mod imp {
     }
 
     /// The preview as an attachment. The framework moves an attached file into its own store, and `image` may be the
-    /// user's saved screenshot, so a copy in the cache is attached instead.
-    fn attachment(image: &Path, id: &str) -> Option<Retained<UNNotificationAttachment>> {
+    /// user's saved screenshot, so a copy in the cache is attached instead; its path is returned with it, for removal
+    /// when the notification is never added.
+    fn attachment(image: &Path, id: &str) -> Option<(Retained<UNNotificationAttachment>, PathBuf)> {
         let ext = image.extension().and_then(|e| e.to_str()).unwrap_or("png");
         let dir = paths::cache_dir().join("notify");
         std::fs::create_dir_all(&dir).ok()?;
@@ -387,7 +388,7 @@ mod imp {
         let url = NSURL::from_file_path(&copy)?;
         // SAFETY: no options dictionary is passed.
         match unsafe { UNNotificationAttachment::attachmentWithIdentifier_URL_options_error(ns_string!("preview"), &url, None) } {
-            Ok(attachment) => Some(attachment),
+            Ok(attachment) => Some((attachment, copy)),
             Err(e) => {
                 tracing::debug!("notification preview: {}", e.localizedDescription());
                 let _ = std::fs::remove_file(&copy);
@@ -440,8 +441,13 @@ mod imp {
         let info: Retained<NSDictionary<NSString, NSString>> = NSDictionary::from_slices(&keys, &values);
         // SAFETY: string keys and string values are property-list types, which is what userInfo must hold.
         unsafe { content.setUserInfo(&Retained::cast_unchecked::<NSDictionary>(info)) };
-        if let Some(attachment) = notice.image.as_deref().filter(|p| p.is_file()).and_then(|p| attachment(p, &id)) {
+        // Once the user has said no nothing is added, so there is no point copying the preview.
+        let mut copy: Option<PathBuf> = None;
+        if !blocked()
+            && let Some((attachment, path)) = notice.image.as_deref().filter(|p| p.is_file()).and_then(|p| attachment(p, &id))
+        {
             content.setAttachments(&NSArray::from_retained_slice(&[attachment]));
+            copy = Some(path);
         }
         let request = UNNotificationRequest::requestWithIdentifier_content_trigger(&NSString::from_str(&id), &content, None);
 
@@ -451,22 +457,39 @@ mod imp {
         let fallback = (notice.title.clone(), notice.plain_body().to_string());
         let then_add = RcBlock::new(move |granted: Bool, e: *mut NSError| {
             if !granted.as_bool() {
-                if e.is_null() {
-                    // The user said no; respect it.
-                    STATUS.store(STATUS_BLOCKED, Ordering::Relaxed);
-                    tracing::info!("notifications are turned off for Snapoleon");
-                } else {
-                    // The system refuses the app itself (a build without a stable signature): the plain banner
-                    // still tells the user what happened.
-                    tracing::warn!("notifications unavailable: {}", error_text(e));
-                    let _ = show(&fallback.0, &fallback.1, None);
+                // Nothing is added, so the framework never takes the preview's copy.
+                if let Some(copy) = &copy {
+                    let _ = std::fs::remove_file(copy);
                 }
+                // macOS reports every refusal as UNErrorDomain code 1, whether the user turned notifications off or
+                // the system does not know the app (a build without a stable signature); only the authorization
+                // status tells them apart.
+                let reason = error_text(e);
+                let fallback = fallback.clone();
+                let check = RcBlock::new(move |settings: std::ptr::NonNull<UNNotificationSettings>| {
+                    // SAFETY: the framework passes a valid settings object for the duration of the call.
+                    if unsafe { settings.as_ref() }.authorizationStatus() == UNAuthorizationStatus::Denied {
+                        // The user said no; respect it.
+                        STATUS.store(STATUS_BLOCKED, Ordering::Relaxed);
+                        tracing::info!("notifications are turned off for Snapoleon");
+                    } else {
+                        // The system refuses the app itself: the plain banner still tells the user what happened.
+                        tracing::warn!("notifications unavailable: {reason}");
+                        let _ = show(&fallback.0, &fallback.1, None);
+                    }
+                });
+                UNUserNotificationCenter::currentNotificationCenter().getNotificationSettingsWithCompletionHandler(&check);
                 return;
             }
             STATUS.store(STATUS_ALLOWED, Ordering::Relaxed);
-            let added = RcBlock::new(|e: *mut NSError| {
+            let copy = copy.clone();
+            let added = RcBlock::new(move |e: *mut NSError| {
                 if !e.is_null() {
                     tracing::warn!("notification failed: {}", error_text(e));
+                    // A rejected request may leave the copy where it was; removing one that was moved fails harmlessly.
+                    if let Some(copy) = &copy {
+                        let _ = std::fs::remove_file(copy);
+                    }
                 }
             });
             UNUserNotificationCenter::currentNotificationCenter().addNotificationRequest_withCompletionHandler(&request, Some(&added));

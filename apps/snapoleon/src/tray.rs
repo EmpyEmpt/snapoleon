@@ -255,6 +255,30 @@ impl App {
         if let Some(tray) = &mut self.tray {
             refresh(tray, &self.settings, state);
         }
+        self.arm_tray_expiry(&recent);
+    }
+
+    /// Rebuild the menu when the latest capture's quick actions run out; nothing else would, and the menu opens
+    /// without asking the app.
+    fn arm_tray_expiry(&mut self, recent: &[Entry]) {
+        let now = Local::now().timestamp_millis();
+        let Some(deadline) = recent.first().map(|e| e.created_ms + FRESH_MS).filter(|d| *d > now) else { return };
+        if self.tray_expiry == Some(deadline) {
+            return;
+        }
+        self.tray_expiry = Some(deadline);
+        let Some(proxy) = self.tray_proxy.clone() else { return };
+        std::thread::spawn(move || {
+            // The wall clock in short steps: a monotonic sleep stands still while the machine sleeps.
+            loop {
+                let left = deadline - Local::now().timestamp_millis();
+                if left <= 0 {
+                    break;
+                }
+                std::thread::sleep(std::time::Duration::from_millis(left.min(30_000) as u64));
+            }
+            proxy.send(AppEvent::RefreshTray);
+        });
     }
 
     pub(crate) fn on_tray(&mut self, sh: &mut Shell<AppEvent>, event: TrayEvent) {
@@ -357,6 +381,8 @@ impl App {
         match create(sh.proxy(), &self.settings, State { recent: &recent, recording: self.recording, pins: false }) {
             Ok(tray) => {
                 self.tray = Some(tray);
+                self.tray_proxy = Some(sh.proxy());
+                self.arm_tray_expiry(&recent);
                 tracing::info!("tray ready");
             }
             Err(e) => {

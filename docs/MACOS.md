@@ -76,6 +76,8 @@ tccutil reset ScreenCapture app.snapoleon
 tccutil reset Accessibility app.snapoleon
 tccutil reset ListenEvent app.snapoleon     # Input Monitoring
 tccutil reset Microphone app.snapoleon
+defaults delete app.snapoleon SnapoleonAskedScreenRecording   # the app's memory that it asked
+defaults delete app.snapoleon SnapoleonAskedAccessibility
 ```
 
 After granting Screen Recording macOS offers Quit & Reopen; capture works in the reopened app. If a switch in System

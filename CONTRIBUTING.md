@@ -35,7 +35,9 @@ for capture, permissions, notifications, hotkeys or `snapoleon://` links. For th
 3. `packaging/macos/bundle.sh --debug --install` builds, signs and installs `/Applications/Snapoleon.app` and starts
    it. `--run` opens the build without installing.
 4. Reset the permissions to test first-run flows: `bundle.sh --reset-permissions`, or
-   `tccutil reset ScreenCapture|Accessibility|ListenEvent|Microphone app.snapoleon`.
+   `tccutil reset ScreenCapture|Accessibility|ListenEvent|Microphone app.snapoleon` plus
+   `defaults delete app.snapoleon SnapoleonAskedScreenRecording|SnapoleonAskedAccessibility` (the app's memory that it
+   asked).
 5. The log is `~/Library/Application Support/app.Snapoleon.Snapoleon/logs/snapoleon.log`;
    `snapoleon doctor` shows the signature and the permissions of the app and of your terminal.
 

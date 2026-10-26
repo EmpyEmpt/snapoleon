@@ -489,7 +489,13 @@ pub fn browse(cx: &mut ViewCx, current: &str, target: Pick) {
     let current = current.to_owned();
     cx.spawn(move || {
         let mut dialog = rfd::FileDialog::new();
-        let start = if matches!(target, Pick::SaveDir) { ensure_save_dir(&current) } else { PathBuf::from(&current) };
+        let start = match target {
+            // An empty field means the default save folder: create it so the chooser opens there, not in Documents.
+            Pick::SaveDir if current.trim().is_empty() => ensure_save_dir(&current),
+            // A typed path may be half-written; resolve `~` but create nothing.
+            Pick::SaveDir => snap_core::paths::save_dir(&current),
+            _ => PathBuf::from(&current),
+        };
         if let Some(dir) = start.ancestors().find(|p| p.is_dir()) {
             dialog = dialog.set_directory(dir);
         }

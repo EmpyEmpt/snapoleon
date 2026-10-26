@@ -173,20 +173,39 @@ const MAC_DEFAULTS_REV0: [(&str, Action); 7] = [
 
 /// Moves bindings written with the defaults of revision `from_rev` to the current defaults. Only a binding that still
 /// holds its old default (same action, same accelerator) is touched, so a shortcut the user picked is kept; its
-/// pipeline and enabled state stay as they are. A binding is also left alone when its new default is already taken
-/// by a binding that is not being moved.
+/// pipeline and enabled state stay as they are. A binding is also left alone when its new default is held by a
+/// binding that keeps its accelerator, including an old default that cannot move itself.
 pub(crate) fn migrate(bindings: &mut [HotkeyBinding], from_rev: u32) {
     if from_rev >= 1 || !cfg!(target_os = "macos") {
         return;
     }
-    let stale: Vec<bool> =
-        bindings.iter().map(|b| MAC_DEFAULTS_REV0.iter().any(|(accel, action)| *action == b.action && *accel == b.accel)).collect();
     let defaults = default_bindings();
-    for i in (0..bindings.len()).filter(|&i| stale[i]) {
-        let Some(new) = defaults.iter().find(|d| d.action == bindings[i].action) else { continue };
-        let taken = bindings.iter().enumerate().any(|(j, other)| !stale[j] && same_accel(&other.accel, &new.accel));
-        if !taken {
-            bindings[i].accel = new.accel.clone();
+    // The new accelerator for every binding that still holds its old default; `None` = stays where it is.
+    let mut moves: Vec<Option<String>> = bindings
+        .iter()
+        .map(|b| {
+            let stale = MAC_DEFAULTS_REV0.iter().any(|(accel, action)| *action == b.action && *accel == b.accel);
+            stale.then(|| defaults.iter().find(|d| d.action == b.action).map(|d| d.accel.clone())).flatten()
+        })
+        .collect();
+    // A move is dropped when its target is held by a binding that stays. Dropping one makes that binding stay too,
+    // which can block another move (old OCR Cmd+Shift+2 vs. new CaptureRegion Shift+Cmd+2), so repeat until stable.
+    loop {
+        let mut changed = false;
+        for i in 0..bindings.len() {
+            let Some(new) = &moves[i] else { continue };
+            if (0..bindings.len()).any(|j| moves[j].is_none() && same_accel(&bindings[j].accel, new)) {
+                moves[i] = None;
+                changed = true;
+            }
+        }
+        if !changed {
+            break;
+        }
+    }
+    for (binding, new) in bindings.iter_mut().zip(moves) {
+        if let Some(accel) = new {
+            binding.accel = accel;
         }
     }
 }

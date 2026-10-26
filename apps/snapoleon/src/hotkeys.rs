@@ -1,6 +1,12 @@
 //! Global hotkeys: owns the platform `HotkeyManager` and maps its events to bindings.
 
-use snap_core::{Error, Result, hotkey::HotkeyBinding, t};
+use std::sync::atomic::{AtomicBool, Ordering};
+
+use snap_core::{
+    Error, Result,
+    hotkey::{Action, HotkeyBinding},
+    t,
+};
 use snap_engine::{Notice, NoticeKind};
 use snap_platform::hotkeys::{self, HotkeyEvent, HotkeyManager};
 use snap_shell::{Proxy, Shell};
@@ -81,13 +87,39 @@ impl Hotkeys {
         if let Err(e) = self.manager.grab_escape(on) {
             tracing::warn!("cannot take Escape while the overlay or a count-down is up: {e}");
         }
+        ESCAPE_HELD.store(self.manager.escape_grabbed(), Ordering::Relaxed);
     }
+}
+
+/// The OS holds Escape for us (see `Hotkeys::grab_escape`); false without global hotkeys.
+static ESCAPE_HELD: AtomicBool = AtomicBool::new(false);
+
+/// Whether a press of Escape reaches the app right now, whatever has the keyboard focus. Views that cannot take the
+/// focus, like the count-down tile, offer Escape only then.
+pub(crate) fn escape_held() -> bool {
+    ESCAPE_HELD.load(Ordering::Relaxed)
 }
 
 /// Escape pressed anywhere while it was grabbed: end the overlay session and drop a delayed capture's count-down.
 fn escape(cx: &mut OpenCx) {
     overlay::cancel(cx);
     countdown::cancel(cx);
+}
+
+/// The hotkeys that take a running overlay session down: every capture, and every action that opens the overlay.
+fn ends_session(action: Action) -> bool {
+    action.is_capture()
+        || matches!(
+            action,
+            Action::RecordRegion
+                | Action::RecordGif
+                | Action::OcrRegion
+                | Action::DecodeCodesRegion
+                | Action::TranslateRegion
+                | Action::ColorPicker
+                | Action::Measure
+                | Action::PinRegion
+        )
 }
 
 fn conflicts(bindings: &[HotkeyBinding], refused: impl IntoIterator<Item = (usize, Error)>) -> Vec<Conflict> {
@@ -160,6 +192,10 @@ impl App {
     pub(crate) fn on_hotkey(&mut self, sh: &mut Shell<AppEvent>, index: usize) {
         let binding = self.hotkeys.as_ref().and_then(|h| h.binding(index)).cloned();
         match binding {
+            // A capture or overlay hotkey during a session takes it down: it is the one key that always reaches the
+            // app, whatever has the keyboard focus. Only the user's own key press does this; a delayed capture's
+            // count-down, IPC and links that arrive mid-session are dropped.
+            Some(binding) if ends_session(binding.action) && overlay::active() => self.open_with(sh, overlay::cancel),
             Some(binding) => self.start_action(sh, binding.action, binding.pipeline),
             None => tracing::debug!("hotkey {index} has no binding"),
         }
