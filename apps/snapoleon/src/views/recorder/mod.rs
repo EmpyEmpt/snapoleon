@@ -475,6 +475,8 @@ fn preflight(options: &RecordOptions) -> Option<Failure> {
     let wanted = [
         (Perm::ScreenRecording, true, "record.error.screen_permission"),
         (Perm::Microphone, options.microphone, "record.error.microphone_permission"),
+        // Keystrokes only: click highlights need no permission.
+        (Perm::InputMonitoring, options.show_keystrokes, "record.error.input_permission"),
     ];
     wanted.into_iter().find(|(perm, needed, _)| *needed && !permissions::granted(*perm)).map(|(perm, _, message)| {
         // The first request shows the system prompt; after a denial only the settings page helps.

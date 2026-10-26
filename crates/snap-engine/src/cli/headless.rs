@@ -230,6 +230,11 @@ fn record_cmd(args: RecordArgs, settings: Settings) -> Result<i32> {
     let context = snap_capture::foreground_window().map(|w| snap_capture::context_for_window(&w)).unwrap_or_default();
 
     let interrupted = interrupted();
+    // This command is an explicit request, so let macOS ask for Screen Recording here (snap-record never prompts).
+    let screen = snap_platform::permissions::Perm::ScreenRecording;
+    if !snap_platform::permissions::granted(screen) {
+        snap_platform::permissions::request(screen);
+    }
     let recorder = snap_record::start(options)?;
     eprintln!("{}", t(if args.duration.is_some() { "cli.record.started_timed" } else { "cli.record.started" }));
     let enter = Arc::new(AtomicBool::new(false));

@@ -14,6 +14,8 @@ mod tesseract;
 #[cfg(feature = "ocrs")]
 mod ocrs_engine;
 
+use std::time::{Duration, Instant};
+
 use serde::{Deserialize, Serialize};
 use snap_core::settings::{OcrEngine, OcrSettings};
 use snap_core::{Error, RectF, Result, RgbaImage, Settings, t, tf};
@@ -75,6 +77,31 @@ pub fn recognize(img: &RgbaImage, s: &OcrSettings) -> Result<OcrResult> {
         }
     }
     Err(Error::NotFound(tf("ocr.error.no_engine", &[("details", &failures.join("; "))])))
+}
+
+/// Run one tiny recognition in the background so the first real one is fast. Apple Vision compiles its models on
+/// the first request of every new executable, which takes about half a minute after each install or update; after
+/// that a request takes about 0.1 s, so this runs on every launch. The other native engines start quickly, so
+/// elsewhere this does nothing.
+pub fn prewarm(s: &OcrSettings) {
+    if !cfg!(target_os = "macos") || !matches!(s.engine, OcrEngine::Auto | OcrEngine::Native) {
+        return;
+    }
+    let languages = s.languages.clone();
+    let spawned = std::thread::Builder::new().name("snap-ocr-prewarm".into()).spawn(move || {
+        // Startup work comes first; nobody asks for text in the first seconds.
+        std::thread::sleep(Duration::from_secs(3));
+        let began = Instant::now();
+        // A blank picture is enough: the models are compiled before anything is detected.
+        let blank = RgbaImage::from_pixel(64, 32, image::Rgba([255; 4]));
+        match platform::recognize(&blank, &languages) {
+            Ok(_) => tracing::info!("text recognition ready after {} ms", began.elapsed().as_millis()),
+            Err(e) => tracing::debug!("text recognition warm-up: {e}"),
+        }
+    });
+    if let Err(e) = spawned {
+        tracing::debug!("text recognition warm-up: {e}");
+    }
 }
 
 fn run_engine(engine: OcrEngine, img: &RgbaImage, s: &OcrSettings) -> Result<OcrResult> {

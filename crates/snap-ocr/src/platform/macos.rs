@@ -9,13 +9,11 @@ use objc2::{
     rc::{Retained, autoreleasepool},
     runtime::AnyObject,
 };
-use objc2_foundation::{NSArray, NSData, NSDictionary, NSError, NSRange, NSString};
+use objc2_foundation::{NSArray, NSData, NSDictionary, NSError, NSLocale, NSRange, NSString};
 use objc2_vision::{VNImageRequestHandler, VNRecognizeTextRequest, VNRequest, VNRequestTextRecognitionLevel};
 use snap_core::{Error, RectF, Result, RgbaImage};
 
 use crate::{OcrLine, OcrResult, OcrWord};
-
-const DEFAULT_LANGS: [&str; 2] = ["en-US", "ru-RU"];
 
 fn vision(e: Retained<NSError>) -> Error {
     Error::Other(anyhow!("Vision: {}", e.localizedDescription()))
@@ -34,10 +32,25 @@ pub(crate) fn status() -> (bool, String) {
     (true, "Apple Vision".into())
 }
 
-/// Requested tags mapped onto languages Vision supports (exact, then same primary subtag).
+/// The user's preferred languages (System Settings, Language & Region), then English as the last resort.
+fn profile_languages() -> Vec<String> {
+    let mut langs: Vec<String> = NSLocale::preferredLanguages().iter().map(|s| s.to_string()).collect();
+    if !langs.iter().any(|l| l.starts_with("en")) {
+        langs.push("en-US".into());
+    }
+    langs
+}
+
+/// Requested tags mapped onto languages Vision supports (exact, then same primary subtag). Nothing requested
+/// means the user's profile languages.
 fn resolve_languages(wanted: &[String], supported: &[String]) -> Vec<String> {
-    let defaults: Vec<String> = DEFAULT_LANGS.iter().map(|s| s.to_string()).collect();
-    let wanted = if wanted.is_empty() { defaults.as_slice() } else { wanted };
+    let profile;
+    let wanted = if wanted.is_empty() {
+        profile = profile_languages();
+        profile.as_slice()
+    } else {
+        wanted
+    };
     if supported.is_empty() {
         return wanted.to_vec();
     }
@@ -68,6 +81,8 @@ fn run(png: &[u8], size: (f64, f64), wanted: &[String]) -> Result<OcrResult> {
     let request = VNRecognizeTextRequest::new();
     request.setRecognitionLevel(VNRequestTextRecognitionLevel::Accurate);
     request.setUsesLanguageCorrection(true);
+    // Without a configured choice the profile languages are a guess; let Vision detect the text's language too.
+    request.setAutomaticallyDetectsLanguage(wanted.is_empty());
     let langs = resolve_languages(wanted, &supported(&request));
     if !langs.is_empty() {
         let ns: Vec<Retained<NSString>> = langs.iter().map(|l| NSString::from_str(l)).collect();
